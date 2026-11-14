@@ -211,9 +211,11 @@ const encoderArgs = (encoder: Encoder): string[] => {
       // forced_idr: without it AMF ignores the forced keyframes and cuts ~10 s pieces, which breaks the playlist's timeline.
       return ['-c:v', 'h264_amf', '-usage', 'transcoding', '-quality', 'speed', '-rc', 'vbr_peak', '-forced_idr', '1'];
     case 'h264_nvenc':
-      return ['-c:v', 'h264_nvenc', '-preset', 'p4', '-rc', 'vbr'];
+      // forced-idr: same for NVIDIA. Without it the forced keyframes aren't cut points, so each "4 s" piece held
+      // ~11 s (the next real keyframe), ~2.8× the bitrate the playlist implies, and remote playback kept stalling.
+      return ['-c:v', 'h264_nvenc', '-preset', 'p4', '-rc', 'vbr', '-forced-idr', '1'];
     case 'h264_qsv':
-      return ['-c:v', 'h264_qsv', '-preset', 'veryfast'];
+      return ['-c:v', 'h264_qsv', '-preset', 'veryfast', '-forced_idr', '1'];
     default:
       return ['-c:v', 'libx264', '-preset', 'veryfast', '-tune', 'film'];
   }

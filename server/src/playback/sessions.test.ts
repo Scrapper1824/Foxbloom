@@ -48,12 +48,15 @@ const FAKE_COPY = `
 const fs = require('fs'), path = require('path');
 const [dir, start, total] = process.argv.slice(1);
 let n = Number(start);
-const t = setInterval(() => {
-  if (n >= Number(total)) return;
-  const f = path.join(dir, 'seg' + n + '.ts');
-  fs.writeFileSync(f, 'half');
-  setTimeout(() => { fs.appendFileSync(path.join(dir, 'done.txt'), 'seg' + n + '.ts\\n'); n++; }, 10);
-}, 25);
+// One piece at a time (a repeating timer could, on a busy machine, start the next piece before the last was
+// listed, and then list a piece it never wrote).
+const next = () => {
+  if (n >= Number(total)) return setTimeout(() => {}, 60000);
+  const name = 'seg' + n + '.ts';
+  fs.writeFileSync(path.join(dir, name), 'half');
+  setTimeout(() => { fs.appendFileSync(path.join(dir, 'done.txt'), name + '\\n'); n++; setTimeout(next, 15); }, 10);
+};
+next();
 `;
 
 const session = (userId: number, startAt = 0) =>

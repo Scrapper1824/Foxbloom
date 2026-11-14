@@ -139,6 +139,21 @@ describe('HLS', () => {
     expect(at('-hwaccel')).toBe('auto');
   });
 
+  // Every GPU encoder must turn the forced keyframes into real cut points (IDR frames), or the HLS muxer can
+  // only cut at its own keyframes (~every 10 s): each "4 s" piece then holds ~11 s, the stream runs ~2.8×
+  // over its bitrate and the player stalls. Seen on a live NVIDIA server; AMD had the same problem earlier.
+  it.each([
+    ['h264_amf', '-forced_idr'],
+    ['h264_nvenc', '-forced-idr'],
+    ['h264_qsv', '-forced_idr'],
+  ] as const)('makes %s cut a real keyframe on every 4-second mark', (encoder, flag) => {
+    const d = decidePlayback(probe(), '.mkv', chrome, { ...auto, quality: '720' }, false, 8 * MBPS);
+    const args = hlsArgs('ep.mkv', probe(), d, encoder, 'dir', 0);
+    expect(args[args.indexOf('-c:v') + 1]).toBe(encoder);
+    expect(args[args.indexOf(flag) + 1]).toBe('1');
+    expect(args.indexOf(flag)).toBeGreaterThan(-1);
+  });
+
   it('burns picture subtitles in with an overlay, and uses the CPU encoder without GPU decoding', () => {
     const d = decidePlayback(probe(), '.mkv', chrome, { ...auto, subtitle: 1 }, false, 8 * MBPS);
     const args = hlsArgs('ep.mkv', probe(), d, 'libx264', 'dir', 0);

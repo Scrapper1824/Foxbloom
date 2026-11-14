@@ -898,8 +898,28 @@ export function Player({ info, party }: { info: PlayInfo; party?: PartyBinding }
     }, 3000);
   };
   const poke = () => {
+    setHiddenByTap(false);
     show(true);
     scheduleHide();
+  };
+  /**
+   * Touch screens: a tap on the picture shows the controls, or hides them if they were showing (it never pauses;
+   * that's the ▶/❚❚ button). Whether they were showing is noted when the finger goes down, before the touch
+   * itself brings them up.
+   */
+  const [hiddenByTap, setHiddenByTap] = useState(false);
+  const tap = useRef<{ touch: boolean; wasShown: boolean }>({ touch: false, wasShown: false });
+  const onVideoPointerDown = (e: React.PointerEvent) => {
+    tap.current = { touch: e.pointerType === 'touch', wasShown: shown.current || (!playing && !hiddenByTap) };
+  };
+  const onVideoClick = () => {
+    if (!tap.current.touch) return togglePlay();
+    tap.current.touch = false;
+    if (tap.current.wasShown) {
+      window.clearTimeout(hideTimer.current);
+      show(false);
+      setHiddenByTap(true);
+    } else poke();
   };
   // Leaving the page: a pending hide or seek-bar drag mustn't fire afterwards (a drag would start a new stream).
   useEffect(
@@ -1124,7 +1144,7 @@ export function Player({ info, party }: { info: PlayInfo; party?: PartyBinding }
     <div
       ref={shell}
       data-debug={debug || undefined}
-      className={`watch${controls || !playing ? ' show-controls' : ''}`}
+      className={`watch${controls || (!playing && !hiddenByTap) ? ' show-controls' : ''}`}
       onTouchStart={poke}
     >
       <video
@@ -1133,7 +1153,8 @@ export function Player({ info, party }: { info: PlayInfo; party?: PartyBinding }
         playsInline
         // A party video waits paused for the others, so it should keep loading meanwhile.
         preload={party ? 'auto' : undefined}
-        onClick={togglePlay}
+        onPointerDown={onVideoPointerDown}
+        onClick={onVideoClick}
         onDoubleClick={fullscreen}
         onPlay={() => {
           setPlaying(true);

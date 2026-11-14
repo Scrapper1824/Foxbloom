@@ -1472,8 +1472,13 @@ a.home-card-title:hover { text-decoration: underline; text-underline-offset: 3px
 .invite-note { font-size: 13px; color: #8a8a8a; padding: 6px 4px; }
 .invite-error { color: var(--danger); }
 @media (max-width: 640px) {
-  /* The top bar is the containing block (it is transformed), so this spans the screen under it. */
-  .invite-panel { position: fixed; top: 62px; left: 12px; right: 12px; width: auto; bottom: auto; }
+  /* Phones: the title gets its own row (it was squeezed to a letter by the buttons), the buttons go below it. */
+  .watch-top { flex-wrap: wrap; row-gap: 6px; }
+  .watch-title { flex: 1 1 calc(100% - 60px); }
+  .watch-title span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* The top bar is the containing block (it is transformed), so this spans the screen just under it, whatever its
+     height (the bar's last 40 px are only its fade-out). */
+  .invite-panel { position: fixed; top: calc(100% - 32px); left: 12px; right: 12px; width: auto; bottom: auto; }
 }
 
 .bell { position: relative; }

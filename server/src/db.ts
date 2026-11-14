@@ -357,6 +357,7 @@ function migrate() {
   if (!userCols.includes('role')) db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'");
   if (!userCols.includes('needs_approval')) db.exec('ALTER TABLE users ADD COLUMN needs_approval INTEGER NOT NULL DEFAULT 0');
   if (!userCols.includes('allow_adult')) db.exec('ALTER TABLE users ADD COLUMN allow_adult INTEGER NOT NULL DEFAULT 0');
+  if (!userCols.includes('must_change_password')) db.exec('ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0');
 }
 
 export const now = () => new Date().toISOString();

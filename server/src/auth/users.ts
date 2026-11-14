@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { db, logHistory, now } from '../db.js';
-import { hashPassword, passwordProblem } from './password.js';
+import { hashPassword, passwordProblem, TEMP_PASSWORD } from './password.js';
 import { USERNAME } from './routes.js';
 import { adminCount, countSessions, deleteUserSessions, type Role, type UserRow } from './sessions.js';
 
@@ -15,6 +15,7 @@ function summary(u: UserRow) {
     role: u.role,
     needsApproval: !!u.needs_approval,
     allowAdult: !!u.allow_adult,
+    mustChangePassword: !!u.must_change_password,
     totpEnabled: !!u.totp_enabled,
     sessions: countSessions(u.id),
     createdAt: u.created_at,
@@ -27,22 +28,27 @@ export async function userRoutes(app: FastifyInstance) {
     (db.prepare('SELECT * FROM users ORDER BY role, username COLLATE NOCASE').all() as unknown as UserRow[]).map(summary),
   );
 
-  app.post<{ Body: { username?: string; password?: string; role?: Role; needsApproval?: boolean; allowAdult?: boolean } }>('/api/users', async (req, reply) => {
+  app.post<{ Body: { username?: string; password?: string; tempPassword?: boolean; role?: Role; needsApproval?: boolean; allowAdult?: boolean } }>('/api/users', async (req, reply) => {
     const username = String(req.body?.username ?? '').trim();
     const role = req.body?.role ?? 'user';
     if (!USERNAME.test(username)) return reply.code(400).send({ error: 'Username must be 3–32 letters, numbers, dots, dashes or underscores.' });
     if (!ROLES.includes(role)) return reply.code(400).send({ error: 'Unknown role.' });
     if (db.prepare('SELECT 1 FROM users WHERE username = ?').get(username)) return reply.code(409).send({ error: 'That username is taken.' });
-    const problem = passwordProblem(req.body?.password, username);
-    if (problem) return reply.code(400).send({ error: problem });
+    const temp = req.body?.tempPassword === true;
+    if (!temp) {
+      const problem = passwordProblem(req.body?.password, username);
+      if (problem) return reply.code(400).send({ error: problem });
+    }
     const r = db
-      .prepare('INSERT INTO users (username, password_hash, role, needs_approval, allow_adult, created_at, password_changed_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .run(username, await hashPassword(req.body!.password!), role, req.body?.needsApproval ? 1 : 0, req.body?.allowAdult ? 1 : 0, now(), now());
+      .prepare(
+        'INSERT INTO users (username, password_hash, role, needs_approval, allow_adult, must_change_password, created_at, password_changed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      )
+      .run(username, await hashPassword(temp ? TEMP_PASSWORD : req.body!.password!), role, req.body?.needsApproval ? 1 : 0, req.body?.allowAdult ? 1 : 0, temp ? 1 : 0, now(), now());
     logHistory(null, 'users', `${req.user!.username} added ${role === 'admin' ? 'admin' : 'user'} "${username}"`);
     return summary(getUser(Number(r.lastInsertRowid))!);
   });
 
-  app.patch<{ Params: { id: string }; Body: { role?: Role; password?: string; needsApproval?: boolean; allowAdult?: boolean } }>('/api/users/:id', async (req, reply) => {
+  app.patch<{ Params: { id: string }; Body: { role?: Role; password?: string; tempPassword?: boolean; needsApproval?: boolean; allowAdult?: boolean } }>('/api/users/:id', async (req, reply) => {
     const target = getUser(Number(req.params.id));
     if (!target) return reply.code(404).send({ error: 'User not found.' });
 
@@ -64,11 +70,16 @@ export async function userRoutes(app: FastifyInstance) {
       logHistory(null, 'users', `${req.user!.username} ${req.body.allowAdult ? 'allowed' : 'turned off'} 18+ content for "${target.username}"`);
     }
 
-    if (req.body?.password !== undefined) {
+    if (req.body?.tempPassword === true) {
+      if (target.id === req.user!.id) return reply.code(400).send({ error: 'Change your own password under Security.' });
+      db.prepare('UPDATE users SET password_hash = ?, must_change_password = 1, password_changed_at = ? WHERE id = ?').run(await hashPassword(TEMP_PASSWORD), now(), target.id);
+      deleteUserSessions(target.id);
+      logHistory(null, 'users', `${req.user!.username} gave "${target.username}" a temporary password`);
+    } else if (req.body?.password !== undefined) {
       if (target.id === req.user!.id) return reply.code(400).send({ error: 'Change your own password under Security.' });
       const problem = passwordProblem(req.body.password, target.username);
       if (problem) return reply.code(400).send({ error: problem });
-      db.prepare('UPDATE users SET password_hash = ?, password_changed_at = ? WHERE id = ?').run(
+      db.prepare('UPDATE users SET password_hash = ?, must_change_password = 0, password_changed_at = ? WHERE id = ?').run(
         await hashPassword(req.body.password),
         now(),
         target.id,

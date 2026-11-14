@@ -13,6 +13,9 @@ declare module 'fastify' {
 }
 
 /** The only API routes reachable without signing in. Everything else under /api needs a session. */
+/** All an account on the temporary password may do. */
+const MUST_CHANGE_ALLOWED = new Set(['GET /api/auth/status', 'POST /api/auth/logout', 'POST /api/auth/password']);
+
 export const PUBLIC_API = new Set(['GET /api/auth/status', 'POST /api/auth/login', 'POST /api/auth/setup', 'POST /api/party/:id/guest-join']);
 
 /**
@@ -246,6 +249,10 @@ export function registerSecurity(app: FastifyInstance) {
       if (PUBLIC_API.has(key)) return;
       if (req.guest && GUEST_ALLOWED.has(key)) return;
       return reply.code(401).send({ error: 'Not signed in' });
+    }
+    // Signed in with the temporary password: nothing but choosing a new one (or signing out) until they do.
+    if (req.user.must_change_password && !MUST_CHANGE_ALLOWED.has(key)) {
+      return reply.code(403).send({ error: 'Choose a new password first.', mustChangePassword: true });
     }
     if (req.user.role !== 'admin' && !USER_ALLOWED.has(key)) {
       return reply.code(403).send({ error: 'Only an admin can do that.' });

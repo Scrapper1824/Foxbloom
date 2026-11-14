@@ -21,6 +21,52 @@ function Brand() {
   );
 }
 
+/** After signing in with the temporary password: choose your own before anything else (the server enforces it too). */
+function ChangePasswordScreen({ username }: { username: string }) {
+  const qc = useQueryClient();
+  const [password, setPassword] = useState('');
+  const [again, setAgain] = useState('');
+  const [mismatch, setMismatch] = useState(false);
+  const change = useMutation({
+    mutationFn: () => api.post('/api/auth/password', { currentPassword: 'Temp1234', newPassword: password }),
+    onSuccess: () => qc.resetQueries(),
+  });
+  const logout = useMutation({ mutationFn: () => api.post('/api/auth/logout'), onSuccess: () => qc.resetQueries() });
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (password !== again) return setMismatch(true);
+    setMismatch(false);
+    change.mutate();
+  };
+  return (
+    <div className="auth-page">
+      <form className="auth-card" onSubmit={submit}>
+        <Brand />
+        <h1>Choose your password</h1>
+        <p className="muted small">Welcome, {username}! You signed in with a temporary password. Pick your own to continue.</p>
+        <input type="text" autoComplete="username" value={username} readOnly hidden />
+        <label className="field">
+          <span className="field-label">New password</span>
+          <input className="input" type="password" autoComplete="new-password" autoFocus minLength={12} required value={password} onChange={(e) => setPassword(e.target.value)} />
+          <span className="hint">At least 12 characters.</span>
+        </label>
+        <label className="field">
+          <span className="field-label">Type it again</span>
+          <input className="input" type="password" autoComplete="new-password" minLength={12} required value={again} onChange={(e) => setAgain(e.target.value)} />
+        </label>
+        {mismatch && <div className="error-box">The two passwords don’t match.</div>}
+        {change.error && <div className="error-box">{(change.error as Error).message}</div>}
+        <button className="btn primary full" disabled={change.isPending}>
+          {change.isPending && <Spinner />} Save and continue
+        </button>
+        <button type="button" className="btn ghost full" disabled={logout.isPending} onClick={() => logout.mutate()}>
+          Sign out
+        </button>
+      </form>
+    </div>
+  );
+}
+
 function LoginScreen() {
   const qc = useQueryClient();
   const [username, setUsername] = useState('');
@@ -183,5 +229,6 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   }
   if (auth.data.setupRequired) return <SetupScreen />;
   if (!auth.data.authenticated) return <LoginScreen />;
+  if (auth.data.user?.mustChangePassword) return <ChangePasswordScreen username={auth.data.user.username} />;
   return <>{children}</>;
 }

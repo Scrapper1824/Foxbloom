@@ -8,6 +8,12 @@ const KEYLEN = 64;
 const MAXMEM = 128 * N * R * 2;
 
 export const MIN_PASSWORD_LENGTH = 12;
+/**
+ * What an admin can give a new (or locked-out) user. Known to everyone, so it only gets them as far as choosing
+ * their own password (enforced in security.ts), it can't be chosen again, and it expires if left unused.
+ */
+export const TEMP_PASSWORD = 'Temp1234';
+export const TEMP_PASSWORD_DAYS = 7;
 
 function scrypt(password: string, salt: Buffer, n: number, r: number, p: number, keylen: number): Promise<Buffer> {
   return new Promise((resolve, reject) =>

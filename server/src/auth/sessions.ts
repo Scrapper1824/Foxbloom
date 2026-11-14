@@ -17,6 +17,8 @@ export interface UserRow {
   needs_approval: number;
   /** May see 18+ titles (admins decide, per user; off by default). */
   allow_adult: number;
+  /** Signed in with the temporary password: must choose their own before doing anything else. */
+  must_change_password: number;
   password_hash: string;
   totp_secret: string | null;
   totp_enabled: number;

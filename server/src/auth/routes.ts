@@ -5,7 +5,7 @@ import path from 'node:path';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import QRCode from 'qrcode';
 import { db, now } from '../db.js';
-import { dummyVerify, hashPassword, passwordProblem, verifyPassword } from './password.js';
+import { dummyVerify, hashPassword, passwordProblem, TEMP_PASSWORD, TEMP_PASSWORD_DAYS, verifyPassword } from './password.js';
 import { lockedFor, recordFailure, recordSuccess } from './rateLimit.js';
 import { clearSessionCookie, setSessionCookie } from './security.js';
 import { countSessions, createSession, deleteSession, deleteUserSessions, userCount, type UserRow } from './sessions.js';
@@ -43,7 +43,16 @@ function setupCodeMatches(code: unknown): boolean {
 }
 
 function publicUser(u: UserRow) {
-  return { id: u.id, username: u.username, role: u.role, needsApproval: u.role !== 'admin' && !!u.needs_approval, allowAdult: !!u.allow_adult, totpEnabled: !!u.totp_enabled, sessions: countSessions(u.id) };
+  return {
+    id: u.id,
+    username: u.username,
+    role: u.role,
+    needsApproval: u.role !== 'admin' && !!u.needs_approval,
+    allowAdult: !!u.allow_adult,
+    mustChangePassword: !!u.must_change_password,
+    totpEnabled: !!u.totp_enabled,
+    sessions: countSessions(u.id),
+  };
 }
 
 function signIn(req: FastifyRequest, reply: FastifyReply, user: UserRow) {
@@ -104,6 +113,11 @@ export async function authRoutes(app: FastifyInstance, opts: { dataDir: string }
       return reply.code(401).send({ error: 'Wrong username or password.' });
     }
 
+    // A temporary password nobody used within the week stops working (everyone knows it).
+    if (user.must_change_password && Date.now() - Date.parse(user.password_changed_at) > TEMP_PASSWORD_DAYS * 86_400_000) {
+      return reply.code(401).send({ error: 'This temporary password has expired. Ask an admin for a new one.' });
+    }
+
     if (user.totp_enabled && user.totp_secret) {
       if (!req.body?.code) return reply.code(401).send({ error: 'Enter the code from your authenticator app.', totpRequired: true });
       const counter = verifyCode(user.totp_secret, req.body.code);
@@ -142,7 +156,8 @@ export async function authRoutes(app: FastifyInstance, opts: { dataDir: string }
     }
     const problem = passwordProblem(req.body?.newPassword, user.username);
     if (problem) return reply.code(400).send({ error: problem });
-    db.prepare('UPDATE users SET password_hash = ?, password_changed_at = ? WHERE id = ?').run(
+    if (req.body!.newPassword === TEMP_PASSWORD) return reply.code(400).send({ error: 'Choose a password of your own.' });
+    db.prepare('UPDATE users SET password_hash = ?, must_change_password = 0, password_changed_at = ? WHERE id = ?').run(
       await hashPassword(req.body!.newPassword!),
       now(),
       user.id,

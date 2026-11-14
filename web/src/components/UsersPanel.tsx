@@ -10,6 +10,7 @@ interface UserSummary {
   role: 'admin' | 'user';
   needsApproval: boolean;
   allowAdult: boolean;
+  mustChangePassword: boolean;
   totpEnabled: boolean;
   sessions: number;
   createdAt: string;
@@ -32,14 +33,17 @@ function AddUser() {
   const [role, setRole] = useState<'user' | 'admin'>('user');
   const [approval, setApproval] = useState(false);
   const [adult, setAdult] = useState(false);
+  const [temp, setTemp] = useState(false);
   const add = useMutation({
-    mutationFn: () => api.post('/api/users', { username, password, role, needsApproval: role === 'user' && approval, allowAdult: adult }),
+    mutationFn: () =>
+      api.post('/api/users', { username, ...(temp ? { tempPassword: true } : { password }), role, needsApproval: role === 'user' && approval, allowAdult: adult }),
     onSuccess: () => {
       setUsername('');
       setPassword('');
       setRole('user');
       setApproval(false);
       setAdult(false);
+      setTemp(false);
       qc.invalidateQueries({ queryKey: ['users'] });
     },
   });
@@ -52,7 +56,17 @@ function AddUser() {
       }}
     >
       <input className="input" placeholder="Username" autoComplete="off" value={username} onChange={(e) => setUsername(e.target.value)} required minLength={3} maxLength={32} />
-      <input className="input" type="password" placeholder="Password (12+ characters)" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={12} />
+      <input
+        className="input"
+        type="password"
+        placeholder={temp ? 'Temp1234 (temporary)' : 'Password (12+ characters)'}
+        autoComplete="new-password"
+        value={temp ? '' : password}
+        onChange={(e) => setPassword(e.target.value)}
+        required={!temp}
+        minLength={temp ? undefined : 12}
+        disabled={temp}
+      />
       <select className="input" value={role} onChange={(e) => setRole(e.target.value as 'user' | 'admin')} aria-label="Role">
         <option value="user">User</option>
         <option value="admin">Admin</option>
@@ -71,9 +85,19 @@ function AddUser() {
           <input type="checkbox" checked={adult} onChange={(e) => setAdult(e.target.checked)} />
           <span>Allow 18+ content</span>
         </label>
+        <label className="check" title="They sign in with Temp1234 and must choose their own password straight away. Unused, it stops working after 7 days.">
+          <input type="checkbox" checked={temp} onChange={(e) => setTemp(e.target.checked)} />
+          <span>Temporary password (Temp1234)</span>
+        </label>
       </div>
       {add.error && <div className="error-box full-row">{(add.error as Error).message}</div>}
-      {add.isSuccess && <span className="ok-text small full-row">User added. Share the password with them; they can change it under Account.</span>}
+      {add.isSuccess && (
+        <span className="ok-text small full-row">
+          {(add.data as UserSummary | undefined)?.mustChangePassword
+            ? 'User added. They sign in with Temp1234 and choose their own password straight away (within 7 days).'
+            : 'User added. Share the password with them; they can change it under Account.'}
+        </span>
+      )}
     </form>
   );
 }
@@ -93,7 +117,8 @@ function UserRow({ u, isMe }: { u: UserSummary; isMe: boolean }) {
     }
   };
   const update = useMutation({
-    mutationFn: (body: { role?: string; password?: string; needsApproval?: boolean; allowAdult?: boolean }) => api.patch(`/api/users/${u.id}`, body),
+    mutationFn: (body: { role?: string; password?: string; tempPassword?: boolean; needsApproval?: boolean; allowAdult?: boolean }) =>
+      api.patch(`/api/users/${u.id}`, body),
     onSuccess: () => {
       setResetting(false);
       setPassword('');
@@ -111,6 +136,11 @@ function UserRow({ u, isMe }: { u: UserSummary; isMe: boolean }) {
         </div>
         <div className="muted small user-meta">
           {u.totpEnabled ? <span className="badge ok">2FA on</span> : <span className="badge muted">2FA off</span>}
+          {u.mustChangePassword && (
+            <span className="badge" title="Signs in with Temp1234 and must choose their own password">
+              Temp password
+            </span>
+          )}
           <span>
             {u.sessions} session{u.sessions === 1 ? '' : 's'} · Added {formatDate(u.createdAt)}
           </span>
@@ -184,6 +214,9 @@ function UserRow({ u, isMe }: { u: UserSummary; isMe: boolean }) {
               />
               <button className="btn small primary" disabled={update.isPending}>
                 Set password
+              </button>
+              <button type="button" className="btn small ghost" disabled={update.isPending} onClick={() => update.mutate({ tempPassword: true })}>
+                Use Temp1234 instead
               </button>
               <span className="muted small">They’ll be signed out everywhere.</span>
             </form>

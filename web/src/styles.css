@@ -723,7 +723,18 @@ select.input option { background: var(--raised); }
 .watch-dialog p { margin: 0 0 6px; }
 @media (max-width: 640px) {
   .watch-volume, .watch-bar .watch-icon[aria-label$="10 seconds"] { display: none; }
-  .watch-time { font-size: 12px; }
+  /* Every button has to fit on one row of a phone (fullscreen and settings fell off the right edge). */
+  .watch-bottom { padding: 32px 10px 10px; }
+  .watch-bar, .watch-menu-wrap { gap: 0; }
+  .watch-bar .watch-icon { min-width: 36px; padding: 0; font-size: 16px; }
+  .watch-time { font-size: 12px; margin-left: 4px; }
+  /* Near the end: ⏭ and the countdown already do this, and the text button would push the rest off screen. */
+  .watch-bar .btn.small { display: none; }
+}
+@media (max-width: 370px) {
+  .watch-bottom { padding-left: 6px; padding-right: 6px; }
+  .watch-bar .watch-icon { min-width: 30px; font-size: 15px; }
+  .watch-time { font-size: 11px; margin-left: 2px; }
 }
 .play-btn { text-decoration: none; }
 .ep-play { width: 34px; }

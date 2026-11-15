@@ -14,6 +14,7 @@ import { queueMediaWork, workPending } from '../playback/jobs.js';
 import { getSegments } from '../playback/segments.js';
 import { trickplayManifest, trickplaySheet } from '../playback/trickplay.js';
 import { inTitleDirs } from '../core/rootFolders.js';
+import { addWatch, statsReport, statsUser, watchedBetween } from '../core/stats.js';
 import type { Party } from '../party/state.js';
 import { getParty, isPartyMember, onPartyAdvanced, onPartyEnded, onPartyLeft } from '../party/store.js';
 
@@ -78,14 +79,26 @@ const episodeLink = (e: EpisodeRow | null) =>
 
 const CONTENT_TYPES: Record<string, string> = { '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.webm': 'video/webm' };
 
-function sendRange(req: FastifyRequest, reply: FastifyReply, file: string) {
+/**
+ * A file stream that reports how many bytes it read once it's done (finished, or cut short by the viewer),
+ * so the statistics count data actually sent rather than data asked for.
+ */
+function countedStream(file: string, onDone: (bytes: number) => void, range?: { start: number; end: number }) {
+  const stream = fs.createReadStream(file, range);
+  let bytes = 0;
+  stream.on('data', (chunk) => (bytes += chunk.length));
+  stream.once('close', () => onDone(bytes));
+  return stream;
+}
+
+function sendRange(req: FastifyRequest, reply: FastifyReply, file: string, onDone: (bytes: number) => void = () => {}) {
   const size = fs.statSync(file).size;
   const type = CONTENT_TYPES[path.extname(file).toLowerCase()] ?? 'application/octet-stream';
   reply.header('Accept-Ranges', 'bytes').header('Content-Type', type);
   const m = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? ''));
   if (!m || (!m[1] && !m[2])) {
     reply.header('Content-Length', size);
-    return reply.send(fs.createReadStream(file));
+    return reply.send(countedStream(file, onDone));
   }
   let startByte = m[1] ? Number(m[1]) : size - Number(m[2]);
   let endByte = m[1] && m[2] ? Number(m[2]) : size - 1;
@@ -93,7 +106,7 @@ function sendRange(req: FastifyRequest, reply: FastifyReply, file: string) {
   endByte = Math.min(size - 1, endByte);
   if (startByte > endByte) return reply.code(416).header('Content-Range', `bytes */${size}`).send();
   reply.code(206).header('Content-Range', `bytes ${startByte}-${endByte}/${size}`).header('Content-Length', endByte - startByte + 1);
-  return reply.send(fs.createReadStream(file, { start: startByte, end: endByte }));
+  return reply.send(countedStream(file, onDone, { start: startByte, end: endByte }));
 }
 
 const CAP_KEYS: (keyof ClientCaps)[] = ['mp4', 'webm', 'h264', 'hevc', 'av1', 'vp9', 'aac', 'mp3', 'opus', 'flac', 'ac3', 'eac3'];
@@ -265,7 +278,8 @@ export async function playRoutes(app: FastifyInstance) {
         if (!open.size && guestDirect.get(guestId) === open) guestDirect.delete(guestId);
       });
     }
-    return sendRange(req, reply, p.file);
+    const viewer = statsUser(req.user?.id ?? -(req.guest?.guestId ?? 0));
+    return sendRange(req, reply, p.file, (bytes) => addWatch(viewer, p.media.id, p.episode?.id ?? 0, 0, bytes));
   });
 
   app.get<{ Params: { session: string; file: string } }>('/api/play/hls/:session/:file', async (req, reply) => {
@@ -280,7 +294,11 @@ export async function playRoutes(app: FastifyInstance) {
     // The player abandons requests when you seek again; stop waiting for those.
     const seg = await waitForSegment(s, Number(m[1]), 45_000, () => reply.raw.destroyed || req.raw.destroyed);
     reply.header('Content-Type', 'video/mp2t');
-    return reply.send(fs.createReadStream(seg));
+    const [kind, idText] = s.title.split(':');
+    const id = Number(idText);
+    const mediaId = kind === 'movie' ? id : ((db.prepare('SELECT media_id FROM episodes WHERE id = ?').get(id) as { media_id: number } | undefined)?.media_id ?? 0);
+    const viewer = statsUser(s.userId);
+    return reply.send(countedStream(seg, (bytes) => mediaId && addWatch(viewer, mediaId, kind === 'episode' ? id : 0, 0, bytes)));
   });
 
   app.delete<{ Params: { session: string } }>('/api/play/hls/:session', async (req) => {
@@ -342,6 +360,9 @@ export async function playRoutes(app: FastifyInstance) {
       const p = playable(req.params.kind, req.params.id);
       const episodeId = p.episode?.id ?? 0;
       const before = progressOf(req.user!.id, p.media.id, episodeId);
+      const last = db
+        .prepare('SELECT position, updated_at FROM watch_progress WHERE user_id = ? AND media_id = ? AND episode_id = ?')
+        .get(req.user!.id, p.media.id, episodeId) as { position: number; updated_at: string } | undefined;
       const duration = Math.max(0, Number(req.body?.duration) || 0) || before.duration;
       let position = Math.max(0, Number(req.body?.position) || 0);
       if (duration) position = Math.min(position, duration);
@@ -359,6 +380,11 @@ export async function playRoutes(app: FastifyInstance) {
          ON CONFLICT(user_id, media_id, episode_id) DO UPDATE SET position = excluded.position, duration = excluded.duration,
            watched = excluded.watched, updated_at = excluded.updated_at`,
       ).run(req.user!.id, p.media.id, episodeId, position, duration, watched ? 1 : 0, now());
+      // Statistics: how long they actually watched since the last save (not on a hand-marked watched/unwatched).
+      if (typeof req.body?.watched !== 'boolean') {
+        const seconds = watchedBetween(last ? { position: last.position, savedAt: Date.parse(last.updated_at) } : null, position, Date.now());
+        addWatch(req.user!.id, p.media.id, episodeId, seconds, 0);
+      }
       return { ok: true, watched };
     },
   );
@@ -409,6 +435,11 @@ export async function playRoutes(app: FastifyInstance) {
 
   /** Continue Watching (started, not finished) and Next Up (the episode after the last one finished). */
   app.get('/api/continue', async (req) => continueWatching(req.user!.id, 20, !!req.user!.allow_adult));
+  /** Admins only (not in USER_ALLOWED): who watches what, and data used. ?days=7|30|90, or 0 for all kept. */
+  app.get<{ Querystring: { days?: string } }>('/api/stats', async (req) => {
+    const days = Number(req.query.days ?? 30);
+    return statsReport([0, 7, 30, 90].includes(days) ? days : 30);
+  });
   /** Remove from Continue watching (only for you; watching it again brings it back). */
   app.delete<{ Params: { mediaId: string } }>('/api/continue/:mediaId', async (req, reply) => {
     const id = Number(req.params.mediaId);

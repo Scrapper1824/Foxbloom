@@ -26,6 +26,7 @@ const History = lazy(() => import('./pages/History'));
 const Watchlist = lazy(() => import('./pages/Watchlist'));
 const SettingsPage = lazy(() => import('./pages/Settings'));
 const Requests = lazy(() => import('./pages/Requests'));
+const Stats = lazy(() => import('./pages/Stats'));
 
 interface NavItem {
   to: string;
@@ -51,6 +52,7 @@ const NAV: { heading: string | null; items: NavItem[] }[] = [
       { to: '/requests', label: 'Requests', icon: 'inbox' },
       { to: '/queue', label: 'Downloads', icon: 'queue' },
       { to: '/history', label: 'History', icon: 'history' },
+      { to: '/stats', label: 'Statistics', icon: 'stats' },
       { to: '/settings', label: 'Settings', icon: 'settings' },
     ],
   },
@@ -153,7 +155,7 @@ function Shell() {
           {NAV.map((group, gi) => (
             <div key={gi} className="nav-group">
               {group.heading && <div className="nav-heading">{group.heading}</div>}
-              {group.items.filter((n) => n.to !== '/requests' || showRequests).map((n) => {
+              {group.items.filter((n) => (n.to !== '/requests' || showRequests) && (n.to !== '/stats' || isAdmin)).map((n) => {
                 const account = n.to === '/settings' && !isAdmin;
                 return (
                   <NavLink key={n.to} to={n.to} end={n.to === '/'} className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
@@ -212,6 +214,7 @@ function Shell() {
           <Route path="/requests" element={<Requests />} />
           <Route path="/queue" element={<Queue />} />
           <Route path="/history" element={<History />} />
+          {isAdmin && <Route path="/stats" element={<Stats />} />}
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
         </Suspense>

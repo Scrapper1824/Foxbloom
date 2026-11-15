@@ -290,6 +290,23 @@ CREATE TABLE IF NOT EXISTS notifications (
   read_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, id);
+-- Statistics for admins: watch time and streamed bytes per person (0 = watch-party guests), title and day.
+CREATE TABLE IF NOT EXISTS watch_stats (
+  user_id INTEGER NOT NULL,
+  media_id INTEGER NOT NULL,
+  episode_id INTEGER NOT NULL DEFAULT 0,
+  day TEXT NOT NULL,
+  seconds REAL NOT NULL DEFAULT 0,
+  bytes INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (user_id, media_id, episode_id, day)
+);
+CREATE INDEX IF NOT EXISTS idx_watch_stats_day ON watch_stats(day);
+-- Daily torrent traffic (qBittorrent).
+CREATE TABLE IF NOT EXISTS traffic_stats (
+  day TEXT PRIMARY KEY,
+  torrent_down INTEGER NOT NULL DEFAULT 0,
+  torrent_up INTEGER NOT NULL DEFAULT 0
+);
 -- Titles a user took out of their Continue watching; they come back once watched again after that.
 CREATE TABLE IF NOT EXISTS continue_hidden (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

@@ -1522,3 +1522,50 @@ a.home-card-title:hover { text-decoration: underline; text-underline-offset: 3px
 @media (prefers-reduced-motion: reduce) { .invite-popup { animation: none; } }
 /* In the player: top-right under the top bar, clear of the controls and skip buttons, above everything in it. */
 .watch .invite-popup { top: 72px; bottom: auto; right: 18px; color: var(--text, #fff); user-select: auto; cursor: auto; }
+
+/* ---------- Statistics (admins) ---------- */
+.stats-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+.stats-head h1 { margin: 0 0 4px; }
+.stats-head p { margin: 0; }
+.stats-loading { display: grid; place-items: center; padding: 60px 0; }
+.stats-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.stats-tile { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.stats-tile span { color: var(--muted); font-size: 13px; }
+.stats-tile strong { font-family: var(--display); font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stats-tile small { color: var(--faint); font-size: 18px; }
+.stats-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 16px; min-width: 0; }
+.stats-card h2 { font-size: 15px; margin: 0 0 8px; }
+.stats-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.stats-card-head h2 { margin: 0; }
+.stats-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.stats-columns .stats-card { margin-bottom: 0; }
+.chart { position: relative; width: 100%; }
+.chart svg { display: block; overflow: visible; }
+.chart-grid { stroke: var(--line); stroke-width: 1; }
+.chart-axis { fill: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+.chart-cross { stroke: var(--line-strong); stroke-width: 1; }
+.chart-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+.chart-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.chart-legend i, .chart-tip-row i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
+.chart-tip {
+  position: absolute; top: 4px; z-index: 2; pointer-events: none; min-width: 170px; padding: 8px 10px; border-radius: 10px;
+  background: var(--raised); border: 1px solid var(--line-strong); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); font-size: 13px;
+}
+.chart-tip strong { display: block; margin-bottom: 4px; }
+.chart-tip-row { display: flex; align-items: center; gap: 8px; color: var(--muted); padding: 1px 0; }
+.chart-tip-row b { margin-left: auto; color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.chart-table { margin-top: 8px; font-size: 13px; }
+.chart-table summary { cursor: pointer; color: var(--muted); }
+.chart-table table, .stats-people { width: 100%; border-collapse: collapse; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.chart-table th, .chart-table td, .stats-people th, .stats-people td { text-align: left; padding: 6px 8px; border-top: 1px solid var(--line); white-space: nowrap; }
+.chart-table th, .stats-people th { color: var(--muted); font-weight: 600; font-size: 12px; }
+.table-scroll { overflow-x: auto; }
+.stats-top { list-style: none; margin: 0; padding: 0; }
+.stats-top li { display: flex; align-items: baseline; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); }
+.stats-top li:first-child { border-top: none; }
+.stats-rank { color: var(--faint); width: 18px; text-align: right; font-variant-numeric: tabular-nums; flex: none; }
+.stats-title { color: var(--text); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+@media (max-width: 640px) {
+  .stats-tile strong { font-size: 21px; }
+  .stats-card { padding: 14px 12px; }
+}

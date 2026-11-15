@@ -317,3 +317,16 @@ export function timeAgo(d: string): string {
   if (s < 86400) return `${Math.round(s / 3600)}h ago`;
   return `${Math.round(s / 86400)}d ago`;
 }
+
+// ---- Statistics (admins) ----
+
+export interface StatsReport {
+  days: number;
+  from: string;
+  to: string;
+  since: string | null;
+  totals: { watchSeconds: number; viewers: number; streamedBytes: number; torrentDown: number; torrentUp: number };
+  daily: { day: string; streamed: number; torrentDown: number; torrentUp: number; watch: Record<string, number> }[];
+  people: { key: string; name: string; seconds: number; bytes: number; lastWatched: string | null }[];
+  top: { mediaId: number; title: string; type: MediaType; poster: string | null; seconds: number; viewers: number }[];
+}

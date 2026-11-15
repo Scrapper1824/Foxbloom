@@ -12,6 +12,9 @@ import { setPartyActiveCheck } from './core/notifications.js';
 import { partyRoutes } from './party/routes.js';
 import { partySocketRoutes } from './party/socket.js';
 import { isPartyActive, startParties, stopParties } from './party/store.js';
+import { startStats, stopStats } from './core/stats.js';
+import { getSettings } from './settings.js';
+import { transferTotals } from './clients/qbittorrent.js';
 import { watchlistRoutes } from './routes/watchlist.js';
 import { playRoutes } from './routes/play.js';
 import { usePlaybackDataDir } from './playback/ffmpeg.js';
@@ -67,6 +70,9 @@ export async function buildApp(opts: {
   setPartyActiveCheck(isPartyActive);
   startParties();
   app.addHook('onClose', async () => stopParties());
+  // Statistics: qBittorrent's traffic, sampled every few minutes (only when qBittorrent is set up).
+  if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) startStats(transferTotals, () => !!getSettings().qbitUrl);
+  app.addHook('onClose', async () => stopStats());
 
   // Websockets (the watch-party sync channel). It adds no routes, only hooks, and its hook that marks an
   // upgrade request must run before the security check, so an upgrade refused there is closed, not left open.

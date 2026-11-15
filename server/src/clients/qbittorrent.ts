@@ -112,6 +112,13 @@ export async function addTorrent(
   if (text === 'Fails.') throw new HttpError('qBittorrent rejected the torrent (already added, or invalid)');
 }
 
+/** qBittorrent's downloaded/uploaded bytes since it started (all torrents). */
+export async function transferTotals(): Promise<{ down: number; up: number }> {
+  const res = await call('/transfer/info');
+  const j = (await res.json()) as { dl_info_data?: number; up_info_data?: number };
+  return { down: Number(j.dl_info_data) || 0, up: Number(j.up_info_data) || 0 };
+}
+
 export async function listTorrents(): Promise<QbitTorrent[]> {
   const category = getSettings().qbitCategory || 'mediarr';
   const res = await call(`/torrents/info?category=${encodeURIComponent(category)}`);

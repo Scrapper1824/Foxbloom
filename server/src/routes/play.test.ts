@@ -94,6 +94,28 @@ describe('watching', () => {
     expect((await call(viewer, 'GET', `/api/play/progress/${id}`)).json()[0]).toMatchObject({ position: 0, watched: false });
   });
 
+  it('records watch time and data sent for the admins’ statistics, which only admins can see', async () => {
+    const { boss, viewer } = await users();
+    const id = addMovie();
+    await call(viewer, 'PUT', `/api/play/movie/${id}/progress`, { position: 100, duration: 9000 });
+    // 10 s of playback, 10 s later (the player saves every 10 s).
+    db.prepare("UPDATE watch_progress SET updated_at = ? WHERE media_id = ?").run(new Date(Date.now() - 10_000).toISOString(), id);
+    await call(viewer, 'PUT', `/api/play/movie/${id}/progress`, { position: 110, duration: 9000 });
+    // A jump ahead isn't watch time.
+    db.prepare("UPDATE watch_progress SET updated_at = ? WHERE media_id = ?").run(new Date(Date.now() - 10_000).toISOString(), id);
+    await call(viewer, 'PUT', `/api/play/movie/${id}/progress`, { position: 2000, duration: 9000 });
+    // Data actually sent.
+    expect((await call(viewer, 'GET', `/api/play/direct/movie/${id}`, undefined, { range: 'bytes=4-7' })).statusCode).toBe(206);
+    await new Promise((r) => setTimeout(r, 50)); // the count lands when the file stream closes
+
+    expect((await call(viewer, 'GET', '/api/stats')).statusCode).toBe(403);
+    const r = (await call(boss, 'GET', '/api/stats?days=7')).json();
+    expect(r.totals).toMatchObject({ watchSeconds: 10, viewers: 1, streamedBytes: 4 });
+    expect(r.people).toEqual([expect.objectContaining({ name: 'viewer', seconds: 10, bytes: 4 })]);
+    expect(r.top).toEqual([expect.objectContaining({ mediaId: id, seconds: 10, viewers: 1 })]);
+    expect(r.daily).toHaveLength(7);
+  });
+
   it('removes a title from your Continue watching until you watch it again', async () => {
     const { boss, viewer } = await users();
     const id = addMovie();

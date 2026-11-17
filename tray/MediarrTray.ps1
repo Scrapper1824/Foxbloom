@@ -47,31 +47,38 @@ function New-TrayIcon([System.Drawing.Color]$Back) {
   $bmp = New-Object System.Drawing.Bitmap 32, 32
   $g = [System.Drawing.Graphics]::FromImage($bmp)
   $g.SmoothingMode = 'AntiAlias'
-  # Rounded tile, then the fox face with rose eyes and a five-petal bloom (same shapes as web/src/components/Logo.tsx).
+  $g.ScaleTransform(0.5, 0.5)
+  # Pink fox face on the tile (same shapes as web/src/components/Logo.tsx, on a 64-unit grid).
+  $c = { param($r, $g2, $b) New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb($r, $g2, $b)) }
+  $pink = & $c 244 143 174; $shade = & $c 226 118 154; $dark = & $c 59 21 48; $cream = & $c 255 244 247; $white = & $c 255 255 255
+  $poly = { param($brush, [float[]]$p) $pts = for ($k = 0; $k -lt $p.Length; $k += 2) { New-Object System.Drawing.PointF($p[$k], $p[$k + 1]) }; $g.FillPolygon($brush, [System.Drawing.PointF[]]$pts) }
   $tile = New-Object System.Drawing.Drawing2D.GraphicsPath
-  $r = 9
-  $tile.AddArc(1, 1, $r, $r, 180, 90); $tile.AddArc(31 - $r, 1, $r, $r, 270, 90)
-  $tile.AddArc(31 - $r, 31 - $r, $r, $r, 0, 90); $tile.AddArc(1, 31 - $r, $r, $r, 90, 90)
-  $tile.CloseFigure()
-  $g.FillPath((New-Object System.Drawing.SolidBrush $Back), $tile)
-  $plum = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(42, 16, 36))
-  $fox = New-Object System.Drawing.Drawing2D.GraphicsPath
-  $fox.AddLine(6, 6, 13.5, 12.5); $fox.AddLine(13.5, 12.5, 18.5, 12.5); $fox.AddLine(18.5, 12.5, 26, 6); $fox.AddLine(26, 6, 24.6, 17)
-  $fox.AddBezier(24.6, 17, 24.1, 22.6, 20.3, 26.4, 16, 27.5); $fox.AddBezier(16, 27.5, 11.7, 26.4, 7.9, 22.6, 7.4, 17)
-  $fox.CloseFigure()
-  $g.FillPath($plum, $fox)
-  $g.FillEllipse((New-Object System.Drawing.SolidBrush $Back), 10.8, 18.85, 3.2, 2.3)
-  $g.FillEllipse((New-Object System.Drawing.SolidBrush $Back), 18.0, 18.85, 3.2, 2.3)
-  $petal = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(247, 198, 216))
-  foreach ($a in 0, 72, 144, 216, 288) {
-    $rad = ($a - 90) * [Math]::PI / 180
-    $g.FillEllipse($petal, (16 + [Math]::Cos($rad) * 1.55 - 1.15), (16.2 + [Math]::Sin($rad) * 1.55 - 1.15), 2.3, 2.3)
-  }
-  $g.FillEllipse($plum, 15.25, 15.45, 1.5, 1.5)
+  $tile.AddArc(0, 0, 32, 32, 180, 90); $tile.AddArc(32, 0, 32, 32, 270, 90); $tile.AddArc(32, 32, 32, 32, 0, 90); $tile.AddArc(0, 32, 32, 32, 90, 90)
+  $tile.CloseFigure(); $g.FillPath((New-Object System.Drawing.SolidBrush $Back), $tile)
+  & $poly $pink @(12, 4, 28, 18, 14, 26)
+  & $poly $shade @(52, 4, 36, 18, 50, 26)
+  & $poly $dark @(12, 4, 17.4, 8.8, 13.2, 11.6); & $poly $dark @(52, 4, 46.6, 8.8, 50.8, 11.6)
+  & $poly $cream @(14.8, 12.4, 23.4, 19.2, 16, 23.4); & $poly $cream @(49.2, 12.4, 40.6, 19.2, 48, 23.4)
+  $head = New-Object System.Drawing.Drawing2D.GraphicsPath
+  $head.AddBezier(16, 18, 24, 14, 40, 14, 48, 18)
+  $head.AddLines([System.Drawing.PointF[]]@((New-Object System.Drawing.PointF(48, 18)), (New-Object System.Drawing.PointF(52, 28)), (New-Object System.Drawing.PointF(60, 34)), (New-Object System.Drawing.PointF(50, 37)), (New-Object System.Drawing.PointF(45, 45)), (New-Object System.Drawing.PointF(32, 54)), (New-Object System.Drawing.PointF(19, 45)), (New-Object System.Drawing.PointF(14, 37)), (New-Object System.Drawing.PointF(4, 34)), (New-Object System.Drawing.PointF(12, 28)), (New-Object System.Drawing.PointF(16, 18))))
+  $head.CloseFigure(); $g.FillPath($pink, $head)
+  $brow = New-Object System.Drawing.Drawing2D.GraphicsPath
+  $brow.AddLine(26.6, 16.8, 32, 22.6); $brow.AddLine(32, 22.6, 37.4, 16.8); $brow.AddBezier(37.4, 16.8, 34, 16, 30, 16, 26.6, 16.8)
+  $brow.CloseFigure(); $g.FillPath($shade, $brow)
+  $face = New-Object System.Drawing.Drawing2D.GraphicsPath
+  $face.AddLine(5, 34, 14, 32.6); $face.AddBezier(14, 32.6, 19, 38.6, 25, 41.4, 32, 42.6); $face.AddBezier(32, 42.6, 39, 41.4, 45, 38.6, 50, 32.6)
+  $face.AddLines([System.Drawing.PointF[]]@((New-Object System.Drawing.PointF(50, 32.6)), (New-Object System.Drawing.PointF(59, 34)), (New-Object System.Drawing.PointF(50, 37.6)), (New-Object System.Drawing.PointF(45, 45)), (New-Object System.Drawing.PointF(32, 54)), (New-Object System.Drawing.PointF(19, 45)), (New-Object System.Drawing.PointF(14, 37.6))))
+  $face.CloseFigure(); $g.FillPath($cream, $face)
+  $nose = New-Object System.Drawing.Drawing2D.GraphicsPath
+  $nose.AddBezier(29.4, 49.4, 29.4, 47.8, 34.6, 47.8, 34.6, 49.4); $nose.AddBezier(34.6, 49.4, 34.6, 51, 33, 52.4, 32, 52.4); $nose.AddBezier(32, 52.4, 31, 52.4, 29.4, 51, 29.4, 49.4)
+  $nose.CloseFigure(); $g.FillPath($dark, $nose)
+  $g.FillEllipse($dark, 20.3, 26.8, 6.6, 7.6); $g.FillEllipse($dark, 37.1, 26.8, 6.6, 7.6)
+  $g.FillEllipse($white, 23.55, 27.95, 2.5, 2.5); $g.FillEllipse($white, 40.35, 27.95, 2.5, 2.5)
   $g.Dispose()
   [System.Drawing.Icon]::FromHandle($bmp.GetHicon())
 }
-$IconRunning = New-TrayIcon ([System.Drawing.Color]::FromArgb(242, 167, 195))
+$IconRunning = New-TrayIcon ([System.Drawing.Color]::FromArgb(29, 36, 64))
 $IconStopped = New-TrayIcon ([System.Drawing.Color]::FromArgb(130, 130, 130))
 
 $Tray = New-Object System.Windows.Forms.NotifyIcon

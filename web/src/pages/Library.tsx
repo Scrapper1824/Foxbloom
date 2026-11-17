@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import { api, typeLabel, watchId, type Media, type MediaType } from '../api';
 import WatchlistMenu from '../components/WatchlistMenu';
 import { useWatchTags } from '../watchTags';
+import { LIBRARY_PATHS, rememberLibraryType } from '../libraryType';
 import Poster from '../components/Poster';
 import Spinner from '../components/Spinner';
 import Icon from '../components/Icon';
@@ -54,6 +55,7 @@ export function StatusBadge({ m }: { m: Media }) {
 }
 
 export default function Library({ type }: { type: MediaType }) {
+  useEffect(() => rememberLibraryType(type), [type]);
   const watchTag = useWatchTags();
   const [filter, setFilter] = useState('');
   const media = useQuery({
@@ -68,6 +70,13 @@ export default function Library({ type }: { type: MediaType }) {
       <header className="page-header library-header">
         <div>
           <h1>{typeLabel[type]}</h1>
+          <nav className="segmented library-switch" aria-label="Library">
+            {(Object.keys(LIBRARY_PATHS) as MediaType[]).map((t) => (
+              <NavLink key={t} to={LIBRARY_PATHS[t]} className={({ isActive }) => (isActive ? 'on' : '')}>
+                {typeLabel[t]}
+              </NavLink>
+            ))}
+          </nav>
           <p className="muted">{media.data ? `${media.data.length} ${media.data.length === 1 ? 'title' : 'titles'}` : ' '}</p>
         </div>
         <div className="row library-tools">

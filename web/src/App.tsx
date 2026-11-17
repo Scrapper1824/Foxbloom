@@ -6,6 +6,7 @@ import Discover from './pages/Discover';
 import Home from './pages/Home';
 import Library from './pages/Library';
 import { usePendingRequests } from './pendingRequests';
+import { lastLibraryPath } from './libraryType';
 import SearchAlerts from './components/SearchAlerts';
 import { useAuth, useIsAdmin } from './components/AuthGate';
 import UpdateDialog, { useUpdateInfo } from './components/UpdateDialog';
@@ -39,9 +40,8 @@ const NAV: { heading: string | null; items: NavItem[] }[] = [
     heading: null,
     items: [
       { to: '/', label: 'Home', icon: 'home' },
-      { to: '/movies', label: 'Movies', icon: 'movie' },
-      { to: '/shows', label: 'Shows', icon: 'show' },
-      { to: '/anime', label: 'Anime', icon: 'anime' },
+      // Movies, Shows and Anime share one entry; the library page switches between them.
+      { to: '/library', label: 'Library', icon: 'library' },
       { to: '/watchlist', label: 'Watchlist', icon: 'watchlist' },
     ],
   },
@@ -157,8 +157,15 @@ function Shell() {
               {group.heading && <div className="nav-heading">{group.heading}</div>}
               {group.items.filter((n) => (n.to !== '/requests' || showRequests) && (n.to !== '/stats' || isAdmin)).map((n) => {
                 const account = n.to === '/settings' && !isAdmin;
+                const library = n.to === '/library';
+                const inLibrary = library && /^\/(movies|shows|anime)(\/|$)/.test(pathname);
                 return (
-                  <NavLink key={n.to} to={n.to} end={n.to === '/'} className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>
+                  <NavLink
+                    key={n.to}
+                    to={library ? lastLibraryPath() : n.to}
+                    end={n.to === '/'}
+                    className={({ isActive }) => `nav-link${isActive || inLibrary ? ' active' : ''}`}
+                  >
                     <span className="nav-icon">
                       <Icon name={account ? 'account' : n.icon} />
                     </span>

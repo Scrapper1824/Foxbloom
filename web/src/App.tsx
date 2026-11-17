@@ -43,12 +43,12 @@ const NAV: { heading: string | null; items: NavItem[] }[] = [
       // Movies, Shows and Anime share one entry; the library page switches between them.
       { to: '/library', label: 'Library', icon: 'library' },
       { to: '/watchlist', label: 'Watchlist', icon: 'watchlist' },
+      { to: '/discover', label: 'Discover', icon: 'discover' },
     ],
   },
   {
-    heading: 'Get more',
+    heading: 'Manage',
     items: [
-      { to: '/discover', label: 'Discover', icon: 'discover' },
       { to: '/requests', label: 'Requests', icon: 'inbox' },
       { to: '/queue', label: 'Downloads', icon: 'queue' },
       { to: '/history', label: 'History', icon: 'history' },

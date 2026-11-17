@@ -650,16 +650,17 @@ select.input option { background: var(--raised); }
 .watch-track, .watch-buffered, .watch-played, .watch-segment { position: absolute; top: 7px; height: 4px; border-radius: 2px; pointer-events: none; transition: height 0.12s, top 0.12s; }
 .watch-track { left: 0; right: 0; background: rgba(255,255,255,0.18); }
 .watch-buffered { left: 0; background: rgba(255,255,255,0.3); }
-.watch-played { left: 0; background: #fff; }
+/* Watched so far in the accent. */
+.watch-played { left: 0; background: var(--accent); }
 .watch-seek:hover .watch-track, .watch-seek:hover .watch-buffered, .watch-seek:hover .watch-played, .watch-seek:hover .watch-segment { top: 6px; height: 6px; }
 .watch-seek input { position: relative; z-index: 2; width: 100%; height: 18px; margin: 0; cursor: pointer; background: transparent; -webkit-appearance: none; appearance: none; }
 .watch-seek input::-webkit-slider-runnable-track { background: transparent; height: 18px; }
 .watch-seek input::-moz-range-track { background: transparent; height: 18px; }
-.watch-seek input::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: 2px; border-radius: 50%; background: var(--accent); border: none; box-shadow: 0 0 0 3px rgba(0,0,0,0.35); }
-.watch-seek input::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: none; box-shadow: 0 0 0 3px rgba(0,0,0,0.35); }
+.watch-seek input::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: 2px; border-radius: 50%; background: #fff; border: none; box-shadow: 0 0 0 3px rgba(0,0,0,0.35); }
+.watch-seek input::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: none; box-shadow: 0 0 0 3px rgba(0,0,0,0.35); }
 .watch-seek input:focus-visible { outline: none; }
-.watch-seek input:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px #fff; }
-.watch-seek input:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px #fff; }
+.watch-seek input:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--accent); }
+.watch-seek input:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(--accent); }
 .watch-bar { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
 .watch-icon { background: none; border: none; color: #fff; font: inherit; font-size: 17px; min-width: 40px; height: 40px; border-radius: 8px; cursor: pointer; }
 .watch-icon:disabled { opacity: 0.35; cursor: default; }
@@ -792,7 +793,9 @@ select.input option { background: var(--raised); }
 }
 .watch-skip:hover, .watch-skip:focus-visible { background: #fff; color: #111; outline: none; }
 @keyframes skip-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-.watch-segment { z-index: 1; background: var(--accent); }
+/* Intro/credits: gold and thicker than the bar, so they read clearly against both the rose watched part and the grey rest. */
+.watch-segment { z-index: 1; top: 5px; height: 8px; background: #ffc94d; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55); }
+.watch-seek:hover .watch-segment { top: 4px; height: 10px; }
 .watch-preview {
   position: absolute; bottom: 26px; transform: translateX(-50%); z-index: 4; pointer-events: none;
   display: flex; flex-direction: column; align-items: center; gap: 6px;

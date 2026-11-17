@@ -27,7 +27,7 @@ export interface SimklItem {
   total: number | null;
 }
 
-/** Mediarr's app on Simkl. `secret` is only needed for apps registered as "Server apps & services". */
+/** Foxbloom's app on Simkl. `secret` is only needed for apps registered as "Server apps & services". */
 export interface SimklApp {
   clientId: string;
   secret?: string;
@@ -111,7 +111,7 @@ export async function deviceStart(app: SimklApp): Promise<SimklDevice> {
     url('/oauth/pin', app.clientId),
     { headers: headers(app.clientId) },
   ).catch((err) => {
-    throw new HttpError(`Simkl didn’t accept Mediarr’s client ID. Check it in Settings → Watchlist apps. (${(err as Error).message})`, 400);
+    throw new HttpError(`Simkl didn’t accept Foxbloom’s client ID. Check it in Settings → Watchlist apps. (${(err as Error).message})`, 400);
   });
   return {
     version: 1,
@@ -147,7 +147,7 @@ export async function devicePoll(app: SimklApp, device: Pick<SimklDevice, 'versi
   if (body.error === 'slow_down') return { status: 'slow_down' };
   if (body.error === 'expired_token') return { status: 'expired' };
   if (body.error === 'invalid_client') {
-    throw new HttpError('Simkl rejected Mediarr’s app. If it’s registered as a server app, add its client secret in Settings → Watchlist apps.', 401);
+    throw new HttpError('Simkl rejected Foxbloom’s app. If it’s registered as a server app, add its client secret in Settings → Watchlist apps.', 401);
   }
   throw new HttpError(`Simkl: ${body.error_description ?? body.error ?? `error ${status}`}`, status);
 }

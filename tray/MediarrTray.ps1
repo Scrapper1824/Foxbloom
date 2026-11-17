@@ -1,7 +1,7 @@
 <#
-  Mediarr system tray.
+  Foxbloom system tray.
 
-  Runs Mediarr in the background (no console window) and puts an icon in the notification area.
+  Runs Foxbloom in the background (no console window) and puts an icon in the notification area.
   Right-click: Open, Start, Stop, Restart, Reset password, Start when Windows starts, Open log, Quit.
   Launch it with tray\Mediarr.vbs (no window flashes) or "npm run tray".
 
@@ -33,12 +33,12 @@ if (-not $createdNew) { exit 0 }
 
 $Node = (Get-Command node.exe -ErrorAction SilentlyContinue).Source
 if (-not $Node) {
-  [System.Windows.Forms.MessageBox]::Show("Node.js wasn't found. Install it from nodejs.org, then start Mediarr again.", 'Mediarr', 'OK', 'Error') | Out-Null
+  [System.Windows.Forms.MessageBox]::Show("Node.js wasn't found. Install it from nodejs.org, then start Foxbloom again.", 'Foxbloom', 'OK', 'Error') | Out-Null
   exit 1
 }
 New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
 
-$script:Proc = $null          # the Mediarr server process we control
+$script:Proc = $null          # the Foxbloom server process we control
 $script:WantRunning = $false  # false after Stop/Quit, so an exit isn't reported as a crash
 $script:SetupTipShown = $false
 
@@ -47,30 +47,40 @@ function New-TrayIcon([System.Drawing.Color]$Back) {
   $bmp = New-Object System.Drawing.Bitmap 32, 32
   $g = [System.Drawing.Graphics]::FromImage($bmp)
   $g.SmoothingMode = 'AntiAlias'
-  $g.TextRenderingHint = 'AntiAliasGridFit'
-  $path = New-Object System.Drawing.Drawing2D.GraphicsPath
+  # Rounded tile, then the fox face with rose eyes and a five-petal bloom (same shapes as web/src/components/Logo.tsx).
+  $tile = New-Object System.Drawing.Drawing2D.GraphicsPath
   $r = 9
-  $path.AddArc(1, 1, $r, $r, 180, 90); $path.AddArc(31 - $r, 1, $r, $r, 270, 90)
-  $path.AddArc(31 - $r, 31 - $r, $r, $r, 0, 90); $path.AddArc(1, 31 - $r, $r, $r, 90, 90)
-  $path.CloseFigure()
-  $g.FillPath((New-Object System.Drawing.SolidBrush $Back), $path)
-  $font = New-Object System.Drawing.Font('Segoe UI', 17, [System.Drawing.FontStyle]::Bold, [System.Drawing.GraphicsUnit]::Pixel)
-  $fmt = New-Object System.Drawing.StringFormat
-  $fmt.Alignment = 'Center'; $fmt.LineAlignment = 'Center'
-  $g.DrawString('M', $font, (New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(26, 19, 5))), (New-Object System.Drawing.RectangleF(0, 1, 32, 32)), $fmt)
+  $tile.AddArc(1, 1, $r, $r, 180, 90); $tile.AddArc(31 - $r, 1, $r, $r, 270, 90)
+  $tile.AddArc(31 - $r, 31 - $r, $r, $r, 0, 90); $tile.AddArc(1, 31 - $r, $r, $r, 90, 90)
+  $tile.CloseFigure()
+  $g.FillPath((New-Object System.Drawing.SolidBrush $Back), $tile)
+  $plum = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(42, 16, 36))
+  $fox = New-Object System.Drawing.Drawing2D.GraphicsPath
+  $fox.AddLine(6, 6, 13.5, 12.5); $fox.AddLine(13.5, 12.5, 18.5, 12.5); $fox.AddLine(18.5, 12.5, 26, 6); $fox.AddLine(26, 6, 24.6, 17)
+  $fox.AddBezier(24.6, 17, 24.1, 22.6, 20.3, 26.4, 16, 27.5); $fox.AddBezier(16, 27.5, 11.7, 26.4, 7.9, 22.6, 7.4, 17)
+  $fox.CloseFigure()
+  $g.FillPath($plum, $fox)
+  $g.FillEllipse((New-Object System.Drawing.SolidBrush $Back), 10.8, 18.85, 3.2, 2.3)
+  $g.FillEllipse((New-Object System.Drawing.SolidBrush $Back), 18.0, 18.85, 3.2, 2.3)
+  $petal = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(247, 198, 216))
+  foreach ($a in 0, 72, 144, 216, 288) {
+    $rad = ($a - 90) * [Math]::PI / 180
+    $g.FillEllipse($petal, (16 + [Math]::Cos($rad) * 1.55 - 1.15), (16.2 + [Math]::Sin($rad) * 1.55 - 1.15), 2.3, 2.3)
+  }
+  $g.FillEllipse($plum, 15.25, 15.45, 1.5, 1.5)
   $g.Dispose()
   [System.Drawing.Icon]::FromHandle($bmp.GetHicon())
 }
-$IconRunning = New-TrayIcon ([System.Drawing.Color]::FromArgb(245, 165, 36))
+$IconRunning = New-TrayIcon ([System.Drawing.Color]::FromArgb(242, 167, 195))
 $IconStopped = New-TrayIcon ([System.Drawing.Color]::FromArgb(130, 130, 130))
 
 $Tray = New-Object System.Windows.Forms.NotifyIcon
 $Tray.Icon = $IconStopped
-$Tray.Text = 'Mediarr'
+$Tray.Text = 'Foxbloom'
 $Tray.Visible = $true
 
 function Show-Tip([string]$Text, [string]$Kind = 'Info') {
-  $Tray.ShowBalloonTip(6000, 'Mediarr', $Text, [System.Windows.Forms.ToolTipIcon]::$Kind)
+  $Tray.ShowBalloonTip(6000, 'Foxbloom', $Text, [System.Windows.Forms.ToolTipIcon]::$Kind)
 }
 
 function Write-Log([string]$Text) {
@@ -86,7 +96,7 @@ function Test-PortOpen {
   } catch { return $false } finally { $client.Close() }
 }
 
-# A Mediarr from this folder that's already listening (started by start.bat, or by an earlier tray).
+# A Foxbloom from this folder that's already listening (started by start.bat, or by an earlier tray).
 function Find-RunningServer {
   if (-not (Test-PortOpen)) { return $null }
   try {
@@ -109,12 +119,12 @@ function Find-RunningServer {
 
 function Test-Running { return ($script:Proc -and -not $script:Proc.HasExited) }
 
-function Start-Mediarr {
+function Start-Foxbloom {
   if (Test-Running) { return }
   $existing = Find-RunningServer
   if ($existing) { $script:Proc = $existing; $script:WantRunning = $true; Update-Status; return }
-  if (Test-PortOpen) { Show-Tip "Port $Port is already in use by another program, so Mediarr can't start." 'Warning'; return }
-  if (-not (Test-Path $ServerJs)) { Show-Tip "Mediarr isn't built yet. Run 'npm run build' in $Root, then Start." 'Error'; return }
+  if (Test-PortOpen) { Show-Tip "Port $Port is already in use by another program, so Foxbloom can't start." 'Warning'; return }
+  if (-not (Test-Path $ServerJs)) { Show-Tip "Foxbloom isn't built yet. Run 'npm run build' in $Root, then Start." 'Error'; return }
 
   $psi = New-Object System.Diagnostics.ProcessStartInfo
   $psi.FileName = $Node
@@ -126,27 +136,27 @@ function Start-Mediarr {
   $psi.EnvironmentVariables['PORT'] = "$Port"
   $psi.EnvironmentVariables['MEDIARR_DATA'] = $DataDir
   $psi.EnvironmentVariables['MEDIARR_TRAY'] = '1'
-  Write-Log 'Starting Mediarr'
+  Write-Log 'Starting Foxbloom'
   $script:Proc = [System.Diagnostics.Process]::Start($psi)
   $script:WantRunning = $true
   $script:SetupTipShown = $false
   Update-Status
 }
 
-function Stop-Mediarr {
+function Stop-Foxbloom {
   $script:WantRunning = $false
   if (Test-Running) {
-    Write-Log 'Stopping Mediarr'
+    Write-Log 'Stopping Foxbloom'
     try { $script:Proc.Kill(); $script:Proc.WaitForExit(5000) | Out-Null } catch { }
   }
   $script:Proc = $null
   Update-Status
 }
 
-function Restart-Mediarr {
-  Stop-Mediarr
+function Restart-Foxbloom {
+  Stop-Foxbloom
   Start-Sleep -Milliseconds 500
-  Start-Mediarr
+  Start-Foxbloom
 }
 
 # ---------- Start with Windows ----------
@@ -184,7 +194,7 @@ function Show-Prompt([string]$Title, [string]$Message) {
 
 function Show-Password([string]$Account, [string]$Password) {
   $form = New-Object System.Windows.Forms.Form
-  $form.Text = 'Mediarr - password reset'; $form.StartPosition = 'CenterScreen'; $form.FormBorderStyle = 'FixedDialog'
+  $form.Text = 'Foxbloom - password reset'; $form.StartPosition = 'CenterScreen'; $form.FormBorderStyle = 'FixedDialog'
   $form.MinimizeBox = $false; $form.MaximizeBox = $false; $form.TopMost = $true
   $form.ClientSize = New-Object System.Drawing.Size(440, 170)
   $label = New-Object System.Windows.Forms.Label
@@ -205,8 +215,8 @@ function Show-Password([string]$Account, [string]$Password) {
 }
 
 function Invoke-ResetPassword {
-  if (-not (Test-Path $ResetJs)) { Show-Tip "Mediarr isn't built yet. Run 'npm run build' first." 'Error'; return }
-  $account = Show-Prompt 'Mediarr - reset password' 'Account to reset (leave empty if there is only one). It gets a new random password, two-factor is turned off, and it is signed out everywhere.'
+  if (-not (Test-Path $ResetJs)) { Show-Tip "Foxbloom isn't built yet. Run 'npm run build' first." 'Error'; return }
+  $account = Show-Prompt 'Foxbloom - reset password' 'Account to reset (leave empty if there is only one). It gets a new random password, two-factor is turned off, and it is signed out everywhere.'
   if ($null -eq $account) { return }  # cancelled: nothing is changed
 
   $psi = New-Object System.Diagnostics.ProcessStartInfo
@@ -225,7 +235,7 @@ function Invoke-ResetPassword {
   $match = [regex]::Match($out, 'New password: (\S+)')
   $who = [regex]::Match($out, 'Password for "([^"]+)"')
   if ($match.Success) { Show-Password $who.Groups[1].Value $match.Groups[1].Value }
-  else { [System.Windows.Forms.MessageBox]::Show($out.Trim(), 'Mediarr - reset password', 'OK', 'Information') | Out-Null }
+  else { [System.Windows.Forms.MessageBox]::Show($out.Trim(), 'Foxbloom - reset password', 'OK', 'Information') | Out-Null }
 }
 
 # ---------- Menu ----------
@@ -236,22 +246,22 @@ function Add-Item([string]$Text, [scriptblock]$OnClick) {
   [void]$Menu.Items.Add($item)
   return $item
 }
-$StatusItem = Add-Item 'Mediarr' $null; $StatusItem.Enabled = $false
+$StatusItem = Add-Item 'Foxbloom' $null; $StatusItem.Enabled = $false
 [void]$Menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
-$OpenItem = Add-Item 'Open Mediarr' { Start-Process $Url }
+$OpenItem = Add-Item 'Open Foxbloom' { Start-Process $Url }
 $OpenItem.Font = New-Object System.Drawing.Font($OpenItem.Font, [System.Drawing.FontStyle]::Bold)
 [void]$Menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
-$StartItem = Add-Item 'Start' { Start-Mediarr }
-$StopItem = Add-Item 'Stop' { Stop-Mediarr }
-$RestartItem = Add-Item 'Restart' { Restart-Mediarr }
+$StartItem = Add-Item 'Start' { Start-Foxbloom }
+$StopItem = Add-Item 'Stop' { Stop-Foxbloom }
+$RestartItem = Add-Item 'Restart' { Restart-Foxbloom }
 [void]$Menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
 $ResetItem = Add-Item 'Reset password...' { Invoke-ResetPassword }
 $AutoItem = Add-Item 'Start when Windows starts' { Set-Autostart (-not (Get-Autostart)); $AutoItem.Checked = Get-Autostart }
 $LogItem = Add-Item 'Open log' { if (Test-Path $LogFile) { Start-Process notepad.exe $LogFile } else { Show-Tip 'No log yet.' } }
 [void]$Menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
 $QuitItem = Add-Item 'Quit' {
-  # Stops Mediarr and removes the tray icon completely.
-  Stop-Mediarr
+  # Stops Foxbloom and removes the tray icon completely.
+  Stop-Foxbloom
   $Tray.Visible = $false
   $Tray.Dispose()
   [System.Windows.Forms.Application]::Exit()
@@ -264,7 +274,7 @@ $Tray.Add_BalloonTipClicked({ Start-Process $Url })
 function Update-Status {
   $running = Test-Running
   $Tray.Icon = if ($running) { $IconRunning } else { $IconStopped }
-  $Tray.Text = if ($running) { "Mediarr - running on port $Port" } else { 'Mediarr - stopped' }
+  $Tray.Text = if ($running) { "Foxbloom - running on port $Port" } else { 'Foxbloom - stopped' }
   $StatusItem.Text = if ($running) { "Running at $Url" } else { 'Stopped' }
   $OpenItem.Enabled = $running
   $StartItem.Enabled = -not $running
@@ -281,25 +291,25 @@ $Timer.Add_Tick({
     try { $code = $script:Proc.ExitCode } catch { }
     $script:Proc = $null
     if ($code -eq 75) {
-      # Mediarr installed an update and asked to be started again.
-      Write-Log 'Mediarr updated; starting the new version'
-      Start-Mediarr
-      Show-Tip 'Mediarr was updated and has restarted.'
+      # Foxbloom installed an update and asked to be started again.
+      Write-Log 'Foxbloom updated; starting the new version'
+      Start-Foxbloom
+      Show-Tip 'Foxbloom was updated and has restarted.'
     } else {
       $script:WantRunning = $false
-      Write-Log 'Mediarr exited unexpectedly'
-      Show-Tip 'Mediarr stopped unexpectedly. Right-click the icon > Open log to see why, or Start to try again.' 'Error'
+      Write-Log 'Foxbloom exited unexpectedly'
+      Show-Tip 'Foxbloom stopped unexpectedly. Right-click the icon > Open log to see why, or Start to try again.' 'Error'
     }
   }
   if (-not $script:SetupTipShown -and (Test-Running) -and (Test-Path $SetupCodeFile)) {
     $script:SetupTipShown = $true
     $code = (Get-Content $SetupCodeFile -Raw).Trim()
-    Show-Tip "No account yet. Click here to open Mediarr and create one. Setup code: $code"
+    Show-Tip "No account yet. Click here to open Foxbloom and create one. Setup code: $code"
   }
   Update-Status
 })
 
-Start-Mediarr
+Start-Foxbloom
 Update-Status
 
 # MEDIARR_TRAY_SELFTEST=1: drive the same Start/Stop/Restart/Quit code without clicking, logging each step
@@ -308,11 +318,11 @@ if ($env:MEDIARR_TRAY_SELFTEST) {
   function Wait-Port([bool]$Open) { for ($i = 0; $i -lt 40; $i++) { if ((Test-PortOpen) -eq $Open) { return $true }; Start-Sleep -Milliseconds 250 }; return $false }
   Write-Log ("SELFTEST start: listening={0} pid={1}" -f (Wait-Port $true), $script:Proc.Id)
   $first = $script:Proc.Id
-  Restart-Mediarr
+  Restart-Foxbloom
   Write-Log ("SELFTEST restart: listening={0} newPid={1}" -f (Wait-Port $true), ($script:Proc.Id -ne $first))
-  Stop-Mediarr
+  Stop-Foxbloom
   Write-Log ("SELFTEST stop: closed={0} running={1}" -f (Wait-Port $false), (Test-Running))
-  Start-Mediarr
+  Start-Foxbloom
   Write-Log ("SELFTEST start again: listening={0}" -f (Wait-Port $true))
   $QuitItem.PerformClick()
   Write-Log ("SELFTEST quit: closed={0}" -f (Wait-Port $false))

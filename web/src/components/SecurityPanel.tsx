@@ -130,7 +130,7 @@ function TwoFactor({ enabled }: { enabled: boolean }) {
       <h3>
         Two-factor sign-in <span className="badge muted">Off</span>
       </h3>
-      <p className="muted small">Strongly recommended before making Mediarr reachable from the internet.</p>
+      <p className="muted small">Strongly recommended before making Foxbloom reachable from the internet.</p>
       <input className="input" type="password" autoComplete="current-password" placeholder="Confirm your password" value={password} onChange={(e) => setPassword(e.target.value)} required />
       {error && <div className="error-box">{error.message}</div>}
       <div>
@@ -167,7 +167,7 @@ export default function SecurityPanel() {
         </button>
         {others.isSuccess && <span className="ok-text small">Done.</span>}
       </div>
-      <p className="hint">Locked out? On the Mediarr computer run <code>npm run reset-password</code>.</p>
+      <p className="hint">Locked out? On the Foxbloom computer run <code>npm run reset-password</code>.</p>
     </section>
   );
 }

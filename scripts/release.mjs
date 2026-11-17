@@ -1,4 +1,4 @@
-// Publishes a new Mediarr release on GitHub, which every install then offers as "Update available".
+// Publishes a new Foxbloom release on GitHub, which every install then offers as "Update available".
 //
 //   npm run release -- patch      0.1.0 -> 0.1.1  (fixes)
 //   npm run release -- minor      0.1.0 -> 0.2.0  (new features)
@@ -60,20 +60,25 @@ if (import.meta.url === `file:///${process.argv[1]?.replace(/\\/g, '/').replace(
     console.error(`Releases are made from main (you're on "${branch}").`);
     process.exit(1);
   }
-  console.log(`Releasing Mediarr ${tag} (was v${pkg.version})${dryRun ? ' — dry run, nothing will change' : ''}\n`);
+  console.log(`Releasing Foxbloom ${tag} (was v${pkg.version})${dryRun ? ' — dry run, nothing will change' : ''}\n`);
 
   run('npm', ['run', 'build']);
   run('npm', ['test']);
   run('npm', ['version', version, '--no-git-tag-version', '--workspaces', '--include-workspace-root']);
   run('git', ['add', 'package.json', 'package-lock.json', 'server/package.json', 'web/package.json']);
   run('git', ['commit', '-m', `Release ${tag}`]);
-  run('git', ['tag', '-a', tag, '-m', `Mediarr ${tag}`]);
+  run('git', ['tag', '-a', tag, '-m', `Foxbloom ${tag}`]);
   run('git', ['push', 'origin', 'main', tag]);
-  run('gh', ['release', 'create', tag, '--title', `Mediarr ${tag}`, '--generate-notes', '--verify-tag']);
-  // The Windows installer (MediarrSetup.exe) goes on every release, so "latest/download/MediarrSetup.exe" always works.
+  run('gh', ['release', 'create', tag, '--title', `Foxbloom ${tag}`, '--generate-notes', '--verify-tag']);
+  // The Windows installer (FoxbloomSetup.exe) goes on every release, so "latest/download/FoxbloomSetup.exe" always works.
   if (process.platform === 'win32') {
     run('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(root, 'installer', 'build.ps1')]);
-    run('gh', ['release', 'upload', tag, path.join(root, 'installer', 'dist', 'MediarrSetup.exe'), '--clobber']);
+    const setup = path.join(root, 'installer', 'dist', 'FoxbloomSetup.exe');
+    // The same installer under its old name too, so links to ".../latest/download/MediarrSetup.exe" (from before
+    // the rename) keep working.
+    const oldName = path.join(root, 'installer', 'dist', 'MediarrSetup.exe');
+    fs.copyFileSync(setup, oldName);
+    run('gh', ['release', 'upload', tag, setup, oldName, '--clobber']);
   }
-  console.log(`\nReleased ${tag}. Mediarr installs will offer it as an update.`);
+  console.log(`\nReleased ${tag}. Foxbloom installs will offer it as an update.`);
 }

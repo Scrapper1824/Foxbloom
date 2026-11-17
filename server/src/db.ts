@@ -19,7 +19,7 @@ export interface MediaRow {
   backdrop: string | null;
   /** 18+ (TMDB "adult" / AniList isAdult): only shown to users allowed to see it. */
   adult: number;
-  /** 1 once `adult` was read from TMDB/AniList (titles added before Mediarr tracked it start at 0). */
+  /** 1 once `adult` was read from TMDB/AniList (titles added before Foxbloom tracked it start at 0). */
   adult_checked: number;
   /** Shows: TMDB's season names (JSON {"1": "Season 1", "3": "The Final Season"}). */
   season_names: string | null;

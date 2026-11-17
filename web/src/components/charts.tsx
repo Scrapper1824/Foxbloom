@@ -5,7 +5,7 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
  * plus a table view so nothing relies on colour alone.
  */
 
-/** Categorical series colours (validated against Mediarr's dark surface), assigned in this fixed order. */
+/** Categorical series colours (validated against Foxbloom's dark surface), assigned in this fixed order. */
 export const SERIES = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#0ca30c', '#9085e9', '#e66767'];
 export const OTHER = '#6b7283';
 

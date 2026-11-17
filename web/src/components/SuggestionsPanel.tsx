@@ -25,7 +25,7 @@ export default function SuggestionsPanel({ suggestions }: { suggestions: Suggest
           <div className="suggestion-head">
             <strong>No pack found for just Season {season}.</strong>
             <span className="muted">
-              {list.length === 1 ? 'This bundle includes it.' : `These ${list.length} bundles include it.`} Mediarr can grab
+              {list.length === 1 ? 'This bundle includes it.' : `These ${list.length} bundles include it.`} Foxbloom can grab
               just Season {season} from it and skip the rest.
             </span>
           </div>

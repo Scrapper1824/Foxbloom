@@ -3,7 +3,7 @@ import { parseQuerySession } from './gpuTest.js';
 
 const HEAD = ' SESSIONNAME       USERNAME                 ID  STATE   TYPE        DEVICE \r\n services                                    0  Disc                        \r\n';
 
-describe('which Windows session Mediarr runs in', () => {
+describe('which Windows session Foxbloom runs in', () => {
   it('reads the console session', () => {
     expect(parseQuerySession(`${HEAD}>console           admin                     1  Active                      \r\n`)).toEqual({ name: 'console', id: 1, state: 'Active' });
   });

@@ -51,10 +51,10 @@ function paced<T>(task: () => Promise<T>): Promise<T> {
   queue = run.catch(() => undefined);
   return run;
 }
-const getJson = <T>(url: string) => paced(() => fetchJson<T>(url, { headers: { accept: 'application/json', 'user-agent': 'Mediarr (self-hosted media manager)' } }));
+const getJson = <T>(url: string) => paced(() => fetchJson<T>(url, { headers: { accept: 'application/json', 'user-agent': 'Foxbloom (self-hosted media manager)' } }));
 async function getHtml(url: string): Promise<string | null> {
   return paced(async () => {
-    const res = await fetch(url, { headers: { accept: 'text/html', 'user-agent': 'Mediarr (self-hosted media manager)' }, signal: AbortSignal.timeout(20000) });
+    const res = await fetch(url, { headers: { accept: 'text/html', 'user-agent': 'Foxbloom (self-hosted media manager)' }, signal: AbortSignal.timeout(20000) });
     if (res.status === 429) throw new HttpError('429 Too Many Requests', 429);
     return res.ok ? res.text() : null;
   });

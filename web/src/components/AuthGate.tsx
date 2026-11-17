@@ -16,7 +16,9 @@ function Brand() {
   return (
     <div className="auth-brand">
       <Logo />
-      <span>Mediarr</span>
+      <span className="brand-word">
+            Fox<em>bloom</em>
+          </span>
     </div>
   );
 }
@@ -165,7 +167,7 @@ function SetupScreen() {
         <Brand />
         <h1>Create your account</h1>
         <p className="muted small">
-          Mediarr needs an account before anything can be used. Enter the setup code shown in the Mediarr window (also saved in{' '}
+          Foxbloom needs an account before anything can be used. Enter the setup code shown in the Foxbloom window (also saved in{' '}
           <code>data\setup-code.txt</code>). This keeps anyone else from claiming your server.
         </p>
         <label className="field">
@@ -219,7 +221,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       <div className="auth-page">
         <div className="auth-card">
           <Brand />
-          <div className="error-box">Can’t reach the Mediarr server.</div>
+          <div className="error-box">Can’t reach the Foxbloom server.</div>
           <button className="btn full" onClick={() => auth.refetch()}>
             Try again
           </button>

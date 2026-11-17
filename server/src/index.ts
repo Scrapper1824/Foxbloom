@@ -40,23 +40,23 @@ const app = await buildApp({ dataDir });
 purgeExpiredSessions();
 setInterval(purgeExpiredSessions, 3600_000).unref();
 startScheduler();
-// Once Mediarr has settled, make previews / find intros for anything in the library that hasn't had them.
+// Once Foxbloom has settled, make previews / find intros for anything in the library that hasn't had them.
 setTimeout(() => queueLibraryWork(), 60_000).unref();
 // Home page backdrops for titles added before they were stored.
 setTimeout(() => void backfillBackdrops().catch(() => undefined), 20_000).unref();
 // New releases on GitHub show up as "Update available" for admins.
 startUpdateChecks(path.join(dataDir, 'update.log'));
-// Installed with MediarrSetup.exe: the version in Settings → Apps follows in-app updates.
+// Installed with FoxbloomSetup.exe: the version in Settings → Apps follows in-app updates.
 void refreshAppsEntry(currentVersion()).catch(() => undefined);
-// Titles and files put in the library folders outside Mediarr are picked up (then previews/intros are made for them).
+// Titles and files put in the library folders outside Foxbloom are picked up (then previews/intros are made for them).
 startLibraryScans(() => queueLibraryWork());
 await app.listen({ port: PORT, host: HOST });
-console.log(`Mediarr running at http://localhost:${PORT}`);
+console.log(`Foxbloom running at http://localhost:${PORT}`);
 
 const code = prepareSetupCode(dataDir);
 if (code) {
   console.log('');
-  console.log('  No account yet. Open Mediarr in your browser to create one.');
+  console.log('  No account yet. Open Foxbloom in your browser to create one.');
   console.log(`  Setup code: ${code}`);
   console.log(`  (also saved in ${setupCodePath(dataDir)})`);
   console.log('');

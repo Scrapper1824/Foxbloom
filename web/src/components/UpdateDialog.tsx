@@ -26,11 +26,11 @@ const STEPS = [
   ['downloading', 'Downloading the update'],
   ['installing', 'Installing packages'],
   ['building', 'Building'],
-  ['restarting', 'Restarting Mediarr'],
+  ['restarting', 'Restarting Foxbloom'],
 ] as const;
 
 /**
- * Waits for the restarted Mediarr, then reloads the page. "Back" means it answers again after being
+ * Waits for the restarted Foxbloom, then reloads the page. "Back" means it answers again after being
  * unreachable, or it already answers with the new version (a quick restart can fall between two checks).
  */
 async function waitForRestart(fromVersion: string | null, onTick: (s: string) => void) {
@@ -47,15 +47,15 @@ async function waitForRestart(fromVersion: string | null, onTick: (s: string) =>
     }
     if (!version) {
       wentDown = true;
-      onTick('Waiting for Mediarr to start again…');
+      onTick('Waiting for Foxbloom to start again…');
     } else if (wentDown || (fromVersion && version !== fromVersion)) {
-      onTick('Mediarr is back. Reloading…');
+      onTick('Foxbloom is back. Reloading…');
       window.location.reload();
       return;
     }
     await new Promise((res) => setTimeout(res, 1500));
   }
-  onTick('Mediarr is taking a while to come back. Refresh the page in a minute.');
+  onTick('Foxbloom is taking a while to come back. Refresh the page in a minute.');
 }
 
 /** "Update available": release notes, then download, install, rebuild and restart. */
@@ -85,7 +85,7 @@ export default function UpdateDialog({ onClose }: { onClose: () => void }) {
   const busy = (started && job && !['failed', 'idle', 'done'].includes(job.state)) || !!waiting;
 
   if (job && STEPS.some(([st]) => st === job.state)) sawSteps.current = true;
-  // The restart shows up as any of: the "restarting" step; Mediarr not answering; a new version; or the
+  // The restart shows up as any of: the "restarting" step; Foxbloom not answering; a new version; or the
   // steps gone again (the restarted process knows nothing of the update it came from).
   const restarted =
     started &&
@@ -108,11 +108,11 @@ export default function UpdateDialog({ onClose }: { onClose: () => void }) {
   const stepIndex = waiting ? STEPS.length - 1 : STEPS.findIndex(([s]) => s === job?.state);
 
   return (
-    <Modal title={busy ? 'Updating Mediarr' : 'Update available'} onClose={busy ? () => {} : onClose}>
+    <Modal title={busy ? 'Updating Foxbloom' : 'Update available'} onClose={busy ? () => {} : onClose}>
       {latest && !started && (
         <>
           <p>
-            Mediarr <strong>v{latest.version}</strong> is available. You have v{d.current}.
+            Foxbloom <strong>v{latest.version}</strong> is available. You have v{d.current}.
           </p>
           {latest.notes.trim() && (
             <div className="update-notes" aria-label="What's new">
@@ -120,7 +120,7 @@ export default function UpdateDialog({ onClose }: { onClose: () => void }) {
             </div>
           )}
           <p className="muted small">
-            Updating downloads the new version, rebuilds Mediarr and restarts it (anyone watching is interrupted for about a minute).{' '}
+            Updating downloads the new version, rebuilds Foxbloom and restarts it (anyone watching is interrupted for about a minute).{' '}
             <a href={latest.url} target="_blank" rel="noreferrer noopener">
               View on GitHub
             </a>
@@ -154,7 +154,7 @@ export default function UpdateDialog({ onClose }: { onClose: () => void }) {
       {failed && (
         <>
           <div className="error-box">{job?.error}</div>
-          <p className="muted small">Mediarr is still running the previous version; nothing was changed.</p>
+          <p className="muted small">Foxbloom is still running the previous version; nothing was changed.</p>
           {job && job.log.length > 0 && <pre className="update-log">{job.log.slice(-12).join('\n')}</pre>}
           <div className="row update-actions">
             <button type="button" className="btn" onClick={onClose}>

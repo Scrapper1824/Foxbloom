@@ -9,7 +9,7 @@ import { makeTrickplay, trickplaySheet } from './trickplay.js';
 
 /** Intro detection and seek-bar thumbnails with real FFmpeg (skipped without it). */
 initDb(':memory:');
-// This tests Mediarr's own detection: TheIntroDB has nothing for these made-up episodes (and isn't asked over the internet).
+// This tests Foxbloom's own detection: TheIntroDB has nothing for these made-up episodes (and isn't asked over the internet).
 vi.stubGlobal('fetch', async () => new Response('{"error":"not found"}', { status: 404 }));
 const tools = findFfmpeg();
 

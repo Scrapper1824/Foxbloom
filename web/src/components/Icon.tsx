@@ -1,4 +1,4 @@
-/** Line icons drawn for Mediarr (24×24, 1.8px stroke, round caps), so they match each other and the type. */
+/** Line icons drawn for Foxbloom (24×24, 1.8px stroke, round caps), so they match each other and the type. */
 const PATHS = {
   home: 'M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z',
   discover: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zm3.5-12.5-2 5-5 2 2-5z',

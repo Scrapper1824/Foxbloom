@@ -68,7 +68,7 @@ export async function introDbTimes(q: { tmdbId: number; season?: number; episode
   await takeTurn();
   let res: Response;
   try {
-    res = await fetch(url, { headers: { accept: 'application/json', 'user-agent': 'Mediarr (self-hosted media manager)' }, signal: AbortSignal.timeout(20000) });
+    res = await fetch(url, { headers: { accept: 'application/json', 'user-agent': 'Foxbloom (self-hosted media manager)' }, signal: AbortSignal.timeout(20000) });
   } catch (err) {
     throw new HttpError(`Could not reach TheIntroDB: ${(err as Error).message}`);
   }

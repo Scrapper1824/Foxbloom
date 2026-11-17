@@ -1,5 +1,5 @@
 /**
- * Locked out? Run on the Mediarr computer:  npm run reset-password -- <username>
+ * Locked out? Run on the Foxbloom computer:  npm run reset-password -- <username>
  * Sets a new random password, turns off two-factor, and signs out every session.
  * Only someone with access to this machine (and its data folder) can do this.
  */
@@ -12,7 +12,7 @@ const users = db.prepare('SELECT id, username FROM users').all() as { id: number
 const wanted = process.argv[2];
 
 if (!users.length) {
-  console.log('There is no account yet. Start Mediarr and use the setup code it prints to create one.');
+  console.log('There is no account yet. Start Foxbloom and use the setup code it prints to create one.');
   process.exit(0);
 }
 const user = wanted ? users.find((u) => u.username.toLowerCase() === wanted.toLowerCase()) : users.length === 1 ? users[0] : undefined;

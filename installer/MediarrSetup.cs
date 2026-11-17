@@ -1,13 +1,14 @@
-// Mediarr Setup: asks where to install, checks for Node.js / Git / FFmpeg (offering to install any that
-// are missing with winget), downloads the latest Mediarr release from GitHub, installs and builds it,
+// Foxbloom Setup: asks where to install, checks for Node.js / Git / FFmpeg (offering to install any that
+// are missing with winget), downloads the latest Foxbloom release from GitHub, installs and builds it,
 // adds shortcuts, registers it in Settings → Apps (so it can be uninstalled there) and starts it.
-// The same exe is the uninstaller: setup copies it into the Mediarr folder as "Uninstall Mediarr.exe".
+// The same exe is the uninstaller: setup copies it into the Foxbloom folder as "Uninstall Foxbloom.exe".
 // Built with the C# compiler that ships with Windows (see build.ps1), so it runs on any Windows 10/11 PC.
 //
 // Command line (optional):
-//   MediarrSetup.exe [--dir "D:\Mediarr"] [--no-shortcut] [--no-start] [--quiet]
-//   "Uninstall Mediarr.exe" --uninstall [--keep-data] [--quiet]
+//   FoxbloomSetup.exe [--dir "D:\Foxbloom"] [--no-shortcut] [--no-start] [--quiet]
+//   "Uninstall Foxbloom.exe" --uninstall [--keep-data] [--quiet]
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -23,9 +24,9 @@ using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-[assembly: AssemblyTitle("Mediarr Setup")]
-[assembly: AssemblyProduct("Mediarr")]
-[assembly: AssemblyDescription("Installs and uninstalls Mediarr")]
+[assembly: AssemblyTitle("Foxbloom Setup")]
+[assembly: AssemblyProduct("Foxbloom")]
+[assembly: AssemblyDescription("Installs and uninstalls Foxbloom")]
 [assembly: AssemblyVersion("1.1.0.0")]
 [assembly: AssemblyFileVersion("1.1.0.0")]
 
@@ -50,7 +51,7 @@ class Options
 {
     public string Dir;
     public bool NoShortcut, NoStart, Quiet, Uninstall, KeepData, FromTemp;
-    /** The uninstaller copy in the Mediarr folder, which must close before that folder can be deleted. */
+    /** The uninstaller copy in the Foxbloom folder, which must close before that folder can be deleted. */
     public int WaitPid;
 
     public static Options Parse(string[] args)
@@ -73,7 +74,7 @@ class Options
 }
 
 // ======================================================================================
-// Theme: the same colours as the Mediarr web app.
+// Theme: the same colours as the Foxbloom web app.
 // ======================================================================================
 
 static class Theme
@@ -85,9 +86,9 @@ static class Theme
     public static readonly Color LineStrong = Color.FromArgb(58, 63, 75);
     public static readonly Color Text = Color.FromArgb(236, 238, 243);
     public static readonly Color Muted = Color.FromArgb(150, 157, 174);
-    public static readonly Color Accent = Color.FromArgb(242, 181, 68);
-    public static readonly Color AccentHover = Color.FromArgb(255, 198, 94);
-    public static readonly Color AccentInk = Color.FromArgb(27, 20, 5);
+    public static readonly Color Accent = Color.FromArgb(242, 167, 195);
+    public static readonly Color AccentHover = Color.FromArgb(247, 191, 212);
+    public static readonly Color AccentInk = Color.FromArgb(58, 20, 40);
     public static readonly Color Danger = Color.FromArgb(242, 109, 109);
     public static readonly Color Ok = Color.FromArgb(76, 195, 138);
 
@@ -298,14 +299,14 @@ class Activity : Control
     protected override void Dispose(bool disposing) { if (disposing) timer.Dispose(); base.Dispose(disposing); }
 }
 
-/** Mediarr-styled message box (the message can be selected and copied, e.g. the setup code). */
+/** Foxbloom-styled message box (the message can be selected and copied, e.g. the setup code). */
 class Dialog : Form
 {
     int result = -1;
 
     Dialog(string title, string message, string[] buttons, int primary, bool danger)
     {
-        Text = "Mediarr Setup";
+        Text = "Foxbloom Setup";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = MinimizeBox = false;
         ShowInTaskbar = false;
@@ -449,21 +450,21 @@ class Stop : Exception { public Stop(string m) : base(m) { } }
 
 class SetupForm : Form
 {
-    const string Repo = "Scrapper1824/Mediarr";
-    const string RepoUrl = "https://github.com/Scrapper1824/Mediarr.git";
+    const string Repo = "Scrapper1824/Foxbloom";
+    const string RepoUrl = "https://github.com/Scrapper1824/Foxbloom.git";
     public const int Port = 7979;
     static readonly Version MinNode = new Version(22, 13, 0);
 
-    /** Everything shown in the log is also kept in %TEMP%\MediarrSetup.log (for troubleshooting). */
-    public static readonly string LogFile = Path.Combine(Path.GetTempPath(), "MediarrSetup.log");
+    /** Everything shown in the log is also kept in %TEMP%\FoxbloomSetup.log (for troubleshooting). */
+    public static readonly string LogFile = Path.Combine(Path.GetTempPath(), "FoxbloomSetup.log");
     static readonly object LogLock = new object();
 
     readonly Options opts;
     readonly Field folder = new Field(false);
     readonly ThemedButton browse = new ThemedButton("Browse…", false);
-    readonly ThemedCheck shortcutBox = new ThemedCheck("Add Mediarr to the Start menu and the desktop");
-    readonly ThemedCheck startBox = new ThemedCheck("Start Mediarr when setup finishes");
-    readonly ThemedCheck deleteDataBox = new ThemedCheck("Also delete my Mediarr data (settings, users, watch history)");
+    readonly ThemedCheck shortcutBox = new ThemedCheck("Add Foxbloom to the Start menu and the desktop");
+    readonly ThemedCheck startBox = new ThemedCheck("Start Foxbloom when setup finishes");
+    readonly ThemedCheck deleteDataBox = new ThemedCheck("Also delete my Foxbloom data (settings, users, watch history)");
     readonly Field log = new Field(true);
     readonly Activity activity = new Activity();
     readonly Label status = new Label();
@@ -478,7 +479,7 @@ class SetupForm : Form
         bool un = o.Uninstall;
         if (un) uninstallDir = Uninstaller.TargetDir(o);
 
-        Text = un ? "Uninstall Mediarr" : "Mediarr Setup";
+        Text = un ? "Uninstall Foxbloom" : "Foxbloom Setup";
         Font = Theme.Body(9.75f);
         BackColor = Theme.Bg;
         ForeColor = Theme.Text;
@@ -489,18 +490,18 @@ class SetupForm : Form
         try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
 
         var logo = new Logo { Location = new Point(28, 26), Size = new Size(44, 44) };
-        var title = new Label { Text = un ? "Uninstall Mediarr" : "Install Mediarr", Font = Theme.Bold(18f), ForeColor = Theme.Text, AutoSize = true, Location = new Point(84, 22) };
+        var title = new Label { Text = un ? "Uninstall Foxbloom" : "Install Foxbloom", Font = Theme.Bold(18f), ForeColor = Theme.Text, AutoSize = true, Location = new Point(84, 22) };
         var sub = new Label
         {
-            Text = un ? "Removes Mediarr from this PC." : "Your own movie, show and anime server.",
+            Text = un ? "Removes Foxbloom from this PC." : "Your own movie, show and anime server.",
             ForeColor = Theme.Muted, AutoSize = true, Location = new Point(86, 56),
         };
         var intro = new Label
         {
             ForeColor = Theme.Muted, Location = new Point(28, 92), Size = new Size(584, 44),
             Text = un
-                ? "This stops Mediarr and removes it from " + uninstallDir + ", along with its shortcuts and its entry in Settings → Apps. Your movies, shows and anime in your library folders are never touched."
-                : "Downloads the latest Mediarr from GitHub and sets it up on this PC. Mediarr keeps its settings and library database inside the folder you choose, so pick one you can write to.",
+                ? "This stops Foxbloom and removes it from " + uninstallDir + ", along with its shortcuts and its entry in Settings → Apps. Your movies, shows and anime in your library folders are never touched."
+                : "Downloads the latest Foxbloom from GitHub and sets it up on this PC. Foxbloom keeps its settings and library database inside the folder you choose, so pick one you can write to.",
         };
         Controls.AddRange(new Control[] { logo, title, sub, intro });
 
@@ -513,7 +514,7 @@ class SetupForm : Form
             var folderLabel = new Label { Text = "INSTALL TO", Font = Theme.Bold(8f), ForeColor = Theme.Muted, AutoSize = true, Location = new Point(28, y) };
             folder.Location = new Point(28, y + 22);
             folder.Size = new Size(466, 38);
-            folder.Box.Text = o.Dir ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mediarr");
+            folder.Box.Text = o.Dir ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Foxbloom");
             browse.Location = new Point(504, y + 23);
             browse.Size = new Size(108, 36);
             browse.Click += delegate { Browse(); };
@@ -534,7 +535,7 @@ class SetupForm : Form
             var dataHint = new Label
             {
                 ForeColor = Theme.Muted, Location = new Point(56, y + 28), Size = new Size(556, 36),
-                Text = "Leave this off to keep them in " + Path.Combine(uninstallDir, "data") + ", so installing Mediarr there again picks up where you left off.",
+                Text = "Leave this off to keep them in " + Path.Combine(uninstallDir, "data") + ", so installing Foxbloom there again picks up where you left off.",
             };
             Controls.AddRange(new Control[] { deleteDataBox, dataHint });
             y += 76;
@@ -573,10 +574,12 @@ class SetupForm : Form
         string current = folder.Box.Text.Trim();
         string startIn = null;
         try { startIn = Directory.Exists(current) ? current : Path.GetDirectoryName(current); } catch { }
-        string picked = FolderPicker.Pick(this, "Choose where to install Mediarr (a \"Mediarr\" folder is made inside it)", startIn);
+        string picked = FolderPicker.Pick(this, "Choose where to install Foxbloom (a \"Foxbloom\" folder is made inside it)", startIn);
         if (picked == null) return;
-        bool named = string.Equals(Path.GetFileName(picked.TrimEnd('\\')), "Mediarr", StringComparison.OrdinalIgnoreCase);
-        folder.Box.Text = named ? picked : Path.Combine(picked, "Mediarr");
+        string leaf = Path.GetFileName(picked.TrimEnd('\\'));
+        // An existing install from before the rename lives in a "Mediarr" folder.
+        bool named = string.Equals(leaf, "Foxbloom", StringComparison.OrdinalIgnoreCase) || string.Equals(leaf, "Mediarr", StringComparison.OrdinalIgnoreCase);
+        folder.Box.Text = named ? picked : Path.Combine(picked, "Foxbloom");
     }
 
     // ---------- UI helpers (safe from the worker thread) ----------
@@ -597,7 +600,7 @@ class SetupForm : Form
         Log("== " + text);
     }
 
-    /** Yes/no question in Mediarr's style. Null when the window was closed. */
+    /** Yes/no question in Foxbloom's style. Null when the window was closed. */
     public bool? Ask(string title, string question, string yes, string no, bool danger)
     {
         if (InvokeRequired) return (bool?)Invoke(new Func<string, string, string, string, bool, bool?>(Ask), title, question, yes, no, danger);
@@ -655,7 +658,7 @@ class SetupForm : Form
         AcceptButton = cancel;
         if (error != null)
         {
-            status.Text = opts.Uninstall ? "Mediarr wasn't fully removed." : "Setup didn't finish.";
+            status.Text = opts.Uninstall ? "Foxbloom wasn't fully removed." : "Setup didn't finish.";
             Log("!! " + error);
             go.Text = "Try again";
             foreach (Control c in new Control[] { folder, browse, shortcutBox, startBox, deleteDataBox, go }) c.Enabled = true;
@@ -665,7 +668,7 @@ class SetupForm : Form
         }
         else
         {
-            status.Text = opts.Uninstall ? "Mediarr was removed." : "Mediarr is installed.";
+            status.Text = opts.Uninstall ? "Foxbloom was removed." : "Foxbloom is installed.";
             go.Visible = false;
             if (!opts.Quiet) Tell(opts.Uninstall ? "Uninstalled" : "All set", done);
         }
@@ -678,12 +681,12 @@ class SetupForm : Form
     {
         ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
 
-        // 1. Where: an empty (or new) folder, or an existing Mediarr copy to repair.
+        // 1. Where: an empty (or new) folder, or an existing Foxbloom copy to repair.
         bool existing = Uninstaller.IsMediarrCopy(dir);
         if (!existing && Directory.Exists(dir) && Directory.GetFileSystemEntries(dir).Length > 0)
             throw new Stop("\"" + dir + "\" already has other files in it. Choose an empty folder, or a new one.");
-        if (existing && !opts.Quiet && !AskYes("Already installed", "Mediarr is already installed in\n" + dir +
-                "\n\nReinstall its packages and rebuild it? Your settings, users and library stay as they are.\n(For a newer version, use Settings → System → Updates in Mediarr.)",
+        if (existing && !opts.Quiet && !AskYes("Already installed", "Foxbloom is already installed in\n" + dir +
+                "\n\nReinstall its packages and rebuild it? Your settings, users and library stay as they are.\n(For a newer version, use Settings → System → Updates in Foxbloom.)",
                 "Reinstall", "Cancel"))
             throw new Stop("Nothing was changed.");
         try
@@ -695,8 +698,8 @@ class SetupForm : Form
         }
         catch (Exception ex)
         {
-            throw new Stop("Mediarr can't write to \"" + dir + "\" (" + ex.Message + "). Choose a folder in your user folder, for example " +
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mediarr") + ".");
+            throw new Stop("Foxbloom can't write to \"" + dir + "\" (" + ex.Message + "). Choose a folder in your user folder, for example " +
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Foxbloom") + ".");
         }
         Log("Installing to " + dir);
 
@@ -705,10 +708,10 @@ class SetupForm : Form
         RefreshPath();
         string node = EnsureNode();
         string git = EnsureTool("Git", "git.exe", "Git.Git", "https://git-scm.com/download/win", true,
-            "Mediarr uses Git to download itself and its updates.",
+            "Foxbloom uses Git to download itself and its updates.",
             new[] { @"%ProgramFiles%\Git\cmd\git.exe", @"%LocalAppData%\Programs\Git\cmd\git.exe" });
         EnsureTool("FFmpeg", "ffmpeg.exe", "Gyan.FFmpeg", "https://www.gyan.dev/ffmpeg/builds/", false,
-            "Mediarr uses FFmpeg to play videos in the browser (converting them when needed), for seek-bar thumbnails and to find intros. Everything else works without it, and you can install it later.",
+            "Foxbloom uses FFmpeg to play videos in the browser (converting them when needed), for seek-bar thumbnails and to find intros. Everything else works without it, and you can install it later.",
             new[] { @"%LocalAppData%\Microsoft\WinGet\Links\ffmpeg.exe" });
 
         // 3. Download.
@@ -717,22 +720,22 @@ class SetupForm : Form
             Status("Finding the latest release…");
             string tag = LatestTag();
             Log(tag != null ? "Latest release: " + tag : "No release found; using the newest code.");
-            Status("Downloading Mediarr from GitHub…");
-            Run(git, new[] { "clone", RepoUrl, dir }, null, "Downloading Mediarr");
+            Status("Downloading Foxbloom from GitHub…");
+            Run(git, new[] { "clone", RepoUrl, dir }, null, "Downloading Foxbloom");
             // Stay on main (so in-app updates can move it forward), at the released version.
             if (tag != null) Run(git, new[] { "reset", "--hard", tag }, dir, "Choosing " + tag);
         }
 
         // 4. Install packages and build.
         string npmCli = Path.Combine(Path.GetDirectoryName(node), @"node_modules\npm\bin\npm-cli.js");
-        if (!File.Exists(npmCli)) throw new Stop("npm wasn't found next to Node.js (" + node + "). Reinstall Node.js, then run Mediarr Setup again.");
+        if (!File.Exists(npmCli)) throw new Stop("npm wasn't found next to Node.js (" + node + "). Reinstall Node.js, then run Foxbloom Setup again.");
         Status("Installing packages (this takes a minute or two)…");
         Run(node, new[] { npmCli, "ci", "--no-audit", "--no-fund" }, dir, "Installing packages");
-        Status("Building Mediarr…");
+        Status("Building Foxbloom…");
         Run(node, new[] { npmCli, "run", "build" }, dir, "Building");
 
         // 5. Uninstaller + Settings → Apps.
-        Status("Registering Mediarr in Settings → Apps…");
+        Status("Registering Foxbloom in Settings → Apps…");
         string uninstaller = Path.Combine(dir, Uninstaller.ExeName);
         try
         {
@@ -749,6 +752,8 @@ class SetupForm : Form
             Status("Adding shortcuts…");
             try
             {
+                foreach (string old in Uninstaller.OldShortcutPaths())
+                    if (File.Exists(old)) File.Delete(old);
                 foreach (string lnk in Uninstaller.ShortcutPaths())
                     MakeShortcut(lnk, vbs, dir, File.Exists(uninstaller) ? uninstaller : null);
             }
@@ -762,11 +767,11 @@ class SetupForm : Form
         {
             if (PortAnswers())
             {
-                started = "\n\nSomething is already running on port " + Port + " (maybe another copy of Mediarr), so this one wasn't started. Stop the other one, then start Mediarr from the Start menu.";
+                started = "\n\nSomething is already running on port " + Port + " (maybe another copy of Foxbloom), so this one wasn't started. Stop the other one, then start Foxbloom from the Start menu.";
             }
             else
             {
-                Status("Starting Mediarr…");
+                Status("Starting Foxbloom…");
                 Process.Start(new ProcessStartInfo("wscript.exe", Quote(vbs)) { WorkingDirectory = dir, UseShellExecute = false });
                 bool up = false;
                 for (int i = 0; i < 60 && !(up = PortAnswers()); i++) Thread.Sleep(1000);
@@ -786,9 +791,9 @@ class SetupForm : Form
         }
 
         Status("Done.");
-        return "Mediarr is installed in " + dir + "." + started +
+        return "Foxbloom is installed in " + dir + "." + started +
             (shortcuts ? "\n\nStart it any time from the Start menu or the desktop." : "") +
-            "\n\nUpdates appear inside Mediarr (Settings → System → Updates). To remove it, use Settings → Apps → Mediarr → Uninstall.";
+            "\n\nUpdates appear inside Foxbloom (Settings → System → Updates). To remove it, use Settings → Apps → Foxbloom → Uninstall.";
     }
 
     // ---------- Dependencies ----------
@@ -803,10 +808,10 @@ class SetupForm : Form
             if (v != null && v >= MinNode) { Log("Node.js " + v + " — " + node); return node; }
             if (attempt > 0)
                 throw new Stop("Node.js " + need + " or newer still isn't available" + (v != null ? " (found " + v + ")" : "") +
-                    ". Install it from https://nodejs.org (the LTS version), then run Mediarr Setup again.");
+                    ". Install it from https://nodejs.org (the LTS version), then run Foxbloom Setup again.");
             string have = v != null ? "You have Node.js " + v + ", which is too old." : "Node.js isn't installed on this PC.";
-            if (!AskYes("Node.js is needed", have + "\n\nMediarr runs on Node.js (version " + need + " or newer). Install the current Node.js LTS now?", "Install Node.js", "Cancel"))
-                throw new Stop("Mediarr needs Node.js " + need + " or newer. Install it from https://nodejs.org, then run Mediarr Setup again.");
+            if (!AskYes("Node.js is needed", have + "\n\nFoxbloom runs on Node.js (version " + need + " or newer). Install the current Node.js LTS now?", "Install Node.js", "Cancel"))
+                throw new Stop("Foxbloom needs Node.js " + need + " or newer. Install it from https://nodejs.org, then run Foxbloom Setup again.");
             WingetInstall("OpenJS.NodeJS.LTS", "Node.js", "https://nodejs.org", v != null);
         }
     }
@@ -818,7 +823,7 @@ class SetupForm : Form
         if (!AskYes(name + (required ? " is needed" : " is missing"), name + " isn't installed on this PC.\n\n" + why + "\n\nInstall " + name + " now?",
                 "Install " + name, required ? "Cancel" : "Skip"))
         {
-            if (required) throw new Stop("Mediarr needs " + name + ". Install it (" + page + "), then run Mediarr Setup again.");
+            if (required) throw new Stop("Foxbloom needs " + name + ". Install it (" + page + "), then run Foxbloom Setup again.");
             Log(name + " skipped. Install it later for playback: " + page);
             return null;
         }
@@ -826,8 +831,8 @@ class SetupForm : Form
         found = FindExe(exe, extra);
         if (found == null)
         {
-            if (required) throw new Stop(name + " was installed but can't be found yet. Restart your PC, then run Mediarr Setup again.");
-            Log(name + " was installed; Mediarr will find it after a restart.");
+            if (required) throw new Stop(name + " was installed but can't be found yet. Restart your PC, then run Foxbloom Setup again.");
+            Log(name + " was installed; Foxbloom will find it after a restart.");
         }
         else Log(name + " — " + found);
         return found;
@@ -840,7 +845,7 @@ class SetupForm : Form
         {
             if (AskYes("Can't install " + name, "Setup can't install " + name + " by itself on this PC (the Windows package manager, winget, isn't available).\n\nOpen the " + name + " download page instead?", "Open download page", "Cancel"))
                 try { Process.Start(page); } catch { }
-            throw new Stop("Install " + name + ", then run Mediarr Setup again.");
+            throw new Stop("Install " + name + ", then run Foxbloom Setup again.");
         }
         Status("Installing " + name + " (Windows may ask for permission)…");
         var common = new[] { "--id", id, "--exact", "--source", "winget", "--accept-source-agreements", "--accept-package-agreements", "--silent", "--disable-interactivity" };
@@ -935,7 +940,7 @@ class SetupForm : Form
         set("TargetPath", Path.Combine(Environment.SystemDirectory, "wscript.exe"));
         set("Arguments", Quote(vbs));
         set("WorkingDirectory", dir);
-        set("Description", "Start Mediarr (it runs in the system tray)");
+        set("Description", "Start Foxbloom (it runs in the system tray)");
         if (iconExe != null) set("IconLocation", iconExe + ",0");
         t.InvokeMember("Save", BindingFlags.InvokeMethod, null, lnk, null);
     }
@@ -1007,7 +1012,7 @@ class SetupForm : Form
 
 class Uninstaller
 {
-    public const string ExeName = "Uninstall Mediarr.exe";
+    public const string ExeName = "Uninstall Foxbloom.exe";
     const string AppsKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\Mediarr";
     const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
 
@@ -1025,7 +1030,7 @@ class Uninstaller
         catch { return false; }
     }
 
-    /** The Mediarr folder to remove: --dir, or the folder this uninstaller sits in. */
+    /** The Foxbloom folder to remove: --dir, or the folder this uninstaller sits in. */
     public static string TargetDir(Options o)
     {
         return Path.GetFullPath(o.Dir ?? Path.GetDirectoryName(Application.ExecutablePath));
@@ -1035,12 +1040,22 @@ class Uninstaller
     {
         return new[]
         {
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Foxbloom.lnk"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Foxbloom.lnk"),
+        };
+    }
+
+    /** Shortcuts made before the app was renamed from Mediarr (removed on reinstall and uninstall). */
+    public static string[] OldShortcutPaths()
+    {
+        return new[]
+        {
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "Mediarr.lnk"),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "Mediarr.lnk"),
         };
     }
 
-    /** Adds Mediarr to Settings → Apps / Control Panel → Programs (for this Windows user; no admin needed). */
+    /** Adds Foxbloom to Settings → Apps / Control Panel → Programs (for this Windows user; no admin needed). */
     public static void Register(string dir, string uninstaller)
     {
         string version = null;
@@ -1052,16 +1067,16 @@ class Uninstaller
         catch { }
         using (var k = Registry.CurrentUser.CreateSubKey(AppsKey))
         {
-            k.SetValue("DisplayName", "Mediarr");
+            k.SetValue("DisplayName", "Foxbloom");
             if (version != null) k.SetValue("DisplayVersion", version);
-            k.SetValue("Publisher", "Mediarr");
+            k.SetValue("Publisher", "Foxbloom");
             k.SetValue("DisplayIcon", uninstaller + ",0");
             k.SetValue("InstallLocation", dir);
             k.SetValue("InstallDate", DateTime.Now.ToString("yyyyMMdd"));
             k.SetValue("UninstallString", "\"" + uninstaller + "\" --uninstall");
             k.SetValue("QuietUninstallString", "\"" + uninstaller + "\" --uninstall --quiet --keep-data");
-            k.SetValue("URLInfoAbout", "https://github.com/Scrapper1824/Mediarr");
-            k.SetValue("HelpLink", "https://github.com/Scrapper1824/Mediarr#readme");
+            k.SetValue("URLInfoAbout", "https://github.com/Scrapper1824/Foxbloom");
+            k.SetValue("HelpLink", "https://github.com/Scrapper1824/Foxbloom#readme");
             k.SetValue("NoModify", 1, RegistryValueKind.DWord);
             k.SetValue("NoRepair", 1, RegistryValueKind.DWord);
             try { k.SetValue("EstimatedSize", (int)Math.Min(int.MaxValue, FolderBytes(dir) / 1024), RegistryValueKind.DWord); } catch { }
@@ -1086,7 +1101,7 @@ class Uninstaller
         string dir = TargetDir(o);
         string self = Path.GetFullPath(Application.ExecutablePath);
         if (!self.StartsWith(dir.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase)) return false;
-        string copy = Path.Combine(Path.GetTempPath(), "MediarrUninstall-" + Guid.NewGuid().ToString("N").Substring(0, 8) + ".exe");
+        string copy = Path.Combine(Path.GetTempPath(), "FoxbloomUninstall-" + Guid.NewGuid().ToString("N").Substring(0, 8) + ".exe");
         File.Copy(self, copy, true);
         var args = new StringBuilder("--uninstall --from-temp --dir " + SetupForm.Quote(dir) + " --wait-pid " + Process.GetCurrentProcess().Id);
         if (o.Quiet) args.Append(" --quiet");
@@ -1109,17 +1124,17 @@ class Uninstaller
 
     public string Run(string dir, bool deleteData)
     {
-        if (!IsMediarrCopy(dir)) throw new Stop("\"" + dir + "\" doesn't look like a Mediarr folder, so nothing was removed.");
-        ui.Log("Uninstalling Mediarr from " + dir);
+        if (!IsMediarrCopy(dir)) throw new Stop("\"" + dir + "\" doesn't look like a Foxbloom folder, so nothing was removed.");
+        ui.Log("Uninstalling Foxbloom from " + dir);
 
-        // The copy of this uninstaller in the Mediarr folder closes as soon as it has started this one.
+        // The copy of this uninstaller in the Foxbloom folder closes as soon as it has started this one.
         if (waitPid > 0) try { Process.GetProcessById(waitPid).WaitForExit(15000); } catch { }
 
-        ui.Status("Stopping Mediarr…");
+        ui.Status("Stopping Foxbloom…");
         StopProcesses(dir);
 
         ui.Status("Removing shortcuts and the start-with-Windows entry…");
-        foreach (string lnk in ShortcutPaths())
+        foreach (string lnk in ShortcutPaths().Concat(OldShortcutPaths()))
         {
             try
             {
@@ -1132,12 +1147,12 @@ class Uninstaller
             using (var run = Registry.CurrentUser.OpenSubKey(RunKey, true))
             {
                 var v = run != null ? run.GetValue("Mediarr") as string : null;
-                if (v != null && v.IndexOf(dir, StringComparison.OrdinalIgnoreCase) >= 0) { run.DeleteValue("Mediarr", false); ui.Log("Mediarr no longer starts with Windows."); }
+                if (v != null && v.IndexOf(dir, StringComparison.OrdinalIgnoreCase) >= 0) { run.DeleteValue("Mediarr", false); ui.Log("Foxbloom no longer starts with Windows."); }
             }
         }
         catch (Exception ex) { ui.Log("Couldn't remove the start-with-Windows entry: " + ex.Message); }
 
-        ui.Status(deleteData ? "Deleting Mediarr and its data…" : "Deleting Mediarr (keeping your data)…");
+        ui.Status(deleteData ? "Deleting Foxbloom and its data…" : "Deleting Foxbloom (keeping your data)…");
         string data = Path.Combine(dir, "data");
         var failed = new List<string>();
         for (int attempt = 0; attempt < 5; attempt++)
@@ -1149,20 +1164,20 @@ class Uninstaller
                 try { DeleteTree(entry); } catch { failed.Add(entry); }
             }
             if (failed.Count == 0) break;
-            Thread.Sleep(1500); // files can stay locked for a moment after Mediarr stops
+            Thread.Sleep(1500); // files can stay locked for a moment after Foxbloom stops
         }
         if (deleteData && failed.Count == 0) try { Directory.Delete(dir, false); } catch { }
         try { Registry.CurrentUser.DeleteSubKeyTree(AppsKey, false); } catch { }
 
         if (failed.Count > 0)
-            throw new Stop("Mediarr is uninstalled, but some files couldn't be deleted (something may still be using them):\n" + string.Join("\n", failed.ToArray()) + "\n\nDelete " + dir + " yourself after restarting.");
+            throw new Stop("Foxbloom is uninstalled, but some files couldn't be deleted (something may still be using them):\n" + string.Join("\n", failed.ToArray()) + "\n\nDelete " + dir + " yourself after restarting.");
         ui.Status("Done.");
-        return "Mediarr was removed from this PC." +
-            (deleteData ? "" : "\n\nYour Mediarr data (settings, users, watch history) is still in " + data + ". Delete that folder if you don't need it; installing Mediarr into " + dir + " again picks it up.") +
+        return "Foxbloom was removed from this PC." +
+            (deleteData ? "" : "\n\nYour Foxbloom data (settings, users, watch history) is still in " + data + ". Delete that folder if you don't need it; installing Foxbloom into " + dir + " again picks it up.") +
             "\n\nYour movies, shows and anime weren't touched.";
     }
 
-    /** Ends Mediarr's tray and server (and anything they started, like FFmpeg) that run from this folder. */
+    /** Ends Foxbloom's tray and server (and anything they started, like FFmpeg) that run from this folder. */
     void StopProcesses(string dir)
     {
         var procs = new List<Tuple<int, int, string, string>>(); // pid, parent, name, command line
@@ -1194,7 +1209,7 @@ class Uninstaller
             }
             catch { }
         }
-        if (kill.Count == 0) ui.Log("Mediarr wasn't running.");
+        if (kill.Count == 0) ui.Log("Foxbloom wasn't running.");
     }
 
     static bool ShortcutPointsInto(string lnk, string dir)

@@ -16,7 +16,7 @@ export interface Settings {
   animeRoots: string[];
   /** A drive with less free space than this is skipped for new titles while another folder has room. */
   minFreeSpaceGb: number;
-  /** Look through the library folders for titles/files added outside Mediarr every N hours (0 = only by hand). */
+  /** Look through the library folders for titles/files added outside Foxbloom every N hours (0 = only by hand). */
   libraryScanHours: number;
   preferredResolution: '2160p' | '1080p' | '720p' | '480p';
   allow4k: boolean;
@@ -26,7 +26,7 @@ export interface Settings {
   monitorIntervalMinutes: number;
   researchIntervalHours: number;
   defaultAnimeAudio: 'sub' | 'dub';
-  /** Watchlists: Mediarr's app IDs on Simkl and AniList; each user then connects their own account. */
+  /** Watchlists: Foxbloom's app IDs on Simkl and AniList; each user then connects their own account. */
   simklClientId: string;
   /** Only for Simkl apps registered as "Server apps & services". */
   simklClientSecret: string;
@@ -40,7 +40,7 @@ export interface Settings {
   introDetection: boolean;
   /** Thumbnail previews on the seek bar. */
   trickplay: boolean;
-  /** Updates (from the Scrapper1824/Mediarr releases): whether to look for new ones every 6 hours. */
+  /** Updates (from the Scrapper1824/Foxbloom releases): whether to look for new ones every 6 hours. */
   autoCheckUpdates: boolean;
 }
 

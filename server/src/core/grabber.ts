@@ -76,7 +76,7 @@ export async function searchReleases(
   mode: SearchMode = 'targeted',
   cache: QueryCache = new Map(),
 ): Promise<ScoredRelease[]> {
-  // Added before Mediarr tracked 18+: find out first, since 18+ releases sit in other categories.
+  // Added before Foxbloom tracked 18+: find out first, since 18+ releases sit in other categories.
   if (!m.adult_checked) {
     await refreshMedia(m.id).catch(() => undefined);
     m = getMedia(m.id) ?? m;
@@ -356,7 +356,7 @@ export async function autoSearch(mediaId: number, opts: AutoSearchOptions = {}):
         ? 'No exact match, but bundles that include it were found. Choose one below.'
         : failedOnly
           ? `Search failed: ${out.errors[0]}`
-          : (out.note ?? 'No acceptable releases found yet. Mediarr will keep trying automatically.');
+          : (out.note ?? 'No acceptable releases found yet. Foxbloom will keep trying automatically.');
     // Only searches the user started get a popup; background checks stay quiet.
     const m = getMedia(mediaId);
     if (m && opts.force && !grabs && !out.suggested) {

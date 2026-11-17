@@ -47,7 +47,7 @@ export const toAniList = (s: WatchStatus) => TO_ANILIST[s];
 export const fromAniList = (s: anilist.AniListStatus) => FROM_ANILIST[s];
 
 export interface WatchItem {
-  /** Stable id within the list: "movie:603", "anime:21", or "simkl:123" when Mediarr has no id for it. */
+  /** Stable id within the list: "movie:603", "anime:21", or "simkl:123" when Foxbloom has no id for it. */
   key: string;
   type: MediaType;
   status: WatchStatus;

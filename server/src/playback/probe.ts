@@ -74,7 +74,7 @@ const tag = (s: any, k: string): string | null => {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
 };
 
-/** Turns `ffprobe -show_streams -show_format -of json` output into the tracks Mediarr cares about. */
+/** Turns `ffprobe -show_streams -show_format -of json` output into the tracks Foxbloom cares about. */
 export function parseProbe(json: any): MediaProbe {
   const streams: any[] = json.streams ?? [];
   const v = streams.find((s) => s.codec_type === 'video' && !s.disposition?.attached_pic);

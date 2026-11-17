@@ -129,7 +129,7 @@ export async function linkFiles(m: MediaRow): Promise<number> {
   return linked;
 }
 
-/** Files that were deleted outside Mediarr: forget them (only when their library folder is there, so an unplugged drive changes nothing). */
+/** Files that were deleted outside Foxbloom: forget them (only when their library folder is there, so an unplugged drive changes nothing). */
 function dropMissing(m: MediaRow): number {
   // Each file's own library folder must be there (a split series has files on several drives).
   const rootOf = (file: string) => titleDirs(m).map((d) => path.dirname(d)).find((r) => isInside(file, r)) ?? m.root_folder;
@@ -264,7 +264,7 @@ export async function scanLibrary(opts: { delayMs?: number } = {}): Promise<Scan
         status.unmatched.push({ ...f, guess, reason: (err as Error).message });
       }
     }
-    // Library folders that are gone from disk (whole titles deleted outside Mediarr) are left alone on purpose:
+    // Library folders that are gone from disk (whole titles deleted outside Foxbloom) are left alone on purpose:
     // removing titles is the user's call.
   } catch (err) {
     status.error = (err as Error).message;

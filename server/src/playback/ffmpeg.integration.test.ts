@@ -38,7 +38,7 @@ describe.skipIf(!tools || !FONT)('with real FFmpeg', () => {
         '',
         '[Events]',
         'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
-        'Dialogue: 0,0:00:01.00,0:00:05.00,Default,,0,0,0,,{\\an8}Hello from Mediarr',
+        'Dialogue: 0,0:00:01.00,0:00:05.00,Default,,0,0,0,,{\\an8}Hello from Foxbloom',
       ].join('\n'),
     );
     clip = path.join(tmp, 'Show - S01E01.mkv');
@@ -72,7 +72,7 @@ describe.skipIf(!tools || !FONT)('with real FFmpeg', () => {
     expect(p.video).toMatchObject({ codec: 'hevc', bitDepth: 10, height: 720 });
     expect(p.audio.map((a) => a.language)).toEqual(['jpn', 'eng']);
     expect(p.subtitles).toEqual([expect.objectContaining({ codec: 'ass', text: true })]);
-    // Attached by path here, so FFmpeg kept the folder in the name; Mediarr only ever uses the base name.
+    // Attached by path here, so FFmpeg kept the folder in the name; Foxbloom only ever uses the base name.
     expect(p.fonts).toHaveLength(1);
     expect(path.win32.basename(p.fonts[0].filename)).toBe(path.basename(FONT!));
     expect(p.duration).toBeCloseTo(20, 0);
@@ -81,7 +81,7 @@ describe.skipIf(!tools || !FONT)('with real FFmpeg', () => {
   it('extracts the styled subtitles and the embedded font', async () => {
     const p = await probeFile(clip);
     const ass = fs.readFileSync(await extractSubtitle(clip, p.subtitles[0]), 'utf8');
-    expect(ass).toContain('Hello from Mediarr');
+    expect(ass).toContain('Hello from Foxbloom');
     expect(ass).toContain('{\\an8}');
     const fonts = await dumpFonts(clip, p);
     expect(fonts.names).toEqual([path.basename(FONT!)]);

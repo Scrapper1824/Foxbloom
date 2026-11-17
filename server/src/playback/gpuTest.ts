@@ -3,7 +3,7 @@ import { ffmpegInfo, requireFfmpeg, run, type Encoder } from './ffmpeg.js';
 import { gpuFallbackActive, resetGpuFallback } from './sessions.js';
 
 /**
- * "Test graphics card": tries a real GPU encode right now and says which Windows session Mediarr runs in.
+ * "Test graphics card": tries a real GPU encode right now and says which Windows session Foxbloom runs in.
  * Made for servers: run `tscon %sessionname% /dest:console`, then press Test from another device to see
  * whether the graphics card still works with Remote Desktop closed.
  */
@@ -87,7 +87,7 @@ export async function testGpu(): Promise<GpuTestResult> {
       : verdict === 'gpu-off'
         ? `The graphics card works, but Settings → Playback → “Convert with” is set to the CPU.`
         : disconnected
-          ? 'The graphics card can’t be used: Mediarr is in a disconnected Remote Desktop session. Next time, instead of closing Remote Desktop, run “tscon %sessionname% /dest:console” as administrator, then test again from another device.'
+          ? 'The graphics card can’t be used: Foxbloom is in a disconnected Remote Desktop session. Next time, instead of closing Remote Desktop, run “tscon %sessionname% /dest:console” as administrator, then test again from another device.'
           : session && /^rdp/i.test(session.name)
             ? 'The graphics card can’t be used from this Remote Desktop session. Videos convert on the CPU (slower).'
             : 'No graphics card encoder works right now, so videos convert on the CPU (slower). If no monitor is plugged in, a virtual display driver or an HDMI dummy plug may help.';

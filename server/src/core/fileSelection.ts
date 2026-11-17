@@ -17,7 +17,7 @@ export interface FilePlan {
   keepVideos: number;
   /** Videos skipped because they are other seasons' episodes or extras (OVA/OAD, NCOP, featurettes…). */
   skipVideos: number;
-  /** Videos Mediarr couldn't identify; they're downloaded to be safe. */
+  /** Videos Foxbloom couldn't identify; they're downloaded to be safe. */
   unknownVideos: number;
   seasons: number[];
 }

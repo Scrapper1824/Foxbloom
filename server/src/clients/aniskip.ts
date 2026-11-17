@@ -49,7 +49,7 @@ export async function aniSkipTimes(malId: number, episode: number, duration: num
   url.searchParams.set('episodeLength', '0');
   try {
     const r = await fetchJson<{ found: boolean; results?: AniSkipResult[] }>(url.toString(), {
-      headers: { accept: 'application/json', 'user-agent': 'Mediarr (self-hosted media manager)' },
+      headers: { accept: 'application/json', 'user-agent': 'Foxbloom (self-hosted media manager)' },
     });
     return r.found && r.results ? pickSkipTimes(r.results, duration) : {};
   } catch (err) {

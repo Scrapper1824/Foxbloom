@@ -6,7 +6,7 @@ const run = promisify(execFile);
 
 /**
  * "Start when I log in to Windows": a per-user entry under HKCU\...\Run (no admin rights needed)
- * that launches the tray, which starts Mediarr hidden. The system tray menu toggles the same entry.
+ * that launches the tray, which starts Foxbloom hidden. The system tray menu toggles the same entry.
  */
 const RUN_KEY = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
 const VALUE_NAME = 'Mediarr';
@@ -54,7 +54,7 @@ export async function setAutostart(enabled: boolean, runner: RegRunner = reg): P
 const APPS_KEY = 'HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Mediarr';
 
 /**
- * Installed with MediarrSetup.exe: keep the version shown in Settings → Apps current after in-app updates.
+ * Installed with FoxbloomSetup.exe: keep the version shown in Settings → Apps current after in-app updates.
  * Only touches the entry when it belongs to this folder.
  */
 export async function refreshAppsEntry(version: string, runner: RegRunner = reg): Promise<boolean> {
@@ -64,6 +64,9 @@ export async function refreshAppsEntry(version: string, runner: RegRunner = reg)
     const location = /InstallLocation\s+REG_\w+\s+(.+)/.exec(stdout)?.[1]?.trim();
     if (!location || path.resolve(location).toLowerCase() !== ROOT.toLowerCase()) return false;
     await runner(['add', APPS_KEY, '/v', 'DisplayVersion', '/t', 'REG_SZ', '/d', version, '/f']);
+    // Installed before the app was renamed: show the new name too (the registry key itself keeps its old name).
+    await runner(['add', APPS_KEY, '/v', 'DisplayName', '/t', 'REG_SZ', '/d', 'Foxbloom', '/f']);
+    await runner(['add', APPS_KEY, '/v', 'Publisher', '/t', 'REG_SZ', '/d', 'Foxbloom', '/f']);
     return true;
   } catch {
     return false; // not installed with the installer

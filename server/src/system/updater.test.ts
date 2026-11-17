@@ -49,7 +49,7 @@ beforeEach(() => {
   behaviour = {};
   lastAuth = null;
   lastUrl = null;
-  release = { tag_name: 'v0.2.0', name: 'Mediarr v0.2.0', body: '* Skip intro\n* Seek previews', html_url: 'https://github.com/x/y/releases/v0.2.0', published_at: '2026-11-10T00:00:00Z', draft: false, prerelease: false };
+  release = { tag_name: 'v0.2.0', name: 'Foxbloom v0.2.0', body: '* Skip intro\n* Seek previews', html_url: 'https://github.com/x/y/releases/v0.2.0', published_at: '2026-11-10T00:00:00Z', draft: false, prerelease: false };
   useUpdaterDeps({
     root,
     run: fakeRun,
@@ -81,8 +81,8 @@ describe('versions', () => {
 describe('checking for updates', () => {
   it('offers a newer release from the public repository, without any sign-in', async () => {
     const info = await checkForUpdate();
-    expect(info).toMatchObject({ current: '0.1.0', repo: 'Scrapper1824/Mediarr', available: true, error: null, latest: { version: '0.2.0' } });
-    expect(lastUrl).toBe('https://api.github.com/repos/Scrapper1824/Mediarr/releases/latest');
+    expect(info).toMatchObject({ current: '0.1.0', repo: 'Scrapper1824/Foxbloom', available: true, error: null, latest: { version: '0.2.0' } });
+    expect(lastUrl).toBe('https://api.github.com/repos/Scrapper1824/Foxbloom/releases/latest');
     // Your GitHub sign-in is never read or sent.
     expect(lastAuth).toBeNull();
     expect(calls.some((c) => c.args[0] === 'credential' || c.args[0] === 'remote')).toBe(false);
@@ -98,7 +98,7 @@ describe('checking for updates', () => {
   it('explains when there are no releases', async () => {
     release = null;
     expect((await checkForUpdate()).error).toMatch(/No releases/);
-    expect(REPO).toBe('Scrapper1824/Mediarr');
+    expect(REPO).toBe('Scrapper1824/Foxbloom');
   });
 });
 
@@ -110,7 +110,7 @@ describe('installing an update', () => {
     expect(updateInfo().job.state).toBe('restarting');
     expect(calls.find((c) => c.args[0] === 'merge')!.args).toEqual(['merge', '--ff-only', 'v0.2.0']);
     // Downloaded from the public repository itself, whatever this copy's own remote is.
-    expect(calls.find((c) => c.args[0] === 'fetch')!.args).toContain('https://github.com/Scrapper1824/Mediarr.git');
+    expect(calls.find((c) => c.args[0] === 'fetch')!.args).toContain('https://github.com/Scrapper1824/Foxbloom.git');
     expect(ranBefore('git fetch', 'git merge')).toBe(true);
     expect(ranBefore('git merge', 'npm ci')).toBe(true);
     expect(ranBefore('npm ci', 'npm build')).toBe(true);

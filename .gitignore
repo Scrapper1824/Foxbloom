@@ -3,7 +3,7 @@ node_modules/
 dist/
 .update-backup/
 
-# Everything Mediarr stores at run time: the database (API keys, users), secret key, caches, logs.
+# Everything Foxbloom stores at run time: the database (API keys, users), secret key, caches, logs.
 # Never commit it.
 data/
 *.db
@@ -21,5 +21,6 @@ setup-code.txt
 .DS_Store
 Thumbs.db
 
-# Written by the Windows installer next to Mediarr (Settings → Apps uses it to uninstall).
+# Written by the Windows installer next to Foxbloom (Settings → Apps uses it to uninstall).
+/Uninstall Foxbloom.exe
 /Uninstall Mediarr.exe

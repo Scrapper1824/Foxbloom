@@ -23,7 +23,7 @@ export default function CancelDownloadDialog({ d, onClose, onDone }: { d: Downlo
           {d.media_title && <div className="muted small">for {d.media_title}</div>}
         </div>
         <p className="muted">
-          It’s removed from qBittorrent. If its episodes are still wanted, Mediarr looks for another release later (you can also search
+          It’s removed from qBittorrent. If its episodes are still wanted, Foxbloom looks for another release later (you can also search
           for one yourself on the title’s page).
         </p>
         {canDelete && (

@@ -57,7 +57,7 @@ describe('merging the two lists', () => {
     expect(merged[0].anilistId).toBe(154587);
   });
 
-  it('keys movies and shows by TMDB id, and keeps titles Mediarr cannot match', () => {
+  it('keys movies and shows by TMDB id, and keeps titles Foxbloom cannot match', () => {
     const merged = mergeLists(
       [
         simklItem({ kind: 'movies', title: 'Dune', status: 'completed', ids: { simkl: 1, tmdb: 438631 } }),

@@ -1,4 +1,4 @@
-import { NavLink, Route, Routes, useLocation, useNavigationType } from 'react-router-dom';
+import { Navigate, NavLink, Route, Routes, useLocation, useNavigationType } from 'react-router-dom';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type Download } from './api';
@@ -137,7 +137,9 @@ function Shell() {
       <aside className={`sidebar${menuOpen ? ' menu-open' : ''}`}>
         <div className="brand">
           <Logo />
-          <span>Mediarr</span>
+          <span className="brand-word">
+            Fox<em>bloom</em>
+          </span>
           <button
             type="button"
             className="menu-toggle"
@@ -179,7 +181,7 @@ function Shell() {
           ))}
         </nav>
         {isAdmin && update.data?.available && update.data.latest && (
-          <button className="update-pill" onClick={() => setUpdating(true)} title={`Mediarr v${update.data.latest.version} is available`}>
+          <button className="update-pill" onClick={() => setUpdating(true)} title={`Foxbloom v${update.data.latest.version} is available`}>
             <span className="update-pill-dot" aria-hidden />
             <span>
               Update available
@@ -213,6 +215,7 @@ function Shell() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/discover" element={<Discover />} />
+          <Route path="/library" element={<Navigate to={lastLibraryPath()} replace />} />
           <Route path="/movies" element={<Library type="movie" />} />
           <Route path="/shows" element={<Library type="show" />} />
           <Route path="/anime" element={<Library type="anime" />} />

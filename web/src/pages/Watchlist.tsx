@@ -150,7 +150,7 @@ export default function Watchlist() {
                         )}
                       </>
                     ) : (
-                      <div className="muted small">Mediarr can’t match this title yet.</div>
+                      <div className="muted small">Foxbloom can’t match this title yet.</div>
                     )}
                   </div>
                 </div>

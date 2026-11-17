@@ -38,7 +38,7 @@ describe('staying within AniList rate limits', () => {
       // 10 of 30 left: spread over the minute (2 s apart).
       return Response.json(page, { headers: { 'x-ratelimit-limit': '30', 'x-ratelimit-remaining': '10' } });
     });
-    // The first answer tells Mediarr how many are left; the next two then start 2 s apart.
+    // The first answer tells Foxbloom how many are left; the next two then start 2 s apart.
     await filterAnime(filter, 1);
     await Promise.all([filterAnime(filter, 2), filterAnime(filter, 3)]);
     expect(times[2] - times[1]).toBeGreaterThanOrEqual(1900);

@@ -70,12 +70,12 @@ type SectionId = 'overview' | 'library' | 'connections' | 'downloading' | 'playb
 const SECTIONS: { id: SectionId; label: string; icon: IconName; blurb: string }[] = [
   { id: 'overview', label: 'Overview', icon: 'info', blurb: 'What’s set up, and what still needs attention.' },
   { id: 'library', label: 'Library', icon: 'folder', blurb: 'Where movies, shows and anime are kept.' },
-  { id: 'connections', label: 'Connections', icon: 'refresh', blurb: 'The services Mediarr talks to: metadata, indexers and your download client.' },
+  { id: 'connections', label: 'Connections', icon: 'refresh', blurb: 'The services Foxbloom talks to: metadata, indexers and your download client.' },
   { id: 'downloading', label: 'Downloading', icon: 'queue', blurb: 'Which releases to pick, and how often to look for new episodes.' },
-  { id: 'playback', label: 'Playback', icon: 'play', blurb: 'Watching in Mediarr: converting videos and streaming away from home.' },
+  { id: 'playback', label: 'Playback', icon: 'play', blurb: 'Watching in Foxbloom: converting videos and streaming away from home.' },
   { id: 'watchlists', label: 'Watchlists', icon: 'watchlist', blurb: 'Simkl and AniList lists.' },
   { id: 'users', label: 'Users', icon: 'account', blurb: 'Who can sign in, and what they can do.' },
-  { id: 'system', label: 'System', icon: 'settings', blurb: 'How Mediarr runs on this PC.' },
+  { id: 'system', label: 'System', icon: 'settings', blurb: 'How Foxbloom runs on this PC.' },
   { id: 'account', label: 'My account', icon: 'account', blurb: 'Your password, two-factor sign-in and sessions.' },
 ];
 
@@ -264,7 +264,7 @@ function AdminSettings() {
             <>
             <section className="panel">
               <p className="muted small">
-                qBittorrent downloads straight into these folders, then Mediarr renames the result. Use paths as qBittorrent sees them. With more than
+                qBittorrent downloads straight into these folders, then Foxbloom renames the result. Use paths as qBittorrent sees them. With more than
                 one folder (say, one per drive), each new title goes to the first folder whose drive still has room; a title’s later episodes stay
                 with it, and it moves to another folder if a download won’t fit.
               </p>
@@ -323,7 +323,7 @@ function AdminSettings() {
                   <Field label="Username">{text('qbitUsername', { autoComplete: 'off' })}</Field>
                   <Field label="Password">{text('qbitPassword', { type: 'password', autoComplete: 'off' })}</Field>
                 </div>
-                <Field label="Category" hint="Mediarr only tracks torrents in this category.">
+                <Field label="Category" hint="Foxbloom only tracks torrents in this category.">
                   {text('qbitCategory')}
                 </Field>
                 <TestButton service="qbittorrent" form={form} />
@@ -538,8 +538,8 @@ function UpdatesPanel({ form, setForm }: { form: Settings; setForm: (s: Settings
       </label>
       <p className="muted small">
         Updates come from the published releases of{' '}
-        <a href={`https://github.com/${d?.repo ?? 'Scrapper1824/Mediarr'}/releases`} target="_blank" rel="noreferrer noopener">
-          {d?.repo ?? 'Scrapper1824/Mediarr'}
+        <a href={`https://github.com/${d?.repo ?? 'Scrapper1824/Foxbloom'}/releases`} target="_blank" rel="noreferrer noopener">
+          {d?.repo ?? 'Scrapper1824/Foxbloom'}
         </a>{' '}
         on GitHub.
       </p>

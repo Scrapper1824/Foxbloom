@@ -1,4 +1,4 @@
-' Starts the Mediarr system tray (which runs Mediarr in the background) without any console window.
+' Starts the Foxbloom system tray (which runs Foxbloom in the background) without any console window.
 ' Double-click this file, or let "Start when Windows starts" run it at login.
 Set fso = CreateObject("Scripting.FileSystemObject")
 dir = fso.GetParentFolderName(WScript.ScriptFullName)

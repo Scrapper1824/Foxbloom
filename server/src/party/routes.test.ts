@@ -160,7 +160,7 @@ describe('watch parties', () => {
     expect((await call(guest, 'GET', `/api/play/episode/${show.eps[1]}/info`)).statusCode).toBe(404);
     expect((await call(guest, 'GET', `/api/play/episode/${other.eps[0]}/extras`)).statusCode).toBe(404);
     expect((await call(guest, 'GET', `/api/play/movie/${show.id}/info`)).statusCode).toBe(404);
-    // Nothing else in Mediarr.
+    // Nothing else in Foxbloom.
     for (const url of ['/api/media', '/api/home', '/api/notifications', '/api/party/invitees?mediaId=1', '/api/auth/status/x']) {
       expect((await call(guest, 'GET', url)).statusCode, url).toBe(401);
     }

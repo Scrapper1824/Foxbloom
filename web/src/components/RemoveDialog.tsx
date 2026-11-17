@@ -21,7 +21,7 @@ export default function RemoveDialog({ id, title, onClose, onRemoved }: { id: nu
   return (
     <Modal title={`Remove ${title}?`} onClose={onClose}>
       <div className="stack remove-dialog">
-        <p className="muted">It disappears from Mediarr: no more searching or downloading for it, and its watch progress is forgotten.</p>
+        <p className="muted">It disappears from Foxbloom: no more searching or downloading for it, and its watch progress is forgotten.</p>
         <label className={`check remove-files${deleteFiles ? ' on' : ''}`}>
           <input type="checkbox" checked={deleteFiles} disabled={nothingOnDisk} onChange={(e) => setDeleteFiles(e.target.checked)} />
           <span>

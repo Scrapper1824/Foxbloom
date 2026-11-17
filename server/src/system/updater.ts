@@ -4,12 +4,12 @@ import path from 'node:path';
 import { getSettings } from '../settings.js';
 
 /** Where updates come from: this public repository's published releases. */
-export const REPO = 'Scrapper1824/Mediarr';
+export const REPO = 'Scrapper1824/Foxbloom';
 const REPO_URL = `https://github.com/${REPO}.git`;
 
-/** The Mediarr folder (a Git working copy of the GitHub repo). */
+/** The Foxbloom folder (a Git working copy of the GitHub repo). */
 export const ROOT = path.resolve(import.meta.dirname, '../../..');
-/** The tray restarts Mediarr straight away when it exits with this code. */
+/** The tray restarts Foxbloom straight away when it exits with this code. */
 export const RESTART_EXIT_CODE = 75;
 
 export interface CommandResult {
@@ -19,7 +19,7 @@ export interface CommandResult {
 }
 export type Runner = (file: string, args: string[], opts?: { input?: string; env?: Record<string, string>; timeoutMs?: number }) => Promise<CommandResult>;
 
-/** Runs a program with an argument list (never through a shell), in the Mediarr folder. */
+/** Runs a program with an argument list (never through a shell), in the Foxbloom folder. */
 export const runCommand: Runner = (file, args, opts = {}) =>
   new Promise((resolve) => {
     const child = spawn(file, args, { cwd: ROOT, windowsHide: true, env: { ...process.env, ...opts.env }, stdio: ['pipe', 'pipe', 'pipe'] });
@@ -209,7 +209,7 @@ async function installUpdate(target: string): Promise<void> {
   try {
     const dirty = await git(['status', '--porcelain', '--untracked-files=no']);
     if (dirty.code !== 0) throw new Error('This folder isn’t a Git copy of the repository, so it can’t be updated in place.');
-    if (dirty.stdout.trim()) throw new Error('This copy has local changes to Mediarr’s files, so it won’t be overwritten. Commit or discard them first.');
+    if (dirty.stdout.trim()) throw new Error('This copy has local changes to Foxbloom’s files, so it won’t be overwritten. Commit or discard them first.');
     previous = (await step('Reading the current version', 'git', ['rev-parse', 'HEAD'])).stdout.trim();
 
     await step('Downloading', 'git', ['fetch', '--tags', '--force', REPO_URL]);
@@ -249,7 +249,7 @@ async function installUpdate(target: string): Promise<void> {
   }
 }
 
-/** Ends this process; the tray (or a small helper) starts the updated Mediarr. */
+/** Ends this process; the tray (or a small helper) starts the updated Foxbloom. */
 export function restartProcess() {
   if (process.env.MEDIARR_TRAY === '1') process.exit(RESTART_EXIT_CODE);
   // Started by hand: a detached helper waits for this process to let go of the port, then starts the new one.

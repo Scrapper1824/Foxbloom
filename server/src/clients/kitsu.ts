@@ -6,7 +6,7 @@ import { fetchJson } from './http.js';
  */
 
 const BASE = 'https://kitsu.app/api/edge';
-const HEADERS = { accept: 'application/vnd.api+json', 'user-agent': 'Mediarr (self-hosted media manager)' };
+const HEADERS = { accept: 'application/vnd.api+json', 'user-agent': 'Foxbloom (self-hosted media manager)' };
 
 export interface KitsuEpisode {
   number: number;

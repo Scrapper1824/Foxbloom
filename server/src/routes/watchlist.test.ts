@@ -278,7 +278,7 @@ describe('per-user watchlists', () => {
     // The details popup reads the same list.
     expect((await call(boss, 'GET', '/api/watchlist/item?type=movie&id=27205')).json().item).toMatchObject({ title: 'Inception', status: 'planned' });
 
-    // Simkl catches up with the first change; the second is still shown from Mediarr's side.
+    // Simkl catches up with the first change; the second is still shown from Foxbloom's side.
     simklState.activity = { all: '2026-11-02T00:00:00Z', removed: '' };
     simklState.items = [{ status: 'completed', movie: { title: 'Dune', year: 2021, ids: { simkl: 1, tmdb: 438631 } } }];
     later(120_000);

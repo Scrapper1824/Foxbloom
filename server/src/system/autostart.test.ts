@@ -28,6 +28,7 @@ function fakeReg() {
 
 describe('start with Windows', () => {
   it('launches the hidden tray launcher of this install', () => {
+    // The launcher keeps its old filename: existing "start with Windows" entries point at it.
     expect(TRAY_LAUNCHER).toMatch(/[\\/]tray[\\/]Mediarr\.vbs$/);
     expect(startupCommand()).toBe(`wscript.exe "${TRAY_LAUNCHER}"`);
   });
@@ -43,14 +44,14 @@ describe('start with Windows', () => {
     expect(await setAutostart(false, reg.runner)).toBe(false); // turning off twice is fine
   });
 
-  it('does not count an entry pointing at another copy of Mediarr', async () => {
+  it('does not count an entry pointing at another copy of Foxbloom', async () => {
     const reg = fakeReg();
-    reg.values.set('Mediarr', 'wscript.exe "D:\\Old\\Mediarr\\tray\\Mediarr.vbs"');
+    reg.values.set('Mediarr', 'wscript.exe "D:\\Old\\Foxbloom\\tray\\Mediarr.vbs"');
     expect(await getAutostart(reg.runner)).toBe(false);
   });
 });
 
-describe('Settings → Apps entry (installed with MediarrSetup.exe)', () => {
+describe('Settings → Apps entry (installed with FoxbloomSetup.exe)', () => {
   const root = path.dirname(path.dirname(TRAY_LAUNCHER));
 
   it('keeps the version current for this folder', async () => {
@@ -58,6 +59,9 @@ describe('Settings → Apps entry (installed with MediarrSetup.exe)', () => {
     reg.values.set('InstallLocation', root);
     expect(await refreshAppsEntry('1.2.3', reg.runner)).toBe(true);
     expect(reg.values.get('DisplayVersion')).toBe('1.2.3');
+    // Installs from before the rename show the new name in Settings → Apps.
+    expect(reg.values.get('DisplayName')).toBe('Foxbloom');
+    expect(reg.values.get('Publisher')).toBe('Foxbloom');
   });
 
   it('leaves another install, or none, alone', async () => {

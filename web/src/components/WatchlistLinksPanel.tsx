@@ -22,7 +22,7 @@ export default function WatchlistLinksPanel() {
     <section className="panel">
       <h2>Your watchlist accounts</h2>
       <p className="muted small">
-        Connect your own Simkl and/or AniList account to see and edit your lists in Mediarr (Watchlist page, and the ＋ Watchlist button on
+        Connect your own Simkl and/or AniList account to see and edit your lists in Foxbloom (Watchlist page, and the ＋ Watchlist button on
         any title). Only you can see your lists.
       </p>
       {l && (
@@ -67,7 +67,7 @@ function ServiceRow({
         <div>
           <strong>{name}</strong> <span className="muted small">· {what}</span>
           {state.connected && <div className="ok-text small">✓ Connected{state.account ? ` as ${state.account}` : ''}</div>}
-          {!state.configured && <div className="muted small">Not set up yet: an admin needs to add Mediarr’s {name} app ID in Settings.</div>}
+          {!state.configured && <div className="muted small">Not set up yet: an admin needs to add Foxbloom’s {name} app ID in Settings.</div>}
         </div>
         {state.connected && (
           <button type="button" className="btn small ghost" onClick={onDisconnect}>

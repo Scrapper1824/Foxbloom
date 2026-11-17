@@ -1,6 +1,6 @@
-# Mediarr
+# Foxbloom
 
-**Sonarr + Radarr + a Jellyfin-style player, in one lightweight app.** Request movies, shows and anime; Mediarr finds them through Prowlarr, downloads them with qBittorrent, names everything cleanly, keeps up with new episodes, and lets you watch it all in the browser, at home or away.
+**Sonarr + Radarr + a Jellyfin-style player, in one lightweight app.** Request movies, shows and anime; Foxbloom finds them through Prowlarr, downloads them with qBittorrent, names everything cleanly, keeps up with new episodes, and lets you watch it all in the browser, at home or away.
 
 - **Requests**: Discover pages for movies, shows and anime (TMDB + AniList) with trending rows, a featured banner, ratings (TMDB, IMDb, Rotten Tomatoes, AniList, MyAnimeList, Kitsu) and trailers.
 - **Smart searching**: Prowlarr search with careful release matching (seasons, absolute numbering, sequels, bundles), **Sub/Dub** for anime, and "download just the season you asked for" from bigger bundles.
@@ -17,15 +17,15 @@
 
 ### The easy way (Windows)
 
-Download **[MediarrSetup.exe](https://github.com/Scrapper1824/Mediarr/releases/latest/download/MediarrSetup.exe)** and run it. It:
+Download **[FoxbloomSetup.exe](https://github.com/Scrapper1824/Foxbloom/releases/latest/download/FoxbloomSetup.exe)** and run it. It:
 
-1. asks where to install Mediarr (it keeps its settings and library database in that folder)
+1. asks where to install Foxbloom (it keeps its settings and library database in that folder)
 2. checks for **Node.js**, **Git** and **FFmpeg**, and offers to install any that are missing (with winget)
 3. downloads the latest release from this repository, installs its packages and builds it
-4. adds Mediarr to the Start menu and the desktop, starts it and shows your first-run **setup code**
-5. adds Mediarr to **Settings → Apps** (and Control Panel → Programs), where **Uninstall** removes it again: it stops Mediarr and deletes the app, its shortcuts and its start-with-Windows entry. You choose whether your Mediarr data (settings, users, watch history) goes too; your media files are never touched.
+4. adds Foxbloom to the Start menu and the desktop, starts it and shows your first-run **setup code**
+5. adds Foxbloom to **Settings → Apps** (and Control Panel → Programs), where **Uninstall** removes it again: it stops Foxbloom and deletes the app, its shortcuts and its start-with-Windows entry. You choose whether your Foxbloom data (settings, users, watch history) goes too; your media files are never touched.
 
-Windows may warn that the app is from an unknown publisher (it isn't code-signed): click **More info → Run anyway**. If something goes wrong, the full log is in `%TEMP%\MediarrSetup.log`.
+Windows may warn that the app is from an unknown publisher (it isn't code-signed): click **More info → Run anyway**. If something goes wrong, the full log is in `%TEMP%\FoxbloomSetup.log`.
 
 ### By hand
 
@@ -33,8 +33,8 @@ Needs **Node.js 22.13+** and **Git**, plus **FFmpeg** for watching.
 
 ```bash
 winget install OpenJS.NodeJS.LTS Git.Git Gyan.FFmpeg
-git clone https://github.com/Scrapper1824/Mediarr.git
-cd Mediarr
+git clone https://github.com/Scrapper1824/Foxbloom.git
+cd Foxbloom
 npm install
 npm run build
 npm start
@@ -44,7 +44,7 @@ Then open **http://localhost:7979**. The first time, the tray shows a **setup co
 
 ### Running it
 
-- `npm start`: on Windows, starts Mediarr in the background with an orange **M** in the system tray, and gives your terminal back. On macOS/Linux it runs in the terminal.
+- `npm start`: on Windows, starts Foxbloom in the background with a pink fox icon in the system tray, and gives your terminal back. On macOS/Linux it runs in the terminal.
 - `npm run console`: runs it in the terminal with live output (handy for troubleshooting).
 - `start.bat`: same as `npm start` (installs and builds first if needed).
 
@@ -70,15 +70,15 @@ In **Settings**, the **Overview** page is a checklist that tests each connection
 
 ## Updating
 
-When a new **release** is published on this repository, admins see **Update available** in the sidebar. Click it to read what's new, then **Update & restart**. Mediarr then:
+When a new **release** is published on this repository, admins see **Update available** in the sidebar. Click it to read what's new, then **Update & restart**. Foxbloom then:
 
 1. downloads the release (a fast-forward to its tag, so your copy is never merged or overwritten)
 2. reinstalls packages and rebuilds
 3. restarts, and the page reloads by itself
 
-If anything fails, the previous version is put back and keeps running, and the dialog shows what went wrong. Mediarr checks every 6 hours, or use **Settings → System → Updates → Check now**.
+If anything fails, the previous version is put back and keeps running, and the dialog shows what went wrong. Foxbloom checks every 6 hours, or use **Settings → System → Updates → Check now**.
 
-Updates are refused when this copy has its own uncommitted changes to Mediarr's files, so local edits are never lost.
+Updates are refused when this copy has its own uncommitted changes to Foxbloom's files, so local edits are never lost.
 
 ### Publishing a release (for developers)
 
@@ -103,8 +103,8 @@ Only published releases count as updates: pushes between releases are ignored.
   - "Also get new episodes & seasons as they air" only controls future episodes.
   - While a search runs, the title's page shows what it's doing and then the result.
 - **Search**: Prowlarr results are filtered and ranked (resolution, seeders, size limits, no CAMs, right episode/season, sub/dub, sequels told apart). The ☰ buttons open an interactive search to pick a release by hand.
-- **Download**: the best release goes to qBittorrent (category `mediarr`, tag `mediarr-<id>`), saved straight into the title's own folder. Before that, Mediarr checks the drive has room, and moves the title to another of its library folders if it doesn't.
-- **Clean names while downloading**: as soon as qBittorrent knows the files, Mediarr renames them to the final layout:
+- **Download**: the best release goes to qBittorrent (category `mediarr`, tag `mediarr-<id>`), saved straight into the title's own folder. Before that, Foxbloom checks the drive has room, and moves the title to another of its library folders if it doesn't.
+- **Clean names while downloading**: as soon as qBittorrent knows the files, Foxbloom renames them to the final layout:
   - `Movies\Dune (2021)\Dune (2021) [1080p].mkv`
   - `Shows\Severance (2022)\Season 01\Severance (2022) - S01E05 - Episode Title.mkv`
   - `Anime\Frieren\Season 01\Frieren - S01E05.mkv`
@@ -121,9 +121,9 @@ Only published releases count as updates: pushes between releases are ignored.
 
 ### Bundles
 
-When there's no pack for just the season you asked for, Mediarr widens the search: the bare show name, then "complete", "batch" and "season". A bigger bundle that **includes** your season is never downloaded on its own. Instead the show's page asks **"No pack found for just Season N. Download one instead?"**, offering:
+When there's no pack for just the season you asked for, Foxbloom widens the search: the bare show name, then "complete", "batch" and "season". A bigger bundle that **includes** your season is never downloaded on its own. Instead the show's page asks **"No pack found for just Season N. Download one instead?"**, offering:
 
-- **Just Season N** (recommended): every other file (other seasons, NCOP/NCED, extras) is set to *Do not download* in qBittorrent. If Mediarr can't tell which files are which, it downloads everything rather than risk skipping something you want.
+- **Just Season N** (recommended): every other file (other seasons, NCOP/NCED, extras) is set to *Do not download* in qBittorrent. If Foxbloom can't tell which files are which, it downloads everything rather than risk skipping something you want.
 - **Whole bundle**: downloads everything and adds the extra seasons to your library.
 
 Season naming it understands:
@@ -151,7 +151,7 @@ Press **▶** on any downloaded movie or episode.
 - **Skip intro / credits**: found from chapter names, or by comparing the audio of a season's episodes (the opening and ending songs repeat).
 - **Seek-bar previews**: a thumbnail every 10 seconds.
 
-  Both are made in the background after import, and for your existing library a minute after Mediarr starts.
+  Both are made in the background after import, and for your existing library a minute after Foxbloom starts.
 - **Resume and Continue watching**: per user. Past 90% a title counts as watched, and the next episode shows up next.
 
 ## Watchlists
@@ -164,7 +164,7 @@ Press **▶** on any downloaded movie or episode.
 
 ## Security
 
-Mediarr needs an account before anything works. Every API route refuses requests without a valid session (tests enforce this for every route).
+Foxbloom needs an account before anything works. Every API route refuses requests without a valid session (tests enforce this for every route).
 
 - **First run:** creating the first account needs the **setup code**, so nobody who reaches the site before you can claim it.
 - **Passwords:** at least 12 characters, hashed with scrypt. Wrong usernames and wrong passwords get the same answer.
@@ -176,7 +176,7 @@ Mediarr needs an account before anything works. Every API route refuses requests
   - **Users** can browse, request, search, watch, and manage their own watchlists and account.
   - **Admins** can do everything, including settings, users and updates.
   - New routes are admin-only unless explicitly opened to users.
-- **Locked out?** Run `npm run reset-password` on the Mediarr PC, or use the tray's **Reset password…**.
+- **Locked out?** Run `npm run reset-password` on the Foxbloom PC, or use the tray's **Reset password…**.
 
 ### Putting it on the internet
 
@@ -192,16 +192,16 @@ Mediarr needs an account before anything works. Every API route refuses requests
 
 ## Running in the background (Windows)
 
-`npm start` (or `start.bat`, or `tray\Mediarr.vbs`) runs Mediarr with no console window and an orange **M** in the system tray (grey means stopped). Right-click it for:
+`npm start` (or `start.bat`, or `tray\Mediarr.vbs`) runs Foxbloom with no console window and a pink fox icon in the system tray (grey means stopped). Right-click it for:
 
-- **Open Mediarr**: double-clicking the icon does the same
+- **Open Foxbloom**: double-clicking the icon does the same
 - **Start / Stop / Restart**
 - **Reset password…**
 - **Start when Windows starts**: the same setting as Settings → System
 - **Open log**: `data\mediarr.log`
 - **Quit**
 
-The tray notifies you if Mediarr crashes. After an update it starts the new version by itself.
+The tray notifies you if Foxbloom crashes. After an update it starts the new version by itself.
 
 ## Development
 

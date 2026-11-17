@@ -4,7 +4,7 @@ import type { AnimeSeason } from './animeMatch.js';
 import { animeSeasons } from './library.js';
 
 /**
- * Anime episode titles, summaries and stills from Kitsu, matched to Mediarr's numbering: a season can
+ * Anime episode titles, summaries and stills from Kitsu, matched to Foxbloom's numbering: a season can
  * be several AniList entries (split cours), each numbered from 1 on Kitsu, so they follow on.
  */
 
@@ -16,7 +16,7 @@ export interface EpisodeDetail {
   still: string | null;
 }
 
-/** Kitsu episodes for each entry of each season → Mediarr's season/episode numbers. */
+/** Kitsu episodes for each entry of each season → Foxbloom's season/episode numbers. */
 export function matchKitsu(seasons: AnimeSeason[], byEntry: Map<number, KitsuEpisode[]>): EpisodeDetail[] {
   const out: EpisodeDetail[] = [];
   for (const s of seasons) {

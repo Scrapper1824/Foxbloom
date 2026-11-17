@@ -60,7 +60,7 @@ export async function filesSummary(m: MediaRow): Promise<{ count: number; bytes:
 const GB = 1024 ** 3;
 
 /**
- * Removes a title from Mediarr. With `deleteFiles`, its downloads still in qBittorrent are cancelled
+ * Removes a title from Foxbloom. With `deleteFiles`, its downloads still in qBittorrent are cancelled
  * (with their data) and its files are deleted from disk.
  */
 export async function removeMedia(m: MediaRow, deleteFiles: boolean, by: string): Promise<{ deleted: number; bytes: number; errors: string[] }> {

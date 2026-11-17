@@ -69,6 +69,6 @@ export function verifyCode(secret: string, code: unknown, nowMs = Date.now()): n
 }
 
 export function otpauthUri(secret: string, username: string): string {
-  const label = encodeURIComponent(`Mediarr:${username}`);
-  return `otpauth://totp/${label}?secret=${secret}&issuer=Mediarr&algorithm=SHA1&digits=${DIGITS}&period=${STEP_SECONDS}`;
+  const label = encodeURIComponent(`Foxbloom:${username}`);
+  return `otpauth://totp/${label}?secret=${secret}&issuer=Foxbloom&algorithm=SHA1&digits=${DIGITS}&period=${STEP_SECONDS}`;
 }

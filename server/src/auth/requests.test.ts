@@ -87,7 +87,7 @@ describe('requests that need an admin', () => {
     expect((await call(a, 'GET', '/api/requests/count')).json()).toEqual({ pending: 1 });
     const ok = await call(a, 'POST', `/api/requests/${id}/approve`);
     expect(ok.statusCode, ok.body).toBe(200);
-    // Added in a library folder Mediarr chose, never the one the user sent.
+    // Added in a library folder Foxbloom chose, never the one the user sent.
     expect(db.prepare('SELECT title, root_folder FROM media WHERE id = ?').get(ok.json().mediaId)).toEqual({ title: 'The Matrix', root_folder: lib });
     expect((await call(a, 'POST', `/api/requests/${id}/deny`)).statusCode).toBe(409);
     expect((await call(v.cookie, 'GET', '/api/requests')).json()[0]).toMatchObject({ status: 'approved', decidedBy: 'owner' });

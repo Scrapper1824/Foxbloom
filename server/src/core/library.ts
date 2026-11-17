@@ -256,7 +256,7 @@ export function withLibraryIds<T extends { tmdbId?: number; anilistId?: number }
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * Backdrops for titles added before Mediarr stored them (the Home page uses them). One small request per
+ * Backdrops for titles added before Foxbloom stored them (the Home page uses them). One small request per
  * title, spaced out. A title with no backdrop anywhere is marked '' so it isn't asked about again;
  * a failed request leaves it for next time.
  */

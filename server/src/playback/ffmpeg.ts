@@ -45,7 +45,7 @@ function windowsInstallDirs(): string[] {
 
 /**
  * ffmpeg and ffprobe from the same folder, or null. Only files named ffmpeg/ffprobe are ever run,
- * so the Settings path can't point Mediarr at some other program.
+ * so the Settings path can't point Foxbloom at some other program.
  */
 export function findFfmpeg(override?: string): FfmpegTools | null {
   for (const dir of candidateDirs(override)) {
@@ -156,7 +156,7 @@ export async function ffmpegInfo(opts: { force?: boolean; path?: string; hwAccel
 let dataDir = process.env.MEDIARR_DATA ?? path.resolve(import.meta.dirname, '../../../data');
 export const usePlaybackDataDir = (dir: string) => (dataDir = dir);
 
-/** Where Mediarr keeps transcodes and extracted subtitles/fonts (inside its data folder). */
+/** Where Foxbloom keeps transcodes and extracted subtitles/fonts (inside its data folder). */
 export function cacheDir(...parts: string[]): string {
   const dir = path.join(dataDir, ...parts);
   fs.mkdirSync(dir, { recursive: true });

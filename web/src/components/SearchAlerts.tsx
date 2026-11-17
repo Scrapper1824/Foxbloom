@@ -84,7 +84,7 @@ export default function SearchAlerts() {
             Your indexers returned no results at all. It may not be released yet, or your indexers may not carry it.
           </p>
         )}
-        {current.kind === 'none' && <p className="hint">Mediarr keeps checking automatically and will grab it once something fits.</p>}
+        {current.kind === 'none' && <p className="hint">Foxbloom keeps checking automatically and will grab it once something fits.</p>}
         {current.kind === 'error' && <p className="hint">Check that Prowlarr is running (Settings → Prowlarr → Test).</p>}
 
         <div className="row end wrap">

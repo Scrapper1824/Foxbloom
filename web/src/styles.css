@@ -293,10 +293,10 @@ select.input option { background: var(--raised); }
 .hero-actions { display: flex; align-items: center; gap: 14px; margin-top: 22px; }
 .hero-play {
   display: inline-flex; align-items: center; gap: 10px; height: 48px; padding: 0 26px; border-radius: 999px;
-  background: #fff; color: #111; border: none; font: inherit; font-size: 17px; font-weight: 700; cursor: pointer;
+  background: var(--accent); color: var(--accent-ink); border: none; font: inherit; font-size: 17px; font-weight: 700; cursor: pointer;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35); transition: transform 0.15s, background 0.15s;
 }
-.hero-play:hover { background: var(--accent); transform: translateY(-1px); text-decoration: none; }
+.hero-play:hover { background: var(--accent-hover); color: var(--accent-ink); transform: translateY(-1px); text-decoration: none; }
 .hero-round {
   width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0;
   background: rgba(10, 10, 10, 0.35); color: #fff; border: 2px solid rgba(255, 255, 255, 0.85);

@@ -77,7 +77,8 @@ beforeEach(() => {
 });
 afterEach(() => {
   stopPlayback();
-  fs.rmSync(tmp, { recursive: true, force: true });
+  // Retries: Windows can hold a just-killed stand-in encoder's files for a moment (as the app itself allows for).
+  fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 });
 
 // These start real (stand-in) encoder processes, which can be slow while the whole suite runs at once.

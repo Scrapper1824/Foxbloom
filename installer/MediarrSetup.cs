@@ -118,21 +118,74 @@ static class Theme
     }
 }
 
-/** The orange "M" (like the tray icon and the web app's logo). */
+/** The Foxbloom fox (the same drawing as the web logo, tray icon and app icon), on a 64-unit grid. */
 class Logo : Control
 {
     public Logo() { SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true); BackColor = Color.Transparent; }
+
+    static void Poly(Graphics g, Brush b, params float[] p)
+    {
+        var pts = new PointF[p.Length / 2];
+        for (int i = 0; i < pts.Length; i++) pts[i] = new PointF(p[2 * i], p[2 * i + 1]);
+        g.FillPolygon(b, pts);
+    }
+
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
-        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
-        using (var path = Theme.Rounded(new RectangleF(0.5f, 0.5f, Width - 1, Height - 1), Width * 0.28f))
-        using (var b = new SolidBrush(Theme.Accent)) g.FillPath(b, path);
-        using (var f = new Font("Segoe UI", Height * 0.5f, FontStyle.Bold, GraphicsUnit.Pixel))
-        using (var b = new SolidBrush(Theme.AccentInk))
-        using (var fmt = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
-            g.DrawString("M", f, b, new RectangleF(0, Height * 0.03f, Width, Height), fmt);
+        g.ScaleTransform(Width / 64f, Height / 64f);
+        using (var tile = Theme.Rounded(new RectangleF(0, 0, 64, 64), 16))
+        using (var night = new SolidBrush(Color.FromArgb(29, 36, 64)))
+        using (var pink = new SolidBrush(Color.FromArgb(244, 143, 174)))
+        using (var shade = new SolidBrush(Color.FromArgb(226, 118, 154)))
+        using (var dark = new SolidBrush(Color.FromArgb(59, 21, 48)))
+        using (var cream = new SolidBrush(Color.FromArgb(255, 244, 247)))
+        using (var white = new SolidBrush(Color.White))
+        {
+            g.FillPath(night, tile);
+            Poly(g, pink, 12, 4, 28, 18, 14, 26);
+            Poly(g, shade, 52, 4, 36, 18, 50, 26);
+            Poly(g, dark, 12, 4, 17.4f, 8.8f, 13.2f, 11.6f);
+            Poly(g, dark, 52, 4, 46.6f, 8.8f, 50.8f, 11.6f);
+            Poly(g, cream, 14.8f, 12.4f, 23.4f, 19.2f, 16, 23.4f);
+            Poly(g, cream, 49.2f, 12.4f, 40.6f, 19.2f, 48, 23.4f);
+            using (var head = new GraphicsPath())
+            {
+                head.AddBezier(16, 18, 24, 14, 40, 14, 48, 18);
+                head.AddLines(new[] { new PointF(48, 18), new PointF(52, 28), new PointF(60, 34), new PointF(50, 37), new PointF(45, 45), new PointF(32, 54), new PointF(19, 45), new PointF(14, 37), new PointF(4, 34), new PointF(12, 28), new PointF(16, 18) });
+                head.CloseFigure();
+                g.FillPath(pink, head);
+            }
+            using (var brow = new GraphicsPath())
+            {
+                brow.AddLine(26.6f, 16.8f, 32, 22.6f); brow.AddLine(32, 22.6f, 37.4f, 16.8f);
+                brow.AddBezier(37.4f, 16.8f, 34, 16, 30, 16, 26.6f, 16.8f);
+                brow.CloseFigure();
+                g.FillPath(shade, brow);
+            }
+            using (var face = new GraphicsPath())
+            {
+                face.AddLine(5, 34, 14, 32.6f);
+                face.AddBezier(14, 32.6f, 19, 38.6f, 25, 41.4f, 32, 42.6f);
+                face.AddBezier(32, 42.6f, 39, 41.4f, 45, 38.6f, 50, 32.6f);
+                face.AddLines(new[] { new PointF(50, 32.6f), new PointF(59, 34), new PointF(50, 37.6f), new PointF(45, 45), new PointF(32, 54), new PointF(19, 45), new PointF(14, 37.6f) });
+                face.CloseFigure();
+                g.FillPath(cream, face);
+            }
+            using (var nose = new GraphicsPath())
+            {
+                nose.AddBezier(29.4f, 49.4f, 29.4f, 47.8f, 34.6f, 47.8f, 34.6f, 49.4f);
+                nose.AddBezier(34.6f, 49.4f, 34.6f, 51, 33, 52.4f, 32, 52.4f);
+                nose.AddBezier(32, 52.4f, 31, 52.4f, 29.4f, 51, 29.4f, 49.4f);
+                nose.CloseFigure();
+                g.FillPath(dark, nose);
+            }
+            g.FillEllipse(dark, 20.3f, 26.8f, 6.6f, 7.6f);
+            g.FillEllipse(dark, 37.1f, 26.8f, 6.6f, 7.6f);
+            g.FillEllipse(white, 23.55f, 27.95f, 2.5f, 2.5f);
+            g.FillEllipse(white, 40.35f, 27.95f, 2.5f, 2.5f);
+        }
     }
 }
 

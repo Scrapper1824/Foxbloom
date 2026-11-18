@@ -94,4 +94,17 @@ describe('bearer sessions', () => {
     const res = await app.inject({ method: 'GET', url: '/api/home', headers: bearer() });
     expect(res.statusCode).toBe(401);
   });
+
+  it('lets the TV read the 401 for an expired bearer (CORS on it)', async () => {
+    db.prepare('UPDATE sessions SET last_seen = ?').run(new Date(Date.now() - 8 * 24 * 3600_000).toISOString());
+    const res = await app.inject({ method: 'GET', url: '/api/home', headers: { ...bearer(), origin: 'file://' } });
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['access-control-allow-origin']).toBe('file://');
+  });
+
+  it('allows no-cors loads (no Origin) of bearer responses', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/home', headers: bearer() });
+    expect(res.headers['cross-origin-resource-policy']).toBe('cross-origin');
+    expect(res.headers['access-control-allow-origin']).toBeUndefined();
+  });
 });

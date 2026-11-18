@@ -298,9 +298,14 @@ export function registerSecurity(app: FastifyInstance) {
     reply.header('X-Content-Type-Options', 'nosniff');
     reply.header('Referrer-Policy', 'no-referrer');
     reply.header('Cross-Origin-Opener-Policy', 'same-origin');
-    const crossOrigin = (req.authVia === 'bearer' || req.authVia === 'stream') && !!req.headers.origin;
-    if (crossOrigin) reply.header('Access-Control-Allow-Origin', String(req.headers.origin)).header('Vary', 'Origin');
-    reply.header('Cross-Origin-Resource-Policy', crossOrigin ? 'cross-origin' : 'same-origin');
+    // Bearer/stream requests come from the TV app (another origin; <video>/<img> loads send no Origin at all).
+    // A bearer header that did not resolve (expired/revoked) still gets CORS, so the TV can read the 401.
+    const tv = req.authVia === 'bearer' || req.authVia === 'stream';
+    const bearerAttempt = !req.authVia && /^Bearer /.test(String(req.headers.authorization ?? ''));
+    if ((tv || bearerAttempt) && req.headers.origin) {
+      reply.header('Access-Control-Allow-Origin', String(req.headers.origin)).header('Vary', 'Origin');
+    }
+    reply.header('Cross-Origin-Resource-Policy', tv ? 'cross-origin' : 'same-origin');
     reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), interest-cohort=()');
     if (isHttps(req)) reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     // Never cache API responses (they may hold private data) in the browser or a proxy.

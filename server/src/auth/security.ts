@@ -7,6 +7,8 @@ declare module 'fastify' {
   interface FastifyRequest {
     user: UserRow | null;
     sessionToken: string | undefined;
+    /** How this request signed in: the website cookie, a TV app bearer token, a stream token, or not at all. */
+    authVia: 'cookie' | 'bearer' | 'stream' | null;
     /** A watch-party guest (no account), only when nobody is signed in. */
     guest: { partyId: string; guestId: number; name: string } | null;
   }
@@ -180,6 +182,8 @@ function hostOf(url: string | undefined): string | null {
  * `requireOrigin` (websocket upgrades: browsers always send Origin there).
  */
 export function crossSite(req: FastifyRequest, requireOrigin = false): boolean {
+  // An Origin that names no host ("null", file://) is a foreign page (sandboxed frame, local file), not "no origin".
+  if (req.headers.origin && !hostOf(req.headers.origin as string)) return true;
   const origin = hostOf(req.headers.origin as string | undefined) ?? hostOf(req.headers.referer);
   const host = String(req.headers['x-forwarded-host'] ?? req.headers.host ?? '').split(',')[0].trim().toLowerCase();
   if (!origin || !host) return requireOrigin;
@@ -211,12 +215,25 @@ export function registerSecurity(app: FastifyInstance) {
   app.decorateRequest('user', null);
   app.decorateRequest('sessionToken', undefined);
   app.decorateRequest('guest', null);
+  app.decorateRequest('authVia', null);
 
   app.addHook('onRequest', async (req, reply) => {
     const cookies = parseCookies(req.headers.cookie);
     const token = cookies[SESSION_COOKIE];
     req.sessionToken = token;
     req.user = userForSession(token);
+    req.authVia = req.user ? 'cookie' : null;
+    // The TV app has no cookies across origins: it sends its session token as a bearer token instead.
+    // A valid session cookie wins when both are present.
+    if (!req.user) {
+      const m = /^Bearer ([\w-]{20,100})$/.exec(String(req.headers.authorization ?? ''));
+      const user = m ? userForSession(m[1]) : null;
+      if (m && user) {
+        req.user = user;
+        req.sessionToken = m[1];
+        req.authVia = 'bearer';
+      }
+    }
     req.guest = null;
     // A signed-in user's session wins: a guest cookie is then ignored entirely. Checked on every request,
     // so a guest's access (streams included) stops the moment their party ends or they leave it.
@@ -238,10 +255,23 @@ export function registerSecurity(app: FastifyInstance) {
     if (!isApi) return; // the web app's files (no data in them)
     const path = route ?? decoded;
 
-    // Cross-site request protection for anything that changes state.
+    // CORS preflight from the TV app (before sign-in: browsers send no credentials on it).
+    if (req.method === 'OPTIONS' && req.headers['access-control-request-method'] && req.headers.origin) {
+      return reply
+        .code(204)
+        .header('Access-Control-Allow-Origin', String(req.headers.origin))
+        .header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE')
+        .header('Access-Control-Allow-Headers', 'authorization, content-type, x-requested-with')
+        .header('Access-Control-Max-Age', '600')
+        .header('Vary', 'Origin')
+        .send();
+    }
+
+    // Cross-site request protection for anything that changes state. Bearer tokens are never sent by the
+    // browser on its own, so cross-site forgery can't use them; the header is still required.
     if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
       if (req.headers[CSRF_HEADER] !== CSRF_VALUE) return reply.code(403).send({ error: 'Missing request header' });
-      if (crossSite(req)) return reply.code(403).send({ error: 'Cross-site request blocked' });
+      if (req.authVia !== 'bearer' && crossSite(req)) return reply.code(403).send({ error: 'Cross-site request blocked' });
     }
 
     const key = `${req.method} ${path}`;
@@ -268,7 +298,9 @@ export function registerSecurity(app: FastifyInstance) {
     reply.header('X-Content-Type-Options', 'nosniff');
     reply.header('Referrer-Policy', 'no-referrer');
     reply.header('Cross-Origin-Opener-Policy', 'same-origin');
-    reply.header('Cross-Origin-Resource-Policy', 'same-origin');
+    const crossOrigin = (req.authVia === 'bearer' || req.authVia === 'stream') && !!req.headers.origin;
+    if (crossOrigin) reply.header('Access-Control-Allow-Origin', String(req.headers.origin)).header('Vary', 'Origin');
+    reply.header('Cross-Origin-Resource-Policy', crossOrigin ? 'cross-origin' : 'same-origin');
     reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), interest-cohort=()');
     if (isHttps(req)) reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     // Never cache API responses (they may hold private data) in the browser or a proxy.

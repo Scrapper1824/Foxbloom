@@ -1,4 +1,4 @@
-import { Navigate, NavLink, Route, Routes, useLocation, useNavigationType } from 'react-router-dom';
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigationType } from 'react-router-dom';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type Download } from './api';
@@ -136,10 +136,12 @@ function Shell() {
     <div className="shell">
       <aside className={`sidebar${menuOpen ? ' menu-open' : ''}`}>
         <div className="brand">
-          <Logo />
-          <span className="brand-word">
-            Fox<em>bloom</em>
-          </span>
+          <Link to="/" className="brand-home" aria-label="Foxbloom home" onClick={() => setMenuOpen(false)}>
+            <Logo />
+            <span className="brand-word">
+              Fox<em>bloom</em>
+            </span>
+          </Link>
           <button
             type="button"
             className="menu-toggle"

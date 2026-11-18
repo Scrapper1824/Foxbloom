@@ -50,6 +50,7 @@ export const USER_ALLOWED = new Set([
   'POST /api/auth/logout',
   'POST /api/auth/logout-others',
   'POST /api/tv/link',
+  'POST /api/tv/link/check',
   'POST /api/auth/password',
   'POST /api/auth/totp/setup',
   'POST /api/auth/totp/enable',

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
+import QRCode from 'qrcode';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../app.js';
 import { db, initDb } from '../db.js';
@@ -106,13 +107,50 @@ describe('TV pairing', () => {
     expect((await link(code)).statusCode).toBe(403);
   });
 
-  it('link is rate limited per IP after wrong codes', async () => {
+  it('link is rate limited per IP after 10 wrong codes, without touching other IPs or login', async () => {
     let last = 0;
-    for (let i = 0; i < 10; i++) last = (await link('FXB-ZZZZ')).statusCode;
-    expect(last).toBe(429);
-    // even the right code is refused while locked
+    for (let i = 0; i < 10; i++) last = (await link('FXB-ZZZZ', undefined, '10.2.0.1')).statusCode;
+    expect(last).toBe(404);
+    expect((await link('FXB-ZZZZ', undefined, '10.2.0.1')).statusCode).toBe(429);
+    // even the right code is refused from the locked IP
     const { code } = (await pair()).json();
-    expect((await link(code)).statusCode).toBe(429);
+    expect((await link(code, undefined, '10.2.0.1')).statusCode).toBe(429);
+    // another IP can still link
+    expect((await link(code, undefined, '10.2.0.2')).statusCode).toBe(200);
+    // and the locked IP can still sign in with a password
+    const login = await app.inject({
+      method: 'POST', url: '/api/auth/login', headers: CSRF, remoteAddress: '10.2.0.1',
+      payload: { username: 'owner', password: 'correct horse battery staple' },
+    });
+    expect(login.statusCode).toBe(200);
+  });
+
+  it('the link lock lasts 15 minutes and good links do not count', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    for (let i = 0; i < 9; i++) await link('FXB-ZZZZ', undefined, '10.3.0.1');
+    const { code } = (await pair()).json();
+    expect((await link(code, undefined, '10.3.0.1')).statusCode).toBe(200);
+    expect((await link('FXB-ZZZZ', undefined, '10.3.0.1')).statusCode).toBe(404); // 10th wrong
+    expect((await link('FXB-ZZZZ', undefined, '10.3.0.1')).statusCode).toBe(429);
+    vi.setSystemTime(Date.now() + 15 * 60_000 + 1000);
+    expect((await link('FXB-ZZZZ', undefined, '10.3.0.1')).statusCode).toBe(404);
+  });
+
+  it('check shows the TV name without linking, and counts wrong codes', async () => {
+    const { code, pairId } = (await pair()).json();
+    const check = (c: string, headers: Record<string, string> = { cookie, ...CSRF }, remoteAddress?: string) =>
+      app.inject({ method: 'POST', url: '/api/tv/link/check', headers, remoteAddress, payload: { code: c } });
+    const ok = await check(code.toLowerCase());
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json()).toEqual({ deviceName: 'Living room' });
+    expect((await poll(pairId)).json()).toEqual({ status: 'waiting' });
+    const bad = await check('FXB-ZZZZ');
+    expect(bad.statusCode).toBe(404);
+    expect(bad.json()).toEqual({ error: WRONG });
+    expect((await check(code, CSRF)).statusCode).toBe(401);
+    for (let i = 0; i < 10; i++) await check('FXB-ZZZZ', undefined, '10.4.0.1');
+    expect((await check(code, undefined, '10.4.0.1')).statusCode).toBe(429);
+    expect((await link(code, undefined, '10.4.0.1')).statusCode).toBe(429);
   });
 
   it('starting a pairing is limited to 20 per IP', async () => {
@@ -128,13 +166,13 @@ describe('TV pairing', () => {
     expect((await poll(first.pairId)).json()).toEqual({ status: 'expired' });
   });
 
-  it('qr is an SVG data URI of the link page with the code', async () => {
+  it('qr is an SVG data URI of the link page URL with the code', async () => {
+    const spy = vi.spyOn(QRCode, 'toString');
     const { code, qr } = (await pair()).json();
     expect(qr.startsWith('data:image/svg+xml')).toBe(true);
-    const svg = Buffer.from(qr.split(',')[1], 'base64').toString();
-    expect(svg).toContain('<svg');
-    // the URL itself is encoded as modules, so check the endpoint is stable by pairing twice
-    expect(code).toMatch(/^FXB-/);
+    expect(Buffer.from(qr.split(',')[1], 'base64').toString()).toContain('<svg');
+    expect(spy.mock.calls[0][0]).toBe(`http://foxbloom.local:3000/link-tv?code=${code}`);
+    spy.mockRestore();
   });
 
   it('rejects a bad server address or name', async () => {

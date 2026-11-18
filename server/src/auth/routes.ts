@@ -6,7 +6,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import QRCode from 'qrcode';
 import { db, now } from '../db.js';
 import { dummyVerify, hashPassword, passwordProblem, TEMP_PASSWORD, TEMP_PASSWORD_DAYS, verifyPassword } from './password.js';
-import { linkPairing, pairStartLimited, pollPairing, startPairing } from './pairing.js';
+import { checkPairing, linkLockedFor, linkPairing, pairStartLimited, pollPairing, recordWrongCode, startPairing } from './pairing.js';
 import { lockedFor, recordFailure, recordSuccess } from './rateLimit.js';
 import { clearSessionCookie, setSessionCookie } from './security.js';
 import { countSessions, createSession, deleteSession, deleteUserSessions, userCount, type UserRow } from './sessions.js';
@@ -154,13 +154,27 @@ export async function authRoutes(app: FastifyInstance, opts: { dataDir: string }
     return { status: 'done', token: r.token, user: publicUser(user) };
   });
 
-  app.post<{ Body: { code?: string } }>('/api/tv/link', async (req, reply) => {
-    const wait = lockedFor(req.ip, '__tvlink__');
+  const WRONG_CODE = 'That code isn’t right or has expired. Check the code on the TV.';
+  const codeOf = (req: FastifyRequest<{ Body: { code?: string } }>) => String(req.body?.code ?? '').slice(0, 32);
+
+  app.post<{ Body: { code?: string } }>('/api/tv/link/check', async (req, reply) => {
+    const wait = linkLockedFor(req.ip);
     if (wait) return tooMany(reply, wait);
-    const linked = linkPairing(String(req.body?.code ?? '').slice(0, 32), req.user!.id, req.ip);
+    const found = checkPairing(codeOf(req));
+    if (!found) {
+      recordWrongCode(req.ip);
+      return reply.code(404).send({ error: WRONG_CODE });
+    }
+    return found;
+  });
+
+  app.post<{ Body: { code?: string } }>('/api/tv/link', async (req, reply) => {
+    const wait = linkLockedFor(req.ip);
+    if (wait) return tooMany(reply, wait);
+    const linked = linkPairing(codeOf(req), req.user!.id, req.ip);
     if (!linked) {
-      recordFailure(req.ip, '__tvlink__');
-      return reply.code(404).send({ error: 'That code isn’t right or has expired. Check the code on the TV.' });
+      recordWrongCode(req.ip);
+      return reply.code(404).send({ error: WRONG_CODE });
     }
     return { ok: true, deviceName: linked.deviceName };
   });

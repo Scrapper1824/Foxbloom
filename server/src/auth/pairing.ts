@@ -22,6 +22,10 @@ interface Pending {
 
 const pending = new Map<string, Pending>(); // pairId -> pending (insertion order = oldest first)
 const starts = new Map<string, number[]>(); // ip -> start times, for the pair-start limit
+// Wrong-code guesses at /api/tv/link(/check), per IP and separate from password-login limits.
+const MAX_WRONG_PER_IP = 10;
+const LINK_LOCK_MS = 15 * 60_000;
+const wrong = new Map<string, { times: number[]; lockedUntil: number }>();
 
 function prune(nowMs: number) {
   for (const [id, p] of pending) if (p.expiresAt <= nowMs) pending.delete(id);
@@ -77,22 +81,48 @@ export function pollPairing(pairId: string): PollResult {
   return { status: 'done', token: p.token, userId: p.userId };
 }
 
+/** Seconds until this IP may try another code, or 0. */
+export function linkLockedFor(ip: string, nowMs = Date.now()): number {
+  const w = wrong.get(ip);
+  return w && w.lockedUntil > nowMs ? Math.ceil((w.lockedUntil - nowMs) / 1000) : 0;
+}
+
+export function recordWrongCode(ip: string, nowMs = Date.now()) {
+  const w = wrong.get(ip) ?? { times: [], lockedUntil: 0 };
+  w.times = w.times.filter((t) => nowMs - t < LINK_LOCK_MS);
+  w.times.push(nowMs);
+  if (w.times.length >= MAX_WRONG_PER_IP) {
+    w.lockedUntil = nowMs + LINK_LOCK_MS;
+    w.times = [];
+  }
+  wrong.set(ip, w);
+}
+
+function find(code: string): Pending | undefined {
+  prune(Date.now());
+  const wanted = normalize(code);
+  for (const p of pending.values()) if (!p.token && normalize(p.code) === wanted) return p;
+  return undefined;
+}
+
+/** The TV's name for a pending, unlinked code (links nothing). */
+export function checkPairing(code: string): { deviceName: string } | null {
+  const p = find(code);
+  return p ? { deviceName: p.deviceName } : null;
+}
+
 /** Attach the signed-in user to the pending code. Returns the TV's name, or null for a wrong or expired code. */
 export function linkPairing(code: string, userId: number, ip: string): { deviceName: string } | null {
-  const nowMs = Date.now();
-  prune(nowMs);
-  const wanted = normalize(code);
-  for (const p of pending.values()) {
-    if (p.token || normalize(p.code) !== wanted) continue;
-    p.userId = userId;
-    p.token = createSession(userId, ip, 'Foxbloom TV — ' + p.deviceName);
-    return { deviceName: p.deviceName };
-  }
-  return null;
+  const p = find(code);
+  if (!p) return null;
+  p.userId = userId;
+  p.token = createSession(userId, ip, 'Foxbloom TV — ' + p.deviceName);
+  return { deviceName: p.deviceName };
 }
 
 /** For tests. */
 export function resetPairing() {
   pending.clear();
   starts.clear();
+  wrong.clear();
 }

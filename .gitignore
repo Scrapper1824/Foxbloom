@@ -24,3 +24,4 @@ Thumbs.db
 # Written by the Windows installer next to Foxbloom (Settings → Apps uses it to uninstall).
 /Uninstall Foxbloom.exe
 /Uninstall Mediarr.exe
+.superpowers/

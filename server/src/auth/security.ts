@@ -18,7 +18,7 @@ declare module 'fastify' {
 /** All an account on the temporary password may do. */
 const MUST_CHANGE_ALLOWED = new Set(['GET /api/auth/status', 'POST /api/auth/logout', 'POST /api/auth/password']);
 
-export const PUBLIC_API = new Set(['GET /api/auth/status', 'POST /api/auth/login', 'POST /api/auth/setup', 'POST /api/party/:id/guest-join']);
+export const PUBLIC_API = new Set(['GET /api/auth/status', 'POST /api/auth/login', 'POST /api/auth/setup', 'POST /api/party/:id/guest-join', 'POST /api/tv/pair', 'POST /api/tv/pair/poll']);
 
 /**
  * All a watch-party guest (no account, guest cookie) may reach: their party and its current title's stream.
@@ -49,6 +49,7 @@ export const USER_ALLOWED = new Set([
   'GET /api/auth/status',
   'POST /api/auth/logout',
   'POST /api/auth/logout-others',
+  'POST /api/tv/link',
   'POST /api/auth/password',
   'POST /api/auth/totp/setup',
   'POST /api/auth/totp/enable',

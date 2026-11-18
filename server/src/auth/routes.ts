@@ -6,6 +6,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import QRCode from 'qrcode';
 import { db, now } from '../db.js';
 import { dummyVerify, hashPassword, passwordProblem, TEMP_PASSWORD, TEMP_PASSWORD_DAYS, verifyPassword } from './password.js';
+import { linkPairing, pairStartLimited, pollPairing, startPairing } from './pairing.js';
 import { lockedFor, recordFailure, recordSuccess } from './rateLimit.js';
 import { clearSessionCookie, setSessionCookie } from './security.js';
 import { countSessions, createSession, deleteSession, deleteUserSessions, userCount, type UserRow } from './sessions.js';
@@ -132,6 +133,36 @@ export async function authRoutes(app: FastifyInstance, opts: { dataDir: string }
     recordSuccess(req.ip, username);
     signIn(req, reply, user);
     return { ok: true };
+  });
+
+  app.post<{ Body: { deviceName?: string; baseUrl?: string } }>('/api/tv/pair', async (req, reply) => {
+    const deviceName = String(req.body?.deviceName ?? '').trim();
+    const baseUrl = String(req.body?.baseUrl ?? '').trim().replace(/\/+$/, '');
+    if (!deviceName || deviceName.length > 40) return reply.code(400).send({ error: 'Give the TV a name of up to 40 characters.' });
+    if (baseUrl.length > 200 || !/^https?:\/\/[^\s]+$/i.test(baseUrl)) return reply.code(400).send({ error: 'That server address isn’t valid.' });
+    if (pairStartLimited(req.ip)) return tooMany(reply, 600);
+    const { code, pairId, expiresIn } = startPairing(deviceName);
+    const qr = await QRCode.toString(`${baseUrl}/link-tv?code=${code}`, { type: 'svg', margin: 1 });
+    return { code, pairId, expiresIn, qr: 'data:image/svg+xml;base64,' + Buffer.from(qr).toString('base64') };
+  });
+
+  app.post<{ Body: { pairId?: string } }>('/api/tv/pair/poll', async (req) => {
+    const r = pollPairing(String(req.body?.pairId ?? ''));
+    if (r.status !== 'done') return { status: r.status };
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(r.userId) as UserRow | undefined;
+    if (!user) return { status: 'expired' };
+    return { status: 'done', token: r.token, user: publicUser(user) };
+  });
+
+  app.post<{ Body: { code?: string } }>('/api/tv/link', async (req, reply) => {
+    const wait = lockedFor(req.ip, '__tvlink__');
+    if (wait) return tooMany(reply, wait);
+    const linked = linkPairing(String(req.body?.code ?? '').slice(0, 32), req.user!.id, req.ip);
+    if (!linked) {
+      recordFailure(req.ip, '__tvlink__');
+      return reply.code(404).send({ error: 'That code isn’t right or has expired. Check the code on the TV.' });
+    }
+    return { ok: true, deviceName: linked.deviceName };
   });
 
   app.post('/api/auth/logout', async (req, reply) => {

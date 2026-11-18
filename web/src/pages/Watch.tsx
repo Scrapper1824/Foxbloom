@@ -845,10 +845,24 @@ export function Player({ info, party }: { info: PlayInfo; party?: PartyBinding }
     setScrub(null);
     seek(value);
   };
+  // The whole page goes fullscreen, not this player: the player is rebuilt for every episode, and fullscreen on it
+  // would end when the next episode starts. The player covers the page anyway, so it looks the same.
   const fullscreen = () => {
     if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined);
-    else shell.current?.requestFullscreen().catch(() => undefined);
+    else document.documentElement.requestFullscreen().catch(() => undefined);
   };
+  // Leaving the player for the rest of the app (Back) ends fullscreen; moving on to the next episode doesn't,
+  // since by the time this runs the next player (or its loading screen) is already on the page.
+  useEffect(
+    () => () => {
+      window.setTimeout(() => {
+        if (document.fullscreenElement === document.documentElement && !document.querySelector('.watch')) {
+          document.exitFullscreen().catch(() => undefined);
+        }
+      }, 0);
+    },
+    [],
+  );
   const goTo = (to: PlayInfo['next']) => {
     if (!to) return;
     saveProgress();

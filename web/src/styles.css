@@ -626,7 +626,7 @@ select.input option { background: var(--raised); }
 .watch:not(.show-controls) { cursor: none; }
 /* Fullscreen: Chrome (Windows) puts a fully opaque fullscreen video on its own graphics-card layer and then
    stops redrawing the controls over it. At 99.9% (looks the same) it has to draw the video with the page. */
-.watch:fullscreen .watch-video { opacity: 0.999; }
+:root:fullscreen .watch-video, .watch:fullscreen .watch-video { opacity: 0.999; }
 .watch-diag {
   position: absolute; top: 70px; left: 16px; z-index: 50; margin: 0; padding: 10px 12px; max-width: calc(100% - 32px);
   font: 12px/1.5 ui-monospace, Consolas, monospace; color: #9ef0b0; background: rgba(0, 0, 0, 0.8); border: 1px solid #2f6;

@@ -197,6 +197,9 @@ export function getSession(id: string, userId: number): Session | null {
   return s;
 }
 
+/** The title ("episode:12") of a stream, without touching it or checking who owns it. */
+export const sessionTitle = (id: string) => sessions.get(id)?.title ?? null;
+
 export function playlistPath(s: Session) {
   return path.join(s.dir, 'main.m3u8');
 }

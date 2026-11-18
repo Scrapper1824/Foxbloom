@@ -2,6 +2,9 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { ABSOLUTE_MS, SESSION_COOKIE, userForSession, type UserRow } from './sessions.js';
 import { GUEST_COOKIE } from '../party/guest.js';
 import { partyForGuestToken } from '../party/store.js';
+import { sessionTitle } from '../playback/sessions.js';
+import { streamTokenUser } from './streamTokens.js';
+import { userById } from './sessions.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -234,6 +237,24 @@ export function registerSecurity(app: FastifyInstance) {
         req.user = user;
         req.sessionToken = m[1];
         req.authVia = 'bearer';
+      }
+    }
+    // The TV's video and subtitle loads carry a stream token (?st=) instead: valid for exactly these three
+    // GET routes and only for the token's own title. Cookie or bearer sign-in wins when present.
+    if (!req.user && req.method === 'GET') {
+      const st = (req.query as Record<string, unknown> | undefined)?.st;
+      const params = (req.params ?? {}) as Record<string, string | undefined>;
+      const r = req.routeOptions.url;
+      let title: string | null = null;
+      if (typeof st === 'string') {
+        if (r === '/api/play/direct/:kind/:id' || r === '/api/play/:kind/:id/subtitle/:track') title = `${params.kind}:${params.id}`;
+        else if (r === '/api/play/hls/:session/:file') title = params.session ? sessionTitle(params.session) : null;
+      }
+      const uid = typeof st === 'string' && title ? streamTokenUser(st, title) : null;
+      const user = uid ? userById(uid) : null;
+      if (user) {
+        req.user = user;
+        req.authVia = 'stream';
       }
     }
     req.guest = null;

@@ -10,6 +10,7 @@ import { decidePlayback, QUALITIES, segmentStarts, type ClientCaps, type PlayCho
 import { ffmpegInfo, requireFfmpeg } from '../playback/ffmpeg.js';
 import { dumpFonts, extractSubtitle, keyframesWithin, probeFile } from '../playback/probe.js';
 import { copyFailedFor, createSession, endSession, getSession, playlistPath, waitForSegment } from '../playback/sessions.js';
+import { issueStreamToken } from '../auth/streamTokens.js';
 import { queueMediaWork, workPending } from '../playback/jobs.js';
 import { getSegments } from '../playback/segments.js';
 import { trickplayManifest, trickplaySheet } from '../playback/trickplay.js';
@@ -235,7 +236,9 @@ export async function playRoutes(app: FastifyInstance) {
         if (keys?.length) starts = segmentStarts(probe.duration, keys);
         else decision = { ...decision, copyVideo: false, reason: decision.reason.replace(/: repackaged.*$/, '') };
       }
-      if (decision.mode === 'direct') return { mode: 'direct', url: `/api/play/direct/${p.kind}/${p.id}`, reason: decision.reason };
+      // The TV can't send a header on video/subtitle loads, so it gets a token for this title to put in the URL (?st=).
+      const streamToken = req.authVia === 'bearer' && req.user ? { streamToken: issueStreamToken(req.user.id, `${p.kind}:${p.id}`) } : {};
+      if (decision.mode === 'direct') return { mode: 'direct', url: `/api/play/direct/${p.kind}/${p.id}`, reason: decision.reason, ...streamToken };
       const info = await ffmpegInfo();
       const startAt = Math.min(Math.max(0, Number(req.body?.startAt) || 0), Math.max(0, probe.duration - 1));
       const owner = viewer(req);
@@ -261,6 +264,7 @@ export async function playRoutes(app: FastifyInstance) {
         copy: !!decision.copyVideo,
         height: decision.height,
         bitrate: decision.videoBitrate,
+        ...streamToken,
       };
     },
   );

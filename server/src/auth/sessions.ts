@@ -47,6 +47,8 @@ export function createSession(userId: number, ip: string, userAgent: string | un
   return token;
 }
 
+export const userById = (id: number): UserRow | null => (db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow | undefined) ?? null;
+
 /** The signed-in user for a session token, or null. Expired/idle sessions are removed. */
 export function userForSession(token: string | undefined): UserRow | null {
   if (!token || token.length > 100) return null;

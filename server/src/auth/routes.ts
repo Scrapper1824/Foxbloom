@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { endUserSessions } from '../playback/sessions.js';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import QRCode from 'qrcode';
@@ -10,6 +11,8 @@ import { checkPairing, linkLockedFor, linkPairing, pairStartLimited, pollPairing
 import { lockedFor, recordFailure, recordSuccess } from './rateLimit.js';
 import { clearSessionCookie, setSessionCookie } from './security.js';
 import { countSessions, createSession, deleteSession, deleteUserSessions, userCount, type UserRow } from './sessions.js';
+import { currentVersion } from '../system/updater.js';
+import { isLocalAddress } from '../routes/play.js';
 import { generateSecret, otpauthUri, verifyCode } from './totp.js';
 
 export const USERNAME = /^[A-Za-z0-9._-]{3,32}$/;
@@ -67,11 +70,25 @@ const tooMany = (reply: FastifyReply, seconds: number) =>
     .header('Retry-After', String(seconds))
     .send({ error: `Too many attempts. Try again in ${Math.ceil(seconds / 60)} minute(s).` });
 
+/** http://<private IPv4>:<port> for each non-internal private network interface. */
+export function localUrls(): string[] {
+  const port = Number(process.env.PORT ?? 7979);
+  const out: string[] = [];
+  for (const list of Object.values(os.networkInterfaces())) {
+    for (const a of list ?? []) {
+      if (a.family === 'IPv4' && !a.internal && isLocalAddress(a.address) && !a.address.startsWith('169.254.')) out.push(`http://${a.address}:${port}`);
+    }
+  }
+  return out;
+}
+
 export async function authRoutes(app: FastifyInstance, opts: { dataDir: string }) {
   app.get('/api/auth/status', async (req) => ({
     setupRequired: userCount() === 0,
     authenticated: !!req.user,
     user: req.user ? publicUser(req.user) : null,
+    // For the TV app: where this server is on the home network, and which version it runs (signed in only).
+    ...(req.user ? { version: currentVersion(), localUrls: localUrls() } : {}),
   }));
 
   app.post<{ Body: { code?: string; username?: string; password?: string } }>('/api/auth/setup', async (req, reply) => {

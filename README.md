@@ -203,6 +203,13 @@ Foxbloom needs an account before anything works. Every API route refuses request
 
 The tray notifies you if Foxbloom crashes. After an update it starts the new version by itself.
 
+## Samsung TV
+
+Foxbloom has an app for Samsung TVs from 2017 on. It isn't in Samsung's store: download
+**FoxbloomTVSetup.exe** from the [latest release](https://github.com/Scrapper1824/Foxbloom/releases/latest), run it
+on a Windows PC on the same network as the TV, and follow its steps. The TV needs Developer Mode on for the install.
+The [TV guide](tv/README.md) has the steps, what each message means, and certificate renewal.
+
 ## Development
 
 ```bash

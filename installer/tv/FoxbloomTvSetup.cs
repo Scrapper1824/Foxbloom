@@ -3,7 +3,7 @@
 // Built by installer\tv\build.ps1 with the .NET Framework C# compiler (no NuGet).
 //   Task 11a (this file): find the TVs, show the list, walk through Developer Mode, reach "Ready to install".
 //   Task 11b: certificate (SamsungCert.cs) and signing (WgtSigner.cs) - called from InstallOn().
-//   Task 11c: sdb install (Sdb.cs) and the progress / done screens - called from InstallOn().
+//   Task 11c: sdb install (Sdb.cs) and the progress / done screens - InstallOn().
 // Command line: FoxbloomTVSetup.exe --tv <ip> skips the list (for development).
 using System;
 using System.Collections.Generic;
@@ -516,28 +516,92 @@ class TvSetupForm : Form
         check.Focus();
     }
 
-    // ---- ready to install (11b and 11c fill this in) ----
+    // ---- ready to install ----
 
     void ShowReady(TvInfo tv)
     {
         NewPage();
         AcceptButton = null;
         Add(Label("Ready to install on " + TvRow.DisplayName(tv), Theme.Bold(14f), Theme.Text, 28, 20, 580, 34));
-        Add(Label("Developer Mode is on and set up for this PC.\n\nInstalling isn't available in this version of the setup yet.", Theme.Body(10f), Theme.Muted, 28, 62, 580, 90));
-        var install = Button("Install", true, 28, 170, 160, delegate { InstallOn(tv); });
-        install.Enabled = false;   // TODO(11c): enable once InstallOn does the work.
+        Add(Label("Developer Mode is on and set up for this PC.\n\nThe first time, you'll be asked to sign in with a Samsung account in your browser. It's free, and it's what lets the TV trust Foxbloom.", Theme.Body(10f), Theme.Muted, 28, 62, 580, 110));
+        var install = Button("Install", true, 28, 190, 160, delegate { InstallOn(tv); });
         Add(install);
-        Add(Button("Choose another TV", false, 200, 170, 200, delegate { StartScan(); }));
+        Add(Button("Choose another TV", false, 200, 190, 200, delegate { StartScan(); }));
+        install.Focus();
     }
 
     /**
-     * The seam for the rest of the installer.
-     * Ready (11b): SamsungCert.Ensure(new[] { duid }, SamsungCert.OpenInBrowser) off the UI thread, then
-     *   WgtSigner.Sign(unsigned wgt, cert). The duid must be the one `sdb shell 0 getduid` prints (11c), NOT
-     *   tv.Duid ("uuid:..." from /api/v2/), which Ensure rejects. SamsungCert.Status(...) != Ok means a sign-in.
-     * TODO(11c): Sdb.Install(tv.Ip, signedWgt), with "Signing in to Samsung…" / "Installing on <name>…" / "Done" screens.
+     * Connect, ask the TV for its certificate ID (DUID), make sure there is a certificate for it (Samsung sign-in the
+     * first time), sign the app, install it and start it. All off the UI thread; every failure ends on a screen with
+     * a plain message and "Try again". Nothing secret is ever shown.
      */
     void InstallOn(TvInfo tv)
     {
+        string name = TvRow.DisplayName(tv);
+        NewPage();
+        int mine = scan;
+        AcceptButton = null;
+        Add(Label("Installing on " + name + "…", Theme.Bold(14f), Theme.Text, 28, 20, 580, 34));
+        var status = Label("Connecting to the TV…", Theme.Body(10.5f), Theme.Muted, 28, 66, 580, 110);
+        Add(status);
+        Add(new Activity { Location = new Point(P(28), P(190)), Size = new Size(W, P(6)) });
+        Action<string> say = delegate (string text) { OnUi(delegate { if (mine == scan) status.Text = text; }); };
+
+        Task.Factory.StartNew(delegate ()
+        {
+            string failure = null;
+            try
+            {
+                var sdb = Sdb.Embedded();
+                string duid = sdb.GetDuid(tv.Ip);
+                if (SamsungCert.Status(new[] { duid }) != CertStatus.Ok)
+                    say("Signing in to Samsung…\n\nYour browser has opened. Sign in there with your Samsung account and come back here. This can take a minute.");
+                else say("Getting the app ready…");
+                CertBundle cert = SamsungCert.Ensure(new[] { duid }, SamsungCert.OpenInBrowser);
+                say("Signing the app…");
+                byte[] signed = WgtSigner.Sign(EmbeddedWgt(), cert);
+                say("Installing on " + name + "…\n\nThis takes about a minute. Don't switch the TV off.");
+                sdb.InstallTo(tv.Ip, signed, Sdb.DefaultAppId);
+            }
+            catch (TvInstallException e) { failure = e.Message; }
+            catch (SamsungCertException e) { failure = e.Message; }
+            catch (Exception e) { failure = "Something unexpected went wrong: " + e.Message; }
+            OnUi(delegate { if (mine == scan) { if (failure == null) ShowDone(tv); else ShowInstallFailed(tv, failure); } });
+        });
+    }
+
+    static byte[] EmbeddedWgt()
+    {
+        using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream("Foxbloom.wgt"))
+        {
+            if (s == null) throw new TvInstallException("This copy of Foxbloom TV Setup was built without the app inside it. Download the latest FoxbloomTVSetup.exe from the Foxbloom releases page.");
+            var ms = new System.IO.MemoryStream();
+            s.CopyTo(ms);
+            return ms.ToArray();
+        }
+    }
+
+    void ShowInstallFailed(TvInfo tv, string message)
+    {
+        NewPage();
+        AcceptButton = null;
+        Add(Label("Couldn't install on " + TvRow.DisplayName(tv), Theme.Bold(14f), Theme.Text, 28, 20, 580, 34));
+        Add(Label(message, Theme.Body(10.5f), Theme.Danger, 28, 66, 580, 170));
+        Add(Label("There's a troubleshooting guide at github.com/Scrapper1824/Foxbloom (tv/README.md).", Theme.Body(9.5f), Theme.Muted, 28, 244, 580, 44));
+        var again = Button("Try again", true, 28, 300, 160, delegate { Chosen(tv); });
+        Add(again);
+        Add(Button("Choose another TV", false, 200, 300, 200, delegate { StartScan(); }));
+        again.Focus();
+    }
+
+    void ShowDone(TvInfo tv)
+    {
+        NewPage();
+        AcceptButton = null;
+        Add(Label("Done — Foxbloom is on your TV", Theme.Bold(14f), Theme.Ok, 28, 20, 580, 34));
+        Add(Label("Foxbloom is installed on " + TvRow.DisplayName(tv) + " and should open now. Next time, find it in the TV's Apps list.\n\nOpen it, enter your Foxbloom address, and sign in with the code it shows.", Theme.Body(10.5f), Theme.Muted, 28, 66, 580, 120));
+        var another = Button("Install on another TV", false, 28, 200, 220, delegate { StartScan(); });
+        Add(another);
+        Add(Button("Close", true, 260, 200, 120, delegate { Close(); }));
     }
 }

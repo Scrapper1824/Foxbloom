@@ -190,6 +190,7 @@ static partial class Tests
 
         SamsungCertTests();
         WgtSignerTests();
+        SdbTests();
 
         Console.WriteLine();
         Console.WriteLine(passed + " passed, " + failed + " failed");

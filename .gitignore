@@ -25,3 +25,7 @@ Thumbs.db
 /Uninstall Foxbloom.exe
 /Uninstall Mediarr.exe
 .superpowers/
+
+# TV installer: sdb.exe and Samsung CA certificates are supplied by hand (see installer/tv/vendor/README.md)
+installer/tv/vendor/*
+!installer/tv/vendor/README.md

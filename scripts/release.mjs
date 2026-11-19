@@ -79,6 +79,9 @@ if (import.meta.url === `file:///${process.argv[1]?.replace(/\\/g, '/').replace(
     const oldName = path.join(root, 'installer', 'dist', 'MediarrSetup.exe');
     fs.copyFileSync(setup, oldName);
     run('gh', ['release', 'upload', tag, setup, oldName, '--clobber']);
+    // The Samsung TV installer goes on every release too (needs installer/tv/vendor/, see the README there).
+    run('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(root, 'installer', 'tv', 'build.ps1')]);
+    run('gh', ['release', 'upload', tag, path.join(root, 'installer', 'dist', 'FoxbloomTVSetup.exe'), '--clobber']);
   }
   console.log(`\nReleased ${tag}. Foxbloom installs will offer it as an update.`);
 }

@@ -16,10 +16,15 @@ export function searchScreen(session: Session): Screen {
 /** Finds downloaded titles by name: type on the on-screen keyboard, results update as you go. */
 export function Search({ session }: { session: Session }) {
   const nav = useNav();
-  const [query, setQuery] = useState('');
+  const [query, setQueryState] = useState(session.searchQuery);
+  const setQuery = (f: (v: string) => string) => {
+    session.searchQuery = f(session.searchQuery);
+    setQueryState(session.searchQuery);
+  };
   const { data, error, retry } = useLoad<Media[]>(session, '/api/media');
   const content = useRef<HTMLDivElement>(null);
-  useFocusWhenReady(content, true);
+  // Take the saved focus only once the results exist, so Back finds the result that was focused.
+  useFocusWhenReady(content, !!data || !!error);
 
   const q = query.trim().toLowerCase();
   const found = data && q ? data.filter((m) => playable(m) && m.title.toLowerCase().indexOf(q) >= 0) : [];
@@ -28,8 +33,8 @@ export function Search({ session }: { session: Session }) {
       <TopBar session={session} active="search" />
       <div class="browse-body search-body" ref={content}>
         <div class="search-left">
-          <Field label="Search" value={query} onValue={setQuery} active onActivate={() => {}} placeholder="Type a title" />
-          <Keyboard onType={(c) => setQuery((v) => (v + c).slice(0, 60))} onBackspace={() => setQuery((v) => v.slice(0, -1))} onDone={() => setQuery('')} doneLabel="Clear" />
+          <Field label="Search" value={query} onValue={(v) => setQuery(() => v)} active onActivate={() => {}} placeholder="Type a title" />
+          <Keyboard onType={(c) => setQuery((v) => (v + c).slice(0, 60))} onBackspace={() => setQuery((v) => v.slice(0, -1))} onDone={() => setQuery(() => '')} doneLabel="Clear" />
         </div>
         <div class="search-results">
           {error && <LoadError message={error} onRetry={retry} />}

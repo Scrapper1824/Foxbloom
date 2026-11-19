@@ -21,51 +21,61 @@ p { color: var(--muted); font-size: 28px; }
 .btn.focused { background: var(--accent); color: var(--accent-ink); }
 
 /* Task 8 screens: connect, profiles, pairing, PIN */
-.row { display: flex; gap: 24px; justify-content: center; margin-top: 16px; }
+.row { display: flex; justify-content: center; margin-top: 16px; }
+.row > * + * { margin-left: 24px; }
 .error { color: #ffb4b4; min-height: 1.4em; margin: 8px 0; }
 .connect, .passform, .profiles, .addperson { display: flex; flex-direction: column; align-items: center; height: 100%; }
 .addperson.center { justify-content: center; }
 .connect h1, .passform h1, .addperson h1 { margin: 8px 0; font-size: 52px; }
-.field { display: flex; align-items: center; gap: 20px; width: 1100px; padding: 10px 24px; margin: 8px 0; border: 4px solid transparent; border-radius: 14px; background: var(--bg-2); }
+.field { display: flex; align-items: center; width: 1100px; padding: 10px 24px; margin: 8px 0; border: 4px solid transparent; border-radius: 14px; background: var(--bg-2); }
 .field.active { background: #313c68; }
+.field > * + * { margin-left: 20px; }
 .field-label { width: 260px; color: var(--muted); }
 .field-input { flex: 1; font: inherit; color: var(--text); background: transparent; border: 0; outline: none; padding: 6px 0; }
 .keyboard { margin: 8px 0; }
-.key-row { display: flex; justify-content: center; gap: 8px; margin: 8px 0; }
+.key-row { display: flex; justify-content: center; margin: 8px 0; }
+.key-row > * + * { margin-left: 8px; }
 .key { font: inherit; font-size: 26px; min-width: 76px; height: 64px; padding: 0 12px; border: 4px solid transparent; border-radius: 10px; background: var(--bg-2); color: var(--text); }
 .key.wide { min-width: 130px; }
 .key.space { min-width: 320px; }
 .key.on { background: #3b4778; }
 .key.focused { background: var(--accent); color: var(--accent-ink); }
 .profiles h1 { margin: 16px 0 40px; }
-.tiles { display: flex; flex-wrap: wrap; gap: 48px; justify-content: center; }
+.tiles { display: flex; flex-wrap: wrap; justify-content: center; }
+.tiles > * { margin: 0 24px 48px; }
 .tile-wrap { position: relative; }
-.profile-tile { display: flex; flex-direction: column; align-items: center; gap: 14px; width: 260px; padding: 28px 12px 20px; font: inherit; color: var(--text); background: var(--bg-2); border: 4px solid transparent; border-radius: 20px; }
+.profile-tile { display: flex; flex-direction: column; align-items: center; width: 260px; padding: 28px 12px 20px; font: inherit; color: var(--text); background: var(--bg-2); border: 4px solid transparent; border-radius: 20px; }
+.profile-tile > * + * { margin-top: 14px; }
 .profile-tile.focused { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(242, 167, 195, 0.4); }
 .avatar { display: flex; align-items: center; justify-content: center; width: 150px; height: 150px; border-radius: 50%; font-size: 72px; font-weight: 700; color: #1d2440; }
 .avatar.plus { background: transparent; border: 4px dashed var(--muted); color: var(--muted); }
-.profile-name { display: flex; align-items: center; gap: 10px; font-size: 30px; }
+.profile-name { display: flex; align-items: center; font-size: 30px; }
+.profile-name > * + * { margin-left: 10px; }
 .profile-note { font-size: 24px; color: var(--accent); }
 .lock { color: var(--muted); }
 .profile-more { position: absolute; top: 8px; right: 8px; width: 56px; height: 56px; font: inherit; font-size: 34px; line-height: 1; color: var(--text); background: rgba(0, 0, 0, 0.25); border: 4px solid transparent; border-radius: 50%; }
 .profile-more.focused { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
 .where { position: absolute; bottom: 54px; right: 96px; margin: 0; }
-.pair { display: flex; gap: 80px; align-items: center; margin: 24px 0; }
+.pair { display: flex; align-items: center; margin: 24px 0; }
+.pair > * + * { margin-left: 80px; }
 .pair-steps { width: 900px; }
 .pair-code { font-size: 104px; font-weight: 700; letter-spacing: 8px; color: var(--accent); margin: 16px 0; }
 .pair-qr { width: 300px; height: 300px; background: #fff; padding: 12px; border-radius: 12px; }
 .pinpad { display: flex; flex-direction: column; align-items: center; }
-.pin-dots { display: flex; gap: 24px; margin: 8px 0; }
+.pin-dots { display: flex; margin: 8px 0; }
+.pin-dots > * + * { margin-left: 24px; }
 .pin-dot { width: 32px; height: 32px; border-radius: 50%; border: 4px solid var(--muted); }
 .pin-dot.full { background: var(--accent); border-color: var(--accent); }
 .pin-message { min-height: 1.4em; }
-.pin-grid { display: grid; grid-template-columns: repeat(3, 150px); gap: 12px; }
+.pin-grid { display: flex; flex-wrap: wrap; width: 486px; }
+.pin-grid > * { width: 150px; margin: 6px; }
 .pin-key { min-width: 0; height: 80px; font-size: 34px; }
 
 /* Task 9 screens: home, library, title, search */
 .browse { display: flex; flex-direction: column; height: 100%; }
 .topbar { flex: none; }
-.topbar-row { display: flex; align-items: center; gap: 16px; }
+.topbar-row { display: flex; align-items: center; }
+.topbar-row > * + * { margin-left: 16px; }
 .topbar-gap { flex: 1; }
 .nav-btn { font: inherit; font-size: 28px; padding: 10px 28px; color: var(--text); background: transparent; border: 4px solid transparent; border-radius: 12px; }
 .nav-btn.current { background: var(--bg-2); }
@@ -77,8 +87,8 @@ p { color: var(--muted); font-size: 28px; }
 .load-error { display: flex; flex-direction: column; align-items: center; margin-top: 120px; }
 
 .hero { position: relative; height: 420px; margin-bottom: 8px; border-radius: 20px; overflow: hidden; background: var(--bg-2); }
-.hero-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.hero-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(29, 36, 64, 0.95) 0%, rgba(29, 36, 64, 0.75) 45%, rgba(29, 36, 64, 0.1) 100%); }
+.hero-art { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+.hero-shade { position: absolute; top: 0; right: 0; bottom: 0; left: 0; background: linear-gradient(90deg, rgba(29, 36, 64, 0.95) 0%, rgba(29, 36, 64, 0.75) 45%, rgba(29, 36, 64, 0.1) 100%); }
 .hero-text { position: relative; width: 980px; padding: 32px 48px; }
 .hero-text h1 { margin: 0 0 8px; font-size: 56px; }
 .hero-line { margin: 0 0 8px; color: var(--accent); }
@@ -106,18 +116,22 @@ p { color: var(--muted); font-size: 28px; }
 .poster-grid { overflow: hidden; }
 
 .title-page { height: 100%; overflow: hidden; }
-.title-head { display: flex; gap: 48px; margin-bottom: 24px; }
+.title-head { display: flex; margin-bottom: 24px; }
+.title-head > * + * { margin-left: 48px; }
 .title-poster { width: 300px; height: 450px; object-fit: cover; border-radius: 16px; flex: none; }
 .title-info { flex: 1; }
 .title-info h1 { margin: 0 0 8px; font-size: 56px; }
 .title-meta { margin: 0 0 12px; }
 .title-overview { color: var(--text); max-height: 216px; overflow: hidden; line-height: 36px; margin: 0 0 24px; }
-.season-chips { display: flex; gap: 16px; margin: 8px 0 16px; }
+.season-chips { display: flex; margin: 8px 0 16px; }
+.season-chips > * + * { margin-left: 16px; }
 .season-chip { font: inherit; font-size: 28px; padding: 10px 28px; color: var(--text); background: var(--bg-2); border: 4px solid transparent; border-radius: 40px; }
 .season-chip.current { background: #3b4778; }
 .season-chip.focused { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-.episode-list { display: flex; flex-direction: column; gap: 8px; }
-.episode { display: flex; align-items: center; gap: 24px; width: 100%; padding: 12px 24px; font: inherit; font-size: 28px; text-align: left; color: var(--text); background: var(--bg-2); border: 4px solid transparent; border-radius: 12px; }
+.episode-list { display: flex; flex-direction: column; }
+.episode-list > * + * { margin-top: 8px; }
+.episode { display: flex; align-items: center; width: 100%; padding: 12px 24px; font: inherit; font-size: 28px; text-align: left; color: var(--text); background: var(--bg-2); border: 4px solid transparent; border-radius: 12px; }
+.episode > * + * { margin-left: 24px; }
 .episode.missing { opacity: 0.5; }
 .episode.focused { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(242, 167, 195, 0.4); }
 .ep-num { width: 56px; color: var(--muted); }
@@ -125,7 +139,8 @@ p { color: var(--muted); font-size: 28px; }
 .ep-status { color: var(--muted); font-size: 24px; }
 .episode.watched .ep-status { color: var(--accent); }
 
-.search-body { display: flex; gap: 24px; }
+.search-body { display: flex; }
+.search-body > * + * { margin-left: 24px; }
 .search-left { width: 1010px; flex: none; }
 .search-left .field { width: 100%; }
 .search-results { flex: 1; }

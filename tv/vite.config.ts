@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import legacy from '@vitejs/plugin-legacy';
+import postcssPresetEnv from 'postcss-preset-env';
 import { readFileSync } from 'node:fs';
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
@@ -11,6 +12,8 @@ export default defineConfig({
   define: { __APP_VERSION__: JSON.stringify(pkg.version) },
   plugins: [legacy({ targets: ['chrome >= 47', 'ie 11'], renderModernChunks: false })],
   esbuild: { jsx: 'automatic', jsxImportSource: 'preact' },
+  // Chromium 47 (2017 TVs) has no var(), inset or flex gap: custom properties are replaced by their values and the rest lowered.
+  css: { postcss: { plugins: [postcssPresetEnv({ browsers: 'chrome >= 47', features: { 'custom-properties': { preserve: false } } })] } },
   build: { outDir: 'dist' },
   test: { environment: 'jsdom' },
 });

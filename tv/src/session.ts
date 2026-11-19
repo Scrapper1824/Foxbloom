@@ -14,6 +14,8 @@ export interface SessionInfo {
  */
 export class Session {
   where: 'home' | 'away' | null = null;
+  /** The Search screen's text, kept here so Back from a result finds it again. */
+  searchQuery = '';
   private api: Api | null = null;
   private picking: Promise<void> | null = null;
   private infoP: Promise<SessionInfo> | null = null;

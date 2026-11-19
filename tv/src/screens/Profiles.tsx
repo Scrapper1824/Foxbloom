@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { useNav } from '../app';
+import { Api } from '../api';
 import { defaultFetch, pickBase, trimSlash, type FetchFn } from '../connection';
 import { Home } from '../home';
 import { Logo } from '../logo';
@@ -51,7 +52,7 @@ export function Profiles({ fetchFn }: { fetchFn?: FetchFn }) {
     else nav.push(homeScreen);
   };
 
-  const options = (p: Profile) => nav.push({ name: 'profile-options', render: () => <ProfileOptions profile={p} /> });
+  const options = (p: Profile) => nav.push({ name: 'profile-options', render: () => <ProfileOptions profile={p} base={base} fetchFn={f} /> });
 
   return (
     <div ref={rootRef} class="profiles">
@@ -88,7 +89,7 @@ export function Profiles({ fetchFn }: { fetchFn?: FetchFn }) {
 }
 
 /** Remove, and PIN changes (which ask for the current PIN first). Writes to storage; Profiles re-reads it when it returns. */
-function ProfileOptions({ profile }: { profile: Profile }) {
+function ProfileOptions({ profile, base, fetchFn }: { profile: Profile; base: string; fetchFn: FetchFn }) {
   const nav = useNav();
   const rootRef = useRef<HTMLDivElement>(null);
   useFocusFirst(rootRef, 1);
@@ -124,6 +125,8 @@ function ProfileOptions({ profile }: { profile: Profile }) {
         data-focusable
         class="btn"
         onClick={() => {
+          // Sign the TV's session out on the server too (best effort: offline or already expired must not block removal).
+          if (profile.token) new Api(base, profile.token, fetchFn).send('POST', '/api/auth/logout').then(undefined, () => {});
           removeProfile(profile.userId);
           nav.pop();
         }}

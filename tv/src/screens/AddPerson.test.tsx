@@ -2,7 +2,7 @@ import { act } from 'preact/test-utils';
 import { render } from 'preact';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AddPerson } from './AddPerson';
-import { loadState } from '../profiles';
+import { loadState, saveState } from '../profiles';
 import type { FetchFn } from '../connection';
 
 const json = (body: unknown, status = 200) => Promise.resolve({ ok: status < 400, status, json: () => Promise.resolve(body), text: () => Promise.resolve(JSON.stringify(body)) });
@@ -105,5 +105,17 @@ describe('AddPerson', () => {
     act(() => (host.querySelector('.focused') as HTMLButtonElement).click());
     expect(finished).toHaveBeenCalledTimes(1);
     expect(loadState().profiles[0].pin).toBeNull();
+  });
+
+  it('does not copy the signed-out person PIN to a different account', async () => {
+    const { fetchFn } = makeFetch([{ status: 'done', token: 'tok-abcdefghijklmnopqrstuvwxyz', user: { id: 8, username: 'bob' } }]);
+    const ann = { userId: 7, username: 'ann', token: null, pin: { salt: 's', hash: 'h' }, failedPins: 0, lockedUntil: 0 };
+    saveState({ servers: null, profiles: [ann] });
+    await mount(fetchFn, { existing: ann, heading: 'Sign in again, ann' });
+    await tick(2000);
+    expect(host.textContent).toContain('Add a PIN to your profile?');
+    const s = loadState();
+    expect(s.profiles.filter((x) => x.userId === 8)[0].pin).toBeNull();
+    expect(s.profiles.filter((x) => x.userId === 7)[0]).toEqual(ann);
   });
 });

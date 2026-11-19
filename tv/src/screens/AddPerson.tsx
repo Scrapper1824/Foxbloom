@@ -62,7 +62,7 @@ export function AddPerson({ base, publicUrl, fetchFn, heading, existing, pollMs,
       const s = loadState();
       const localUrls = st && Array.isArray(st.localUrls) ? st.localUrls : s.servers ? s.servers.localUrls : [];
       saveState({ servers: { publicUrl: s.servers ? s.servers.publicUrl : trimSlash(publicUrl), localUrls: localUrls }, profiles: s.profiles });
-      const old = existing || s.profiles.filter((p) => p.userId === user.id)[0];
+      const old = existing && existing.userId === user.id ? existing : s.profiles.filter((p) => p.userId === user.id)[0];
       const next: Profile = { userId: user.id, username: user.username, token: token, pin: old ? old.pin : null, failedPins: 0, lockedUntil: 0 };
       upsertProfile(next);
       setProfile(next);

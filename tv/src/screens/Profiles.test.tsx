@@ -9,12 +9,21 @@ import type { FetchFn } from '../connection';
 
 const p = (userId: number, extra: Partial<Profile> = {}): Profile => ({ userId, username: 'user' + userId, token: 'tok' + userId, pin: null, failedPins: 0, lockedUntil: 0, ...extra });
 const resp = (body: unknown) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body), text: () => Promise.resolve(JSON.stringify(body)) });
-const fetchFn: FetchFn = (url) => (url.endsWith('/api/tv/pair') ? resp({ code: 'CODE-1', pairId: 'x', expiresIn: 600, qr: 'data:,' }) : resp({ status: 'waiting' }));
+let seen: Array<{ url: string; auth?: string }> = [];
+let failLogout = false;
+const fetchFn: FetchFn = (url, init) => {
+  seen.push({ url, auth: init && init.headers ? init.headers.Authorization : undefined });
+  if (url.endsWith('/api/auth/logout')) return failLogout ? Promise.reject(new TypeError('offline')) : resp({ ok: true });
+  return fetchBase(url);
+};
+const fetchBase: (url: string) => ReturnType<FetchFn> = (url) => (url.endsWith('/api/tv/pair') ? resp({ code: 'CODE-1', pairId: 'x', expiresIn: 600, qr: 'data:,' }) : resp({ status: 'waiting' }));
 
 describe('Profiles', () => {
   let host: HTMLElement;
   beforeEach(() => {
     localStorage.clear();
+    seen = [];
+    failLogout = false;
     host = document.createElement('div');
     document.body.appendChild(host);
   });
@@ -60,5 +69,23 @@ describe('Profiles', () => {
     await mount([setPin(p(1), '4321')]);
     await act(async () => (host.querySelector('.profile-tile:not(.add)') as HTMLButtonElement).click());
     expect(host.textContent).toContain('PIN for user1');
+  });
+
+  it('Remove signs the profile out on the server with its own token', async () => {
+    await mount([p(1), p(2)]);
+    await act(async () => (host.querySelector('.profile-more') as HTMLButtonElement).click());
+    await act(async () => button('Remove').click());
+    const out = seen.filter((c) => c.url.endsWith('/api/auth/logout'));
+    expect(out.length).toBe(1);
+    expect(out[0].auth).toBe('Bearer tok1');
+    expect(loadState().profiles.map((x) => x.userId)).toEqual([2]);
+  });
+
+  it('Remove still removes the profile when the sign-out request fails', async () => {
+    failLogout = true;
+    await mount([p(1)]);
+    await act(async () => (host.querySelector('.profile-more') as HTMLButtonElement).click());
+    await act(async () => button('Remove').click());
+    expect(loadState().profiles).toEqual([]);
   });
 });

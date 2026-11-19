@@ -87,7 +87,7 @@ function SegmentMark({ seg, duration, kind }: { seg: Segment | undefined; durati
   return <div class={'player-seg ' + kind} style={{ left: pct(seg.start, duration), width: pct(seg.end - seg.start, duration) }} />;
 }
 
-function TracksMenu({ info, pb, subtitle, onSubtitle }: { info: PlayInfo; pb: Playback; subtitle: number | null; onSubtitle: (o: number | null) => void }) {
+function TracksMenu({ info, pb, subtitle, onAudio, onSubtitle }: { info: PlayInfo; pb: Playback; subtitle: number | null; onAudio: (o: number) => void; onSubtitle: (o: number | null) => void }) {
   const subs = textSubtitles(info);
   return (
     <div class="player-menu">
@@ -95,7 +95,7 @@ function TracksMenu({ info, pb, subtitle, onSubtitle }: { info: PlayInfo; pb: Pl
         <h2>Audio</h2>
         {info.audio.length ? (
           info.audio.map((a, i) => (
-            <button key={a.order} data-focusable data-key={'audio:' + a.order} class={'menu-option' + (a.order === pb.audio ? ' on' : '')} onClick={() => pb.chooseAudio(a.order)}>
+            <button key={a.order} data-focusable data-key={'audio:' + a.order} class={'menu-option' + (a.order === pb.audio ? ' on' : '')} onClick={() => onAudio(a.order)}>
               {trackName(a, i)}
             </button>
           ))
@@ -269,6 +269,10 @@ function Playing({ session, item, info, makePlayer }: { session: Session; item: 
     return () => window.removeEventListener('keydown', listen, true);
   }, []);
 
+  const chooseAudio = (o: number) => {
+    pb.chooseAudio(o);
+    setMenu(false);
+  };
   const chooseSubtitle = (o: number | null) => {
     setSubtitle(o);
     setMenu(false);
@@ -308,7 +312,7 @@ function Playing({ session, item, info, makePlayer }: { session: Session; item: 
           </div>
         </div>
       ) : menu ? (
-        <TracksMenu info={info} pb={pb} subtitle={subtitle} onSubtitle={chooseSubtitle} />
+        <TracksMenu info={info} pb={pb} subtitle={subtitle} onAudio={chooseAudio} onSubtitle={chooseSubtitle} />
       ) : null}
 
       {skip && (

@@ -20,15 +20,19 @@ const info = {
 interface Call { method: string; path: string; body: any }
 
 /** Answers the player's requests and records them (method, path, parsed body). */
-function playFetch(start: Record<string, unknown>): { fetchFn: FetchFn; calls: Call[] } {
+function playFetch(start: Record<string, unknown>, opts: { info?: unknown; pendingAfter?: number } = {}): { fetchFn: FetchFn; calls: Call[] } {
   const calls: Call[] = [];
   const ok = (body: unknown) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body), text: () => Promise.resolve(JSON.stringify(body)) });
   const fetchFn: FetchFn = (url, init) => {
     const path = url.replace(/^https?:\/\/[^/]+/, '');
     const method = (init && init.method) || 'GET';
     calls.push({ method, path, body: init && init.body ? JSON.parse(init.body) : undefined });
-    if (path === '/api/play/movie/5/info') return ok(info);
-    if (path === '/api/play/movie/5/start') return ok(start);
+    if (path === '/api/play/movie/5/info') return ok(opts.info || info);
+    if (path === '/api/play/movie/5/start') {
+      // After `pendingAfter` answers, /start never answers (a restart still in progress).
+      if (opts.pendingAfter !== undefined && calls.filter((c) => c.path === path).length > opts.pendingAfter) return new Promise(() => {});
+      return ok(start);
+    }
     if (path === '/api/play/movie/5/progress' || path.indexOf('/api/play/hls/') === 0) return ok({ ok: true });
     return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({ error: 'Not found' }), text: () => Promise.resolve('') });
   };
@@ -64,6 +68,8 @@ class FakePlayer implements TvPlayer {
   setAudio() {}
   onEnded() {}
   onError(cb: (m: string) => void) { this.err = cb; }
+  /** An error event from the player, as AVPlay sends one mid-playback. */
+  fail() { this.err('decoder failed'); }
   onBuffering() {}
   close() { this.closed++; this.playing = false; }
 }
@@ -171,5 +177,59 @@ describe('Player', () => {
     press(10009);
     await settle();
     expect(f.calls.filter((c) => c.method === 'DELETE').map((c) => c.path)).toEqual(['/api/play/hls/abc']);
+  });
+
+  it('leaving while a restart for another audio track is pending still saves the position', async () => {
+    const two = Object.assign({}, info, { audio: [info.audio[0], { order: 1, language: 'jpn', title: null, codec: 'aac', channels: 2, isDefault: false }] });
+    const f = playFetch({ mode: 'hls', url: '/api/play/hls/abc/main.m3u8', sessionId: 'abc', reason: 'convert', streamToken: 'st1' }, { info: two, pendingAfter: 1 });
+    const p = new FakePlayer();
+    await mount(f.fetchFn, p);
+    p.t = 300;
+    await act(async () => (host.querySelector('[data-key="tracks"]') as HTMLElement).click());
+    await act(async () => (host.querySelector('[data-key="audio:1"]') as HTMLElement).click());
+    await settle();
+    expect(starts(f.calls).length).toBe(2);
+    expect(starts(f.calls)[1].body).toMatchObject({ audio: 1 });
+    press(10009);
+    await settle();
+    const put = f.calls.filter((c) => c.method === 'PUT');
+    expect(put.length).toBe(1);
+    expect(put[0].body.position).toBe(300);
+    expect(host.textContent).toContain('Launcher');
+  });
+
+  /** Plays to 120 s, then the player breaks: its clock reads 0 and it sends an error. */
+  const breakAt120 = async () => {
+    const f = playFetch({ mode: 'direct', url: '/api/play/direct/movie/5', reason: 'ok', streamToken: 'st1' });
+    const p = new FakePlayer();
+    await mount(f.fetchFn, p);
+    p.t = 120;
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 300)); // a tick of the player's clock
+    });
+    p.t = 0;
+    await act(async () => p.fail());
+    await settle();
+    expect(host.textContent).toContain('The video stopped playing.');
+    return { f, p };
+  };
+
+  it('Try again after an error restarts where playback was', async () => {
+    const { f } = await breakAt120();
+    const again = host.querySelector('button.focused') as HTMLButtonElement;
+    expect(again.textContent).toBe('Try again');
+    await act(async () => again.click());
+    await settle();
+    expect(starts(f.calls).length).toBe(2);
+    expect(Math.abs(starts(f.calls)[1].body.startAt - 120)).toBeLessThanOrEqual(1);
+  });
+
+  it('Back after an error saves where playback was', async () => {
+    const { f } = await breakAt120();
+    press(10009);
+    await settle();
+    const put = f.calls.filter((c) => c.method === 'PUT');
+    expect(put.length).toBe(1);
+    expect(put[0].body.position).toBe(120);
   });
 });

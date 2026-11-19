@@ -65,6 +65,10 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
     ended: false,
     forced: false,
     failedGen: -1,
+    /** The player stopped with an error: its clock can't be trusted (AVPlay may read 0 or throw). */
+    broken: false,
+    /** The last position known to have played (s); 0 until a stream has played. Survives restarts and errors. */
+    lastTime: 0,
     playing: false,
     mode: null as StartResult['mode'] | null,
     hls: null as string | null,
@@ -76,8 +80,16 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
   const endHls = (id: string) => {
     session.send('DELETE', '/api/play/hls/' + id).then(undefined, () => {});
   };
+  /** Where playback is: the player's clock while it works, otherwise the last position it reported. */
+  const now = () => {
+    if (r.started && !r.broken) {
+      const t = p.time();
+      if (t > 0) r.lastTime = t;
+    }
+    return r.lastTime;
+  };
   const save = (position?: number) => {
-    const t = position !== undefined ? position : p.time();
+    const t = position !== undefined ? position : now();
     if (t > 0) session.send('PUT', base + '/progress', { position: t, duration: duration }).then(undefined, () => {});
   };
   const fail = (error: string, canRetry: boolean) => {
@@ -89,7 +101,11 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
   const playFailed = (gen: number) => {
     if (gen !== r.gen || r.failedGen === gen || !r.live) return;
     r.failedGen = gen;
-    if (r.started) fail('The video stopped playing.', true);
+    if (r.started) {
+      now();
+      r.broken = true;
+      fail('The video stopped playing.', true);
+    }
     else if (!r.forced) {
       r.forced = true;
       start(r.last.at, r.last.audio, r.last.play);
@@ -130,6 +146,8 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
             const defaultAudio = info.audio.filter((x) => x.isDefault)[0] || info.audio[0];
             if (res.mode === 'direct' && defaultAudio && a !== defaultAudio.order) selectAudio(a);
             r.started = true;
+            r.broken = false;
+            r.lastTime = at;
             r.playing = play;
             if (play) p.play();
             setTime(at);
@@ -161,7 +179,7 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
     start(startPoint(info), audio, true);
 
     const clock = window.setInterval(() => {
-      if (r.started && r.playing) setTime(p.time());
+      if (r.started && r.playing) setTime(now());
     }, 250);
     const saver = window.setInterval(() => {
       if (r.started && r.playing) save();
@@ -180,7 +198,8 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
       window.clearInterval(clock);
       window.clearInterval(saver);
       window.clearInterval(keepalive);
-      if (r.started && !r.ended) save();
+      // Also while a restart is pending or after an error: save() falls back to the last known position.
+      if (!r.ended) save();
       p.close();
       if (r.hls) endHls(r.hls);
       r.hls = null;
@@ -218,6 +237,7 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
       if (!r.started) return;
       const to = Math.min(Math.max(0, t), Math.max(0, duration - 0.5));
       setTime(to);
+      r.lastTime = to;
       p.seek(to);
     },
     chooseAudio(order: number) {
@@ -225,8 +245,8 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
       setAudioState(order);
       // The original file: the TV switches itself. A conversion: start again with that track from here.
       if (r.started && r.mode === 'direct' && selectAudio(order)) return;
-      start(Math.max(0, (r.started ? p.time() : r.last.at) - 1), order, r.started ? r.playing : r.last.play);
+      start(Math.max(0, (now() || r.last.at) - 1), order, r.started ? r.playing : r.last.play);
     },
-    retry: () => start(Math.max(0, p.time() || r.last.at), audio, true),
+    retry: () => start(Math.max(0, now() || r.last.at), audio, true),
   };
 }

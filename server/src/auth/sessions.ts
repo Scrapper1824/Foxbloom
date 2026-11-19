@@ -36,7 +36,7 @@ interface SessionRow {
 }
 
 // Only a hash of the token is stored, so a leaked database can't be used to log in.
-const hashToken = (token: string) => crypto.createHash('sha256').update(token).digest('hex');
+export const hashToken = (token: string) => crypto.createHash('sha256').update(token).digest('hex');
 
 export function createSession(userId: number, ip: string, userAgent: string | undefined): string {
   const token = crypto.randomBytes(32).toString('base64url');
@@ -48,6 +48,14 @@ export function createSession(userId: number, ip: string, userAgent: string | un
 }
 
 export const userById = (id: number): UserRow | null => (db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow | undefined) ?? null;
+
+/** True while a sign-in (by the hash of its token) still exists and hasn't expired. Read-only: doesn't count as activity. */
+export function sessionHashAlive(hash: string): boolean {
+  const s = db.prepare('SELECT last_seen, expires_at FROM sessions WHERE token_hash = ?').get(hash) as Pick<SessionRow, 'last_seen' | 'expires_at'> | undefined;
+  if (!s) return false;
+  const t = Date.now();
+  return t <= new Date(s.expires_at).getTime() && t - new Date(s.last_seen).getTime() <= IDLE_MS;
+}
 
 /** The signed-in user for a session token, or null. Expired/idle sessions are removed. */
 export function userForSession(token: string | undefined): UserRow | null {

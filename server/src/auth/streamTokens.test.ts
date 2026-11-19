@@ -12,7 +12,7 @@ import { createSession as createStream, startPlayback, stopPlayback, useLauncher
 import { currentVersion } from '../system/updater.js';
 import { resetRateLimits } from './rateLimit.js';
 import { prepareSetupCode } from './routes.js';
-import { createSession } from './sessions.js';
+import { createSession, deleteUserSessions } from './sessions.js';
 import { STREAM_TOKEN_MS, issueStreamToken, streamTokenUser } from './streamTokens.js';
 
 const probe: MediaProbe = {
@@ -90,7 +90,7 @@ const caps = { mp4: true, h264: true, aac: true };
 
 describe('stream tokens', () => {
   it("stream token opens its own title's direct file", async () => {
-    const st = issueStreamToken(userId, `movie:${movieId}`);
+    const st = issueStreamToken(userId, `movie:${movieId}`, bearer);
     const res = await get(`/api/play/direct/movie/${movieId}?st=${st}`, { range: 'bytes=0-3' });
     expect(res.statusCode).toBe(206);
     expect(res.body).toBe('0123');
@@ -98,20 +98,20 @@ describe('stream tokens', () => {
   });
 
   it("stream token opens its own title's subtitle", async () => {
-    const st = issueStreamToken(userId, `movie:${movieId}`);
+    const st = issueStreamToken(userId, `movie:${movieId}`, bearer);
     const res = await get(`/api/play/movie/${movieId}/subtitle/0?st=${st}`);
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('hi');
   });
 
   it('stream token for another title', async () => {
-    const st = issueStreamToken(userId, `movie:${otherId}`);
+    const st = issueStreamToken(userId, `movie:${otherId}`, bearer);
     expect((await get(`/api/play/direct/movie/${movieId}?st=${st}`)).statusCode).toBe(401);
     expect((await get(`/api/play/movie/${movieId}/subtitle/0?st=${st}`)).statusCode).toBe(401);
   });
 
   it('stream token on /api/home', async () => {
-    const st = issueStreamToken(userId, `movie:${movieId}`);
+    const st = issueStreamToken(userId, `movie:${movieId}`, bearer);
     expect((await get(`/api/home?st=${st}`)).statusCode).toBe(401);
     expect((await get(`/api/play/movie/${movieId}/info?st=${st}`)).statusCode).toBe(401);
     expect((await app.inject({ method: 'DELETE', url: `/api/play/hls/x?st=${st}`, headers: CSRF })).statusCode).toBe(401);
@@ -124,7 +124,7 @@ describe('stream tokens', () => {
 
   it('expired', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
-    const st = issueStreamToken(userId, `movie:${movieId}`);
+    const st = issueStreamToken(userId, `movie:${movieId}`, bearer);
     vi.setSystemTime(Date.now() + STREAM_TOKEN_MS - 1000);
     expect(streamTokenUser(st, `movie:${movieId}`)).toBe(userId);
     vi.setSystemTime(Date.now() + 2000);
@@ -132,7 +132,7 @@ describe('stream tokens', () => {
   });
 
   it('a stream token of a deleted user opens nothing', async () => {
-    const st = issueStreamToken(99999, `movie:${movieId}`);
+    const st = issueStreamToken(99999, `movie:${movieId}`, bearer);
     expect((await get(`/api/play/direct/movie/${movieId}?st=${st}`)).statusCode).toBe(401);
   });
 
@@ -148,15 +148,65 @@ describe('stream tokens', () => {
       encoder: 'libx264',
       startAt: 0,
     });
-    const good = issueStreamToken(userId, `movie:${movieId}`);
-    const other = issueStreamToken(userId, `movie:${otherId}`);
+    const good = issueStreamToken(userId, `movie:${movieId}`, bearer);
+    const other = issueStreamToken(userId, `movie:${otherId}`, bearer);
     // Past sign-in the route answers 404 for a file name it doesn't serve; without sign-in it would be 401.
     expect((await get(`/api/play/hls/${s.id}/bogus.bin?st=${good}`)).statusCode).toBe(404);
     expect((await get(`/api/play/hls/${s.id}/bogus.bin?st=${other}`)).statusCode).toBe(401);
   });
 
+  it('playlist served to a stream token carries it on every segment line, and the segments then open', async () => {
+    useLauncher((_f, _a, s, segment) =>
+      spawn(process.execPath, ['-e', "require('fs').writeFileSync(require('path').join(process.argv[1],'seg'+process.argv[2]+'.ts'),'x');setTimeout(()=>{},3000)", s.dir, String(segment)], { stdio: ['ignore', 'pipe', 'pipe'] }),
+    );
+    const s = createStream({
+      userId,
+      title: `movie:${movieId}`,
+      file: 'x.mp4',
+      ffmpeg: 'ffmpeg',
+      probe,
+      decision: { mode: 'transcode', reason: '', audio: 0, burnSubtitle: null, height: null, videoBitrate: 8e6 },
+      encoder: 'libx264',
+      startAt: 0,
+    });
+    const st = issueStreamToken(userId, `movie:${movieId}`, bearer);
+    const playlistUrl = `/api/play/hls/${s.id}/main.m3u8?st=${st}`;
+    const pl = await get(playlistUrl);
+    expect(pl.statusCode).toBe(200);
+    const segs = pl.body.split(String.fromCharCode(10)).map((l) => l.trim()).filter((l) => l.startsWith('seg'));
+    expect(segs.length).toBeGreaterThan(0);
+    for (const l of segs) expect(l).toBe(`${l.split('?')[0]}?st=${encodeURIComponent(st)}`);
+    const next = new URL(segs[0], `http://tv.local${playlistUrl}`);
+    const seg = await get(next.pathname + next.search);
+    expect(seg.statusCode).not.toBe(401);
+    // A cookie viewer's playlist is untouched.
+    const plain = await get(`/api/play/hls/${s.id}/main.m3u8`, { cookie });
+    expect(plain.body).not.toContain('?st=');
+  });
+
+  it('signing the TV out ends its stream tokens', async () => {
+    const st = issueStreamToken(userId, `movie:${movieId}`, bearer);
+    expect((await get(`/api/play/direct/movie/${movieId}?st=${st}`)).statusCode).toBe(200);
+    const out = await app.inject({ method: 'POST', url: '/api/auth/logout', headers: { ...CSRF, authorization: `Bearer ${bearer}` } });
+    expect(out.statusCode).toBe(200);
+    expect((await get(`/api/play/direct/movie/${movieId}?st=${st}`)).statusCode).toBe(401);
+  });
+
+  it('a password reset (all sessions removed) ends stream tokens', async () => {
+    const st = issueStreamToken(userId, `movie:${movieId}`, bearer);
+    deleteUserSessions(userId);
+    expect((await get(`/api/play/direct/movie/${movieId}?st=${st}`)).statusCode).toBe(401);
+  });
+
+  it('start via bearer issues a token tied to that TV session', async () => {
+    const body = (await app.inject({ method: 'POST', url: `/api/play/movie/${movieId}/start`, headers: { ...CSRF, authorization: `Bearer ${bearer}` }, payload: { caps } })).json();
+    expect((await get(`/api/play/direct/movie/${movieId}?st=${body.streamToken}`)).statusCode).toBe(200);
+    deleteUserSessions(userId);
+    expect((await get(`/api/play/direct/movie/${movieId}?st=${body.streamToken}`)).statusCode).toBe(401);
+  });
+
   it('cookie sign-in still wins over a stream token', async () => {
-    const st = issueStreamToken(userId, `movie:${otherId}`);
+    const st = issueStreamToken(userId, `movie:${otherId}`, bearer);
     expect((await get(`/api/home?st=${st}`, { cookie })).statusCode).toBe(200);
   });
 });

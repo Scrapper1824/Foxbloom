@@ -237,7 +237,7 @@ export async function playRoutes(app: FastifyInstance) {
         else decision = { ...decision, copyVideo: false, reason: decision.reason.replace(/: repackaged.*$/, '') };
       }
       // The TV can't send a header on video/subtitle loads, so it gets a token for this title to put in the URL (?st=).
-      const streamToken = req.authVia === 'bearer' && req.user ? { streamToken: issueStreamToken(req.user.id, `${p.kind}:${p.id}`) } : {};
+      const streamToken = req.authVia === 'bearer' && req.user ? { streamToken: issueStreamToken(req.user.id, `${p.kind}:${p.id}`, req.sessionToken!) } : {};
       if (decision.mode === 'direct') return { mode: 'direct', url: `/api/play/direct/${p.kind}/${p.id}`, reason: decision.reason, ...streamToken };
       const info = await ffmpegInfo();
       const startAt = Math.min(Math.max(0, Number(req.body?.startAt) || 0), Math.max(0, probe.duration - 1));
@@ -291,6 +291,13 @@ export async function playRoutes(app: FastifyInstance) {
     if (!s) return reply.code(404).send({ error: 'This stream has ended. Press play again.' });
     if (req.params.file === 'main.m3u8') {
       reply.header('Content-Type', 'application/vnd.apple.mpegurl');
+      // A stream-token viewer (the TV) resolves segment names against the playlist URL without its query,
+      // so each segment line carries the token itself.
+      const st = req.authVia === 'stream' ? String((req.query as { st?: string }).st) : null;
+      if (st) {
+        const text = fs.readFileSync(playlistPath(s), 'utf8').replace(/^(?!#)(\S+)$/gm, (_m, uri: string) => `${uri}?st=${encodeURIComponent(st)}`);
+        return reply.send(text);
+      }
       return reply.send(fs.createReadStream(playlistPath(s)));
     }
     const m = /^seg(\d+)\.ts$/.exec(req.params.file);

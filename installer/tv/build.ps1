@@ -1,6 +1,6 @@
 # Builds installer\dist\FoxbloomTVSetup.exe with the C# compiler that ships with Windows (.NET Framework 4).
 #   powershell -ExecutionPolicy Bypass -File installer\tv\build.ps1
-# 11a: the finder and the UI. 11b/11c add SamsungCert.cs, WgtSigner.cs, Sdb.cs to $sources and embed the
+# 11a: the finder and the UI. 11b: SamsungCert.cs, WgtSigner.cs. 11c adds Sdb.cs to $sources and embeds the
 # unsigned Foxbloom.wgt (tv\dist) and sdb.exe as /resource: entries.
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -17,8 +17,8 @@ if (-not (Test-Path $ico)) { throw "Icon not found: $ico" }
 $dist = Join-Path $installer 'dist'
 New-Item -ItemType Directory -Force $dist | Out-Null
 $exe = Join-Path $dist 'FoxbloomTVSetup.exe'
-$sources = @('TvDiscovery.cs', 'FoxbloomTvSetup.cs') | ForEach-Object { Join-Path $here $_ }
+$sources = @('TvDiscovery.cs', 'SamsungCert.cs', 'WgtSigner.cs', 'FoxbloomTvSetup.cs') | ForEach-Object { Join-Path $here $_ }
 & $csc /nologo /target:winexe /optimize+ "/out:$exe" "/win32icon:$ico" "/win32manifest:$(Join-Path $here 'app.manifest')" `
-  /reference:System.dll /reference:System.Core.dll /reference:System.Drawing.dll /reference:System.Windows.Forms.dll /reference:System.Web.Extensions.dll @sources
+  /reference:System.dll /reference:System.Core.dll /reference:System.Drawing.dll /reference:System.Windows.Forms.dll /reference:System.Web.Extensions.dll /reference:System.Security.dll /reference:System.Xml.dll /reference:System.IO.Compression.dll @sources
 if ($LASTEXITCODE -ne 0) { throw "csc failed ($LASTEXITCODE)" }
 Write-Output "Built $exe"

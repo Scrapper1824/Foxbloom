@@ -532,7 +532,9 @@ class TvSetupForm : Form
 
     /**
      * The seam for the rest of the installer.
-     * TODO(11b): SamsungCert.Ensure(new[] { tv.Duid }, openBrowser) then WgtSigner.Sign(unsigned wgt, cert).
+     * Ready (11b): SamsungCert.Ensure(new[] { duid }, SamsungCert.OpenInBrowser) off the UI thread, then
+     *   WgtSigner.Sign(unsigned wgt, cert). The duid must be the one `sdb shell 0 getduid` prints (11c), NOT
+     *   tv.Duid ("uuid:..." from /api/v2/), which Ensure rejects. SamsungCert.Status(...) != Ok means a sign-in.
      * TODO(11c): Sdb.Install(tv.Ip, signedWgt), with "Signing in to Samsung…" / "Installing on <name>…" / "Done" screens.
      */
     void InstallOn(TvInfo tv)

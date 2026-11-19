@@ -1,4 +1,5 @@
-// Console test runner for TvDiscovery. No test framework: each Test() prints PASS/FAIL, exit code 1 if any failed.
+// Console test runner for the TV installer (TvDiscovery here; SamsungCert and WgtSigner in their own files).
+// No test framework: each Test() prints PASS/FAIL, exit code 1 if any failed.
 // Usage: TvTests.exe <fixtures folder>
 using System;
 using System.Collections.Generic;
@@ -10,7 +11,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 
-static class Tests
+static partial class Tests
 {
     static int failed, passed;
     static string fx;
@@ -186,6 +187,9 @@ static class Tests
             finally { l.Stop(); }
             True(TvDiscovery.Describe("127.0.0.1", 1, 500) == null, "closed port should give null");
         });
+
+        SamsungCertTests();
+        WgtSignerTests();
 
         Console.WriteLine();
         Console.WriteLine(passed + " passed, " + failed + " failed");

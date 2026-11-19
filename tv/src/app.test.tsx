@@ -66,4 +66,22 @@ describe('App', () => {
     expect(host.querySelector('#pushed')).not.toBeNull();
     expect(host.textContent).not.toContain('root');
   });
+
+  it('leaves keys alone while a text field is focused', () => {
+    const input = document.createElement('input');
+    host.appendChild(input);
+    input.focus();
+    const ev = Object.assign(new Event('keydown', { cancelable: true, bubbles: true }), { keyCode: 8 });
+    act(() => {
+      input.dispatchEvent(ev);
+    });
+    expect(ev.defaultPrevented).toBe(false);
+    expect(host.textContent).not.toContain('Exit Foxbloom?');
+    const esc = Object.assign(new Event('keydown', { cancelable: true, bubbles: true }), { keyCode: 10009 });
+    act(() => {
+      input.dispatchEvent(esc);
+    });
+    expect(document.activeElement).not.toBe(input);
+    expect(host.textContent).not.toContain('Exit Foxbloom?');
+  });
 });

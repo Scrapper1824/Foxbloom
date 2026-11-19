@@ -50,6 +50,12 @@ export function App({ initial }: { initial: Screen }) {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      // A focused text field keeps its keys (typing, Backspace, arrows, Enter); Back/Esc just leaves the field.
+      const t = e.target as HTMLElement | null;
+      if (t && t.tagName && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) {
+        if (e.keyCode === 27 || e.keyCode === 10009) t.blur();
+        return;
+      }
       const k = keyFromEvent(e);
       const root = rootRef.current;
       if (!k || !root) return;

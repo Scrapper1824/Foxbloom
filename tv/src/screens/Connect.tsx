@@ -48,7 +48,9 @@ export function Connect({ fetchFn, initial }: { fetchFn?: FetchFn; initial?: str
           if (!st || typeof st.setupRequired !== 'boolean') return setError('That does not look like a Foxbloom server.');
           if (st.setupRequired) return setError('That server has not been set up yet. Finish setup on the website first.');
           const s = loadState();
-          saveState({ servers: { publicUrl: url, localUrls: Array.isArray(st.localUrls) ? st.localUrls : [] }, profiles: s.profiles });
+          // A status without a sign-in lists no home addresses: keep the ones already learned (Session.info refreshes them).
+          const localUrls = Array.isArray(st.localUrls) && st.localUrls.length ? st.localUrls : s.servers ? s.servers.localUrls : [];
+          saveState({ servers: { publicUrl: url, localUrls: localUrls }, profiles: s.profiles });
           nav.reset([profilesScreen(f)]);
         },
         () => {
@@ -62,7 +64,7 @@ export function Connect({ fetchFn, initial }: { fetchFn?: FetchFn; initial?: str
     <div ref={rootRef} class="connect">
       <Logo size={96} />
       <h1>Connect to Foxbloom</h1>
-      <p>Type the address you use for Foxbloom, for example http://192.168.1.20:7979</p>
+      <p>Type the address you use for Foxbloom away from home, for example https://foxbloom.example.com</p>
       <Field label="Address" value={address} onValue={setAddress} active onActivate={() => {}} placeholder="http://" />
       <p class="error">{error || ' '}</p>
       <Keyboard onType={(c) => setAddress((a) => (a + c).slice(0, 200))} onBackspace={() => setAddress((a) => a.slice(0, -1))} onDone={connect} doneLabel="Connect" />

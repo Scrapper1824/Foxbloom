@@ -1,6 +1,6 @@
 import { Api, OfflineError } from './api';
 import { defaultFetch, pickBase, type FetchFn } from './connection';
-import { loadState, type Profile } from './profiles';
+import { loadState, saveState, type Profile } from './profiles';
 import type { AuthStatus } from './types';
 
 export interface SessionInfo {
@@ -63,7 +63,15 @@ export class Session {
     const self = this;
     if (!this.infoP) {
       this.infoP = this.get<AuthStatus>('/api/auth/status').then(
-        function (st) { return { where: self.where, version: st && st.version ? st.version : null }; },
+        function (st) {
+          // The signed-in status lists the server's home addresses: keep them fresh, so a new LAN IP is learned here
+          // rather than only when a person is added.
+          if (st && Array.isArray(st.localUrls)) {
+            const s = loadState();
+            if (s.servers) saveState({ servers: { publicUrl: s.servers.publicUrl, localUrls: st.localUrls }, profiles: s.profiles });
+          }
+          return { where: self.where, version: st && st.version ? st.version : null };
+        },
         function () { self.infoP = null; return { where: self.where, version: null }; },
       );
     }

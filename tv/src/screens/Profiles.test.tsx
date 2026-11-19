@@ -17,7 +17,7 @@ const fetchFn: FetchFn = (url, init) => {
   if (url.endsWith('/api/auth/logout')) return failLogout ? Promise.reject(new TypeError('offline')) : resp({ ok: true });
   return fetchBase(url);
 };
-const fetchBase: (url: string) => ReturnType<FetchFn> = (url) => url.endsWith('/api/auth/status') ? resp({ setupRequired: false, localUrls: [] }) : (url.endsWith('/api/tv/pair') ? resp({ code: 'CODE-1', pairId: 'x', expiresIn: 600, qr: 'data:,' }) : resp({ status: 'waiting' }));
+const fetchBase: (url: string) => ReturnType<FetchFn> = (url) => url.endsWith('/api/auth/status') ? resp({ setupRequired: false }) : (url.endsWith('/api/tv/pair') ? resp({ code: 'CODE-1', pairId: 'x', expiresIn: 600, qr: 'data:,' }) : resp({ status: 'waiting' }));
 
 describe('Profiles', () => {
   let host: HTMLElement;
@@ -88,6 +88,23 @@ describe('Profiles', () => {
     await act(async () => (host.querySelector('.profile-more') as HTMLButtonElement).click());
     await act(async () => button('Remove').click());
     expect(loadState().profiles).toEqual([]);
+  });
+
+  it('Change server keeps the saved home addresses when the server lists none', async () => {
+    await mount([p(1)]);
+    saveState({ servers: { publicUrl: 'https://pub.test', localUrls: ['http://192.168.1.5:7979'] }, profiles: [p(1)] });
+    await act(async () => button('Change server').click());
+    await act(async () => button('Connect').click());
+    await settle();
+    expect(host.textContent).toContain("Who's watching?");
+    expect(loadState().servers).toEqual({ publicUrl: 'https://pub.test', localUrls: ['http://192.168.1.5:7979'] });
+  });
+
+  it('Connect gives a public HTTPS address as its example', async () => {
+    await mount([p(1)]);
+    await act(async () => button('Change server').click());
+    expect(host.textContent).toContain('https://foxbloom.example.com');
+    expect(host.textContent).not.toContain('192.168.');
   });
 
   it('Change server opens Connect with the current address, and a new address keeps the profiles', async () => {

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { pickBase, type FetchFn } from './connection';
 
 const servers = { publicUrl: 'https://pub.example', localUrls: ['http://192.168.1.5:3000'] };
-const ok = (async () => ({ ok: true, status: 200, json: async () => ({}), text: async () => '' })) as unknown as FetchFn;
+const ok = (async () => ({ ok: true, status: 200, json: async () => ({ setupRequired: false }), text: async () => '{"setupRequired":false}' })) as unknown as FetchFn;
 const never = (() => new Promise(() => {})) as unknown as FetchFn;
 
 describe('pickBase', () => {
@@ -36,6 +36,13 @@ describe('pickBase', () => {
     const p = pickBase(s, f);
     await vi.advanceTimersByTimeAsync(10);
     expect(await p).toEqual({ base: 'http://192.168.1.5:3000', where: 'home' });
+  });
+
+  it('is away when a local url answers 200 without a Foxbloom status body', async () => {
+    const notJson = (async () => ({ ok: true, status: 200, json: async () => { throw new SyntaxError('x'); }, text: async () => '<html>' })) as unknown as FetchFn;
+    const otherJson = (async () => ({ ok: true, status: 200, json: async () => ({ hello: 1 }), text: async () => '{"hello":1}' })) as unknown as FetchFn;
+    expect((await pickBase(servers, notJson)).where).toBe('away');
+    expect((await pickBase(servers, otherJson)).where).toBe('away');
   });
 
   it('strips a trailing slash from urls', async () => {

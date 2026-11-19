@@ -7,7 +7,10 @@ export function focusElement(el: HTMLElement, root: HTMLElement) {
   const old = root.querySelectorAll('.focused');
   for (let i = 0; i < old.length; i++) old[i].classList.remove('focused');
   el.classList.add('focused');
-  if (typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  // Not scrollIntoView({ block: 'nearest' }): Chromium before 61 reads the options object as `true` (align to top), so
+  // every move would jump. scrollIntoViewIfNeeded(false) scrolls only when el is out of view, and as little as needed.
+  const s = el as HTMLElement & { scrollIntoViewIfNeeded?: (center?: boolean) => void };
+  if (typeof s.scrollIntoViewIfNeeded === 'function') s.scrollIntoViewIfNeeded(false);
   el.dispatchEvent(new Event('foxfocus', { bubbles: true }));
 }
 const setFocused = focusElement;

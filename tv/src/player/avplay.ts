@@ -68,8 +68,12 @@ export function avPlayer(av: any = webapis.avplay, doc: Document = document, win
         }
         av.prepareAsync(
           () => {
-            if (startAt > 0) av.seekTo(Math.floor(startAt * 1000), () => resolve(), () => resolve());
-            else resolve();
+            if (!(startAt > 0)) return resolve();
+            try {
+              av.seekTo(Math.floor(startAt * 1000), () => resolve(), () => resolve());
+            } catch (_e) {
+              resolve(); // play from the start rather than never opening
+            }
           },
           (e: unknown) => reject(new Error(String(e))),
         );

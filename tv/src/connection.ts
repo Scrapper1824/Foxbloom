@@ -80,12 +80,17 @@ export function pickBase(s: Servers, fetchFn: FetchFn = defaultFetch, timeoutMs 
       const base = trimSlash(u);
       let req: Promise<HttpResponse>;
       try { req = fetchFn(base + '/api/auth/status'); } catch (e) { fail(); return; }
-      withTimeout(req, timeoutMs, function () { return new Error('timeout'); }).then(
-        function (r) {
-          if (r.ok && !done) { done = true; resolve({ base: base, where: 'home' }); } else fail();
-        },
-        fail,
-      );
+      withTimeout(req, timeoutMs, function () { return new Error('timeout'); })
+        .then(function (r) {
+          // Only a Foxbloom status body counts: something else answering 200 on that address is not home.
+          return r.ok ? r.json() : null;
+        })
+        .then(
+          function (st) {
+            if (st && typeof st.setupRequired === 'boolean' && !done) { done = true; resolve({ base: base, where: 'home' }); } else fail();
+          },
+          fail,
+        );
     });
   });
 }

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "test": "vitest run",
-    "build": "tsc --noEmit && vite build && node scripts/check-css.mjs"
+    "build": "tsc --noEmit && vite build && node scripts/check-css.mjs && node scripts/check-es5.mjs"
   },
   "dependencies": {
     "preact": "^10.26.0"

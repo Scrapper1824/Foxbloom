@@ -84,6 +84,8 @@ export type Progress = Record<string, { position: number; duration: number; watc
 /** /api/auth/status: `version` is only there when signed in. */
 export interface AuthStatus {
   version?: string;
+  /** The server's home (LAN) addresses, also only when signed in. */
+  localUrls?: string[];
 }
 
 /** What the player screen is asked to play. */

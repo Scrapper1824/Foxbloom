@@ -54,7 +54,12 @@ export class Api {
           );
         }
         if (res.status === 204) return undefined as unknown as T;
-        return res.text().then(function (t) { return (t ? JSON.parse(t) : undefined) as T; });
+        // A 200 that is not JSON is not Foxbloom answering (a captive portal, another site on that address): treat it
+        // as unreachable so the address is looked for again, instead of surfacing a raw SyntaxError.
+        return res.text().then(function (t) {
+          if (!t) return undefined as unknown as T;
+          try { return JSON.parse(t) as T; } catch (e) { throw new OfflineError(); }
+        });
       },
       function () { throw new OfflineError(); },
     );

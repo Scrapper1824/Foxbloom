@@ -41,6 +41,11 @@ describe('Api', () => {
     vi.useRealTimers();
   });
 
+  it('a 200 that is not JSON (a captive portal or another site) is an OfflineError, not a SyntaxError', async () => {
+    const html = { ok: true, status: 200, json: async () => { throw new SyntaxError('x'); }, text: async () => '<html>Sign in to Wi-Fi</html>' };
+    await expect(new Api('https://x', 't', fn(async () => html)).get('/api/home')).rejects.toBeInstanceOf(OfflineError);
+  });
+
   it('streamUrl resolves relative urls and appends the stream token', () => {
     const api = new Api('https://x.example/', 't');
     expect(api.streamUrl('/api/play/direct/movie/1', 'a b')).toBe('https://x.example/api/play/direct/movie/1?st=a%20b');

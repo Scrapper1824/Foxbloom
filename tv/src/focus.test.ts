@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { focusFirst, moveFocus } from './focus';
+import { focusElement, focusFirst, moveFocus } from './focus';
 
 /** A 3x3 grid of 100px boxes with 20px gaps; box ids are "r-c". */
 function grid(): HTMLElement {
@@ -20,6 +20,30 @@ function grid(): HTMLElement {
   document.body.appendChild(root);
   return root;
 }
+
+describe('focusElement scrolling', () => {
+  it('uses scrollIntoViewIfNeeded(false) and never scrollIntoView (Chromium 47 reads its options object as true)', () => {
+    const root = document.createElement('div');
+    const el = document.createElement('div') as HTMLElement & { scrollIntoViewIfNeeded?: (center?: boolean) => void };
+    root.appendChild(el);
+    const calls: string[] = [];
+    el.scrollIntoView = () => calls.push('scrollIntoView');
+    el.scrollIntoViewIfNeeded = (center?: boolean) => calls.push('ifNeeded ' + center);
+    focusElement(el, root);
+    expect(calls).toEqual(['ifNeeded false']);
+  });
+
+  it('skips scrolling when scrollIntoViewIfNeeded is missing', () => {
+    const root = document.createElement('div');
+    const el = document.createElement('div');
+    root.appendChild(el);
+    const calls: string[] = [];
+    el.scrollIntoView = () => calls.push('scrollIntoView');
+    focusElement(el, root);
+    expect(calls).toEqual([]);
+    expect(el.classList.contains('focused')).toBe(true);
+  });
+});
 
 describe('focus', () => {
   let root: HTMLElement;

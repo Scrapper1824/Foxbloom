@@ -57,7 +57,8 @@ describe('Title', () => {
   });
 
   it('Play hands the item to the player', async () => {
-    const rf = routeFetch({ '/api/media/5': show, '/api/play/progress/5': progress }); await mount(rf.fetchFn); if (!host.querySelector('.season-chip')) throw new Error(JSON.stringify(rf.calls) + host.innerHTML);
+    const rf = routeFetch({ '/api/media/5': show, '/api/play/progress/5': progress }); await mount(rf.fetchFn);
+    expect(host.querySelector('.season-chip')).not.toBeNull();
     expect(button('Play').textContent).toContain('S1 E2');
     await act(async () => button('Play').click());
     await settle();

@@ -49,6 +49,14 @@ describe('avPlayer', () => {
     expect(document.querySelector('object[type="application/avplayer"]')).toBeNull();
   });
 
+  it('open still resolves when seekTo throws inside the prepare callback', async () => {
+    const f = fakeAv();
+    f.av.seekTo = () => { throw new Error('seek failed'); };
+    const p = avPlayer(f.av, document, { innerWidth: 1920, innerHeight: 1080 } as Window);
+    await expect(p.open('https://x.test/v', 30)).resolves.toBeUndefined();
+    p.close();
+  });
+
   it('scales a 1280x720 window to AVPlay’s 1920x1080 space', () => {
     expect(displayRect(0, 0, 1280, 720, { innerWidth: 1280, innerHeight: 720 })).toEqual([0, 0, 1920, 1080]);
   });

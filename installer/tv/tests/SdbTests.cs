@@ -202,5 +202,21 @@ static partial class Tests
                 True(r.Output.Contains("first") && r.Output.Contains("LAST" + i), "run " + i + " lost output: [" + r.Output + "]");
             }
         });
+
+        Test("the process runner works on an STA thread (the WinForms UI thread)", delegate
+        {
+            SdbResult result = default(SdbResult);
+            Exception error = null;
+            var t = new System.Threading.Thread(delegate ()
+            {
+                try { result = new SdbProcessRunner(Path.Combine(Environment.SystemDirectory, "cmd.exe"), TimeSpan.FromSeconds(30)).Run(new[] { "/c", "echo hi" }); }
+                catch (Exception e) { error = e; }
+            });
+            t.SetApartmentState(System.Threading.ApartmentState.STA);
+            t.Start();
+            True(t.Join(20000), "did not finish");
+            True(error == null, "threw " + (error == null ? "" : error.GetType().Name + ": " + error.Message));
+            True(result.Output.Contains("hi"), "output was [" + result.Output + "]");
+        });
     }
 }

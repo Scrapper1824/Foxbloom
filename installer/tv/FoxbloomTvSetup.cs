@@ -339,7 +339,8 @@ class TvSetupForm : Form
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
         var sdb = activeSdb;
-        if (sdb != null) sdb.Stop();
+        // Off the UI thread so closing the window never waits on sdb; the process stays alive until the thread ends.
+        if (sdb != null) { var t = new Thread(delegate () { sdb.Stop(); }); t.IsBackground = false; t.Start(); }
         base.OnFormClosed(e);
     }
 

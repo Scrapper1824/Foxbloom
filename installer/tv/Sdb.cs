@@ -68,7 +68,10 @@ public sealed class SdbProcessRunner : ISdbRunner
             }
             // Wait for both streams to reach end-of-stream so the last lines are kept, but never longer than `drain`:
             // sdb's background server can hold the pipes open forever.
-            System.Threading.WaitHandle.WaitAll(new System.Threading.WaitHandle[] { outDone, errDone }, (int)drain.TotalMilliseconds);
+            // (Single-handle waits against one deadline: WaitAll on several handles throws on an STA thread.)
+            var deadline = DateTime.UtcNow + drain;
+            outDone.WaitOne(Math.Max(0, (int)(deadline - DateTime.UtcNow).TotalMilliseconds));
+            errDone.WaitOne(Math.Max(0, (int)(deadline - DateTime.UtcNow).TotalMilliseconds));
             lock (text) return new SdbResult(p.ExitCode, text.ToString());
         }
     }

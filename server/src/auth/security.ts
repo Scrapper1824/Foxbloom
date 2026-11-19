@@ -294,7 +294,9 @@ export function registerSecurity(app: FastifyInstance) {
     // browser on its own, so cross-site forgery can't use them; the header is still required.
     if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
       if (req.headers[CSRF_HEADER] !== CSRF_VALUE) return reply.code(403).send({ error: 'Missing request header' });
-      if (req.authVia !== 'bearer' && crossSite(req)) return reply.code(403).send({ error: 'Cross-site request blocked' });
+      // No cookie means no ambient credentials, so there is nothing for a forged request to ride on (the TV app's
+      // sign-in calls come from a file:// origin). Requests that carry a cookie keep the same-site check.
+      if (req.authVia !== 'bearer' && req.headers.cookie && crossSite(req)) return reply.code(403).send({ error: 'Cross-site request blocked' });
     }
 
     const key = `${req.method} ${path}`;
@@ -323,7 +325,8 @@ export function registerSecurity(app: FastifyInstance) {
     reply.header('Cross-Origin-Opener-Policy', 'same-origin');
     // Bearer/stream requests come from the TV app (another origin; <video>/<img> loads send no Origin at all).
     // A bearer header that did not resolve (expired/revoked) still gets CORS, so the TV can read the 401.
-    const tv = req.authVia === 'bearer' || req.authVia === 'stream';
+    // Requests with no cookie at all (the TV's status, pair, poll and login calls) get the same treatment.
+    const tv = req.authVia === 'bearer' || req.authVia === 'stream' || (!req.headers.cookie && req.url.startsWith('/api/'));
     const bearerAttempt = !req.authVia && /^Bearer /.test(String(req.headers.authorization ?? ''));
     if ((tv || bearerAttempt) && req.headers.origin) {
       reply.header('Access-Control-Allow-Origin', String(req.headers.origin)).header('Vary', 'Origin');

@@ -145,3 +145,37 @@ p { color: var(--muted); font-size: 28px; }
 .search-left .field { width: 100%; }
 .search-results { flex: 1; }
 .change-server { margin-top: 32px; }
+
+/* Task 10: the player. AVPlay draws the video under the web page, so everything behind the player is see-through. */
+html.video-on, html.video-on body { background: transparent; }
+.avplayer, .html5-video { position: fixed; top: 0; left: 0; width: 1920px; height: 1080px; }
+.html5-video { z-index: -1; background: #000; }
+.player { position: fixed; top: 0; left: 0; width: 1920px; height: 1080px; overflow: hidden; }
+.player-msg { background: var(--bg); padding: 54px 96px; }
+.player-msg .loading { text-align: center; margin-top: 480px; }
+.player-dialog { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; background: rgba(13, 17, 33, 0.82); }
+.player-dialog h2 { max-width: 1400px; text-align: center; }
+.player-bottom { position: absolute; left: 0; bottom: 0; width: 1920px; padding: 120px 96px 60px; background: linear-gradient(to bottom, rgba(13, 17, 33, 0), rgba(13, 17, 33, 0.9)); transition: opacity 0.3s; }
+.player.hide-controls .player-bottom { opacity: 0; }
+.player-titles h2 { margin: 0; font-size: 44px; }
+.player-titles p { margin: 6px 0 0; }
+.player-bar-row { display: flex; align-items: center; margin: 24px 0; }
+.player-clock { width: 150px; font-size: 28px; color: var(--text); text-align: center; }
+.player-bar { position: relative; flex: 1; height: 16px; margin: 0 20px; border: 4px solid transparent; border-radius: 12px; background: rgba(255, 255, 255, 0.25); background-clip: padding-box; }
+.player-bar.focused { height: 24px; }
+.player-fill { position: absolute; top: 0; left: 0; height: 100%; border-radius: 8px; background: var(--accent); }
+.player-knob { position: absolute; top: 50%; width: 28px; height: 28px; margin: -14px 0 0 -14px; border-radius: 50%; background: #fff; }
+.player-seg { position: absolute; top: 0; height: 100%; background: rgba(255, 255, 255, 0.35); }
+.player-seg.credits { background: rgba(170, 178, 204, 0.5); }
+.player-buttons { justify-content: flex-start; margin-top: 0; }
+.player-skip { position: absolute; right: 96px; bottom: 320px; }
+.player-subs { position: absolute; left: 160px; bottom: 96px; width: 1600px; text-align: center; white-space: pre-line; font-size: 44px; line-height: 1.3; color: #fff; text-shadow: 0 0 6px #000, 0 2px 4px #000; }
+.player-subs.raised { bottom: 330px; }
+.player-spinner { position: absolute; top: 480px; left: 900px; width: 120px; height: 120px; border: 10px solid rgba(255, 255, 255, 0.25); border-top-color: var(--accent); border-radius: 50%; animation: player-spin 1s linear infinite; }
+@keyframes player-spin { to { transform: rotate(360deg); } }
+.player-menu { position: absolute; top: 0; right: 0; display: flex; width: 1100px; height: 1080px; padding: 54px 96px 54px 60px; background: rgba(13, 17, 33, 0.92); }
+.player-menu-col { display: flex; flex: 1; flex-direction: column; overflow: hidden; }
+.player-menu-col + .player-menu-col { margin-left: 40px; }
+.menu-option { font: inherit; font-size: 28px; text-align: left; margin: 0 0 12px; padding: 14px 24px; border: 4px solid transparent; border-radius: 12px; background: var(--bg-2); color: var(--text); }
+.menu-option.on { background: #3b4778; font-weight: 700; }
+.menu-option.focused { background: var(--accent); color: var(--accent-ink); }

@@ -38,14 +38,24 @@ export class Session {
   }
 
   get<T>(path: string): Promise<T> {
+    return this.send<T>('GET', path);
+  }
+
+  send<T>(method: string, path: string, body?: unknown): Promise<T> {
     const self = this;
     const attempt = function (): Promise<T> {
-      return self.pick(false).then(function () { return self.api!.get<T>(path); });
+      return self.pick(false).then(function () { return self.api!.send<T>(method, path, body); });
     };
     return attempt().then(undefined, function (e) {
       if (!(e instanceof OfflineError)) throw e;
-      return self.pick(true).then(function () { return self.api!.get<T>(path); });
+      return self.pick(true).then(function () { return self.api!.send<T>(method, path, body); });
     });
+  }
+
+  /** A video or subtitle URL on the address in use, with the stream token (`st`) the TV uses instead of a header. */
+  streamUrl(url: string, streamToken: string | undefined): string {
+    if (!this.api) throw new OfflineError();
+    return streamToken ? this.api.streamUrl(url, streamToken) : this.api.streamUrl(url, '').replace(/[?&]st=$/, '');
   }
 
   /** Home or Away, and the server's version. Never rejects (a missing answer is just null). */

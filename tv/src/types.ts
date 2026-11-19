@@ -101,3 +101,44 @@ export const shortEp = (label: string) => label.replace(/^S0?(\d+)E0?(\d+)$/, 'S
 export function sized(url: string | null, size: string): string | null {
   return url ? url.replace(/image\.tmdb\.org\/t\/p\/(?:w\d+|original)\//, 'image.tmdb.org/t/p/' + size + '/') : null;
 }
+
+/** An audio or subtitle track of the file, as /api/play/:kind/:id/info lists them (`order` among tracks of its kind). */
+export interface PlayTrack {
+  order: number;
+  language: string | null;
+  title: string | null;
+  codec: string;
+  isDefault: boolean;
+}
+export interface SubtitleTrack extends PlayTrack {
+  /** A text track (can be fetched as SRT); picture subtitles are false. */
+  text: boolean;
+  forced: boolean;
+}
+export type Segment = { start: number; end: number };
+
+/** /api/play/:kind/:id/info (only what the TV player uses; see web/src/pages/Watch.tsx). */
+export interface PlayInfo {
+  kind: 'movie' | 'episode';
+  id: number;
+  title: string;
+  /** The episode's "S01E02 · Name" line, null for movies. */
+  subtitle: string | null;
+  duration: number;
+  audioPreference: 'sub' | 'dub' | null;
+  audio: (PlayTrack & { channels: number })[];
+  subtitles: SubtitleTrack[];
+  segments: Partial<Record<'intro' | 'credits', Segment>>;
+  position: number;
+  next: { kind: 'episode'; id: number; label: string } | null;
+}
+
+/** POST /api/play/:kind/:id/start */
+export interface StartResult {
+  mode: 'direct' | 'hls';
+  url: string;
+  sessionId?: string;
+  reason: string;
+  /** Present for bearer (TV) requests: goes in the video and subtitle URLs as `st`. */
+  streamToken?: string;
+}

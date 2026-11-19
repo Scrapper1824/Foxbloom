@@ -61,6 +61,7 @@ describe('Title', () => {
     expect(button('Play').textContent).toContain('S1 E2');
     await act(async () => button('Play').click());
     await settle();
-    expect(host.textContent).toContain('Player coming');
+    expect(host.querySelector('.player')).not.toBeNull();
+    expect(rf.calls).toContain('/api/play/episode/52/info');
   });
 });

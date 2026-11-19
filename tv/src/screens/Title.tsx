@@ -1,24 +1,14 @@
 import { useRef, useState } from 'preact/hooks';
 import { useNav, type Nav, type Screen } from '../app';
 import type { Session } from '../session';
-import { sized, shortEp, type Episode, type MediaDetail, type PlayItem, type Progress } from '../types';
+import { sized, type Episode, type MediaDetail, type PlayItem, type Progress } from '../types';
 import { LoadError, useLoad } from './useLoad';
 import { useFocusWhenReady } from './useFocus';
+import { playerScreen } from './Player';
 
-/** The one place that starts playback. The player screen (Task 10) replaces the body of this function. */
-export function openPlayer(nav: Nav, item: PlayItem): void {
-  nav.push({
-    name: 'player',
-    render: () => (
-      <div class="home">
-        <h2>Player coming</h2>
-        <p>{item.title + (item.label ? ' · ' + shortEp(item.label) : '')}</p>
-        <button data-focusable class="btn" onClick={() => nav.pop()}>
-          Back
-        </button>
-      </div>
-    ),
-  });
+/** The one place that starts playback. */
+export function openPlayer(nav: Nav, session: Session, item: PlayItem): void {
+  nav.push(playerScreen(session, item));
 }
 
 export function titleScreen(session: Session, mediaId: number): Screen {
@@ -76,7 +66,7 @@ export function Title({ session, mediaId }: { session: Session; mediaId: number 
   const open = picked !== null ? picked : playing ? playing.season : seasons[0];
   const episodes = m.episodes.filter((e) => e.season === open).sort((a, b) => a.episode - b.episode);
   const many = seasons.filter((s) => s > 1).length > 0;
-  const play = (kind: 'movie' | 'episode', id: number, label: string | null) => openPlayer(nav, { kind: kind, id: id, title: m.title, label: label });
+  const play = (kind: 'movie' | 'episode', id: number, label: string | null) => openPlayer(nav, session, { kind: kind, id: id, title: m.title, label: label });
   const meta = [m.year, m.type === 'movie' ? 'Movie' : m.type === 'show' ? 'TV show' : 'Anime', m.type !== 'movie' && m.episodeCount ? m.episodeFileCount + ' of ' + m.episodeCount + ' episodes' : null]
     .filter(Boolean)
     .join(' · ');

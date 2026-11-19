@@ -30,15 +30,15 @@ export function posterTile(nav: Nav, session: Session, t: PlayableTitle): TileDa
     sub: posterSub(t),
     image: sized(t.poster, 'w342'),
     onSelect: () => nav.push(titleScreen(session, t.mediaId)),
-    onPlay: t.play ? () => openPlayer(nav, playItem(t.title, t.play!)) : undefined,
+    onPlay: t.play ? () => openPlayer(nav, session, playItem(t.title, t.play!)) : undefined,
   };
 }
 
-function continueTile(nav: Nav, c: ContinueItem): TileData {
+function continueTile(nav: Nav, session: Session, c: ContinueItem): TileData {
   const sub = c.upNext
     ? 'Up next · ' + shortEp(c.label || '')
     : [c.label ? shortEp(c.label) : null, c.minutesLeft ? c.minutesLeft + ' min left' : null].filter(Boolean).join(' · ');
-  const play = () => openPlayer(nav, playItem(c.title, c));
+  const play = () => openPlayer(nav, session, playItem(c.title, c));
   return {
     key: c.kind + c.id,
     title: c.title,
@@ -85,7 +85,7 @@ function Hero({ hero, session }: { hero: HeroData; session: Session }) {
         <p class="hero-overview">{hero.overview}</p>
         <div class="row hero-buttons">
           {p && (
-            <button data-focusable data-key="hero:play" class="btn" onClick={() => openPlayer(nav, playItem(hero.title, p))}>
+            <button data-focusable data-key="hero:play" class="btn" onClick={() => openPlayer(nav, session, playItem(hero.title, p))}>
               {p.resume ? 'Resume' : 'Play'}
             </button>
           )}
@@ -115,7 +115,7 @@ export function Home({ session }: { session: Session }) {
         {!data && !error && <p class="loading">Loading…</p>}
         {empty && <p class="loading">Nothing to watch yet. Add titles from the Foxbloom website.</p>}
         {hero && <Hero hero={hero} session={session} />}
-        {data && data.continue.length > 0 && <PosterRow rowId="continue" title="Continue watching" wide tiles={data.continue.map((c) => continueTile(nav, c))} />}
+        {data && data.continue.length > 0 && <PosterRow rowId="continue" title="Continue watching" wide tiles={data.continue.map((c) => continueTile(nav, session, c))} />}
         {data && data.recent.length > 0 && <PosterRow rowId="recent" title="Recently added" tiles={data.recent.map((t) => posterTile(nav, session, t))} />}
         {data &&
           TYPES.map((type) =>

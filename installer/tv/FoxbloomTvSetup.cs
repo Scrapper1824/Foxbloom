@@ -468,27 +468,24 @@ class TvSetupForm : Form
 
     void Chosen(TvInfo tv)
     {
-        var pcIps = TvDiscovery.LocalIPv4().ToList();
-        if (TvDiscovery.NeedsDeveloperSetup(tv, pcIps)) ShowDeveloperHelp(tv, pcIps, null);
+        string pc = TvDiscovery.RouteAddress(tv.Ip);
+        if (TvDiscovery.NeedsDeveloperSetup(tv, pc)) ShowDeveloperHelp(tv, pc, null);
         else ShowReady(tv);
     }
 
-    void ShowDeveloperHelp(TvInfo tv, List<string> pcIps, string note)
+    void ShowDeveloperHelp(TvInfo tv, string pc, string note)
     {
         NewPage();
         AcceptButton = null;
-        string pc = TvDiscovery.PickPcIp(tv.Ip, pcIps);
         string why = !tv.DeveloperMode
             ? "Developer Mode is off on " + TvRow.DisplayName(tv) + "."
-            : "Developer Mode on " + TvRow.DisplayName(tv) + " is set up for a different PC (" + tv.DeveloperIp + ").";
+            : "Developer Mode on " + TvRow.DisplayName(tv) + (string.IsNullOrWhiteSpace(tv.DeveloperIp) ? " has no PC address set." : " is set up for a different PC (" + tv.DeveloperIp + ").");
         Add(Label("Turn on Developer Mode", Theme.Bold(14f), Theme.Text, 28, 16, 580, 32));
         Add(Label(why, Theme.Body(10f), Theme.Muted, 28, 50, 580, 24));
         Add(Label("1.  On the TV, open Apps.\n2.  On the remote, press 1 2 3 4 5 one after the other.\n3.  Switch Developer Mode to On.\n4.  In Host PC IP, type this PC's address:\n", Theme.Body(10.5f), Theme.Text, 28, 82, 580, 104));
 
         var ipLabel = Label(pc, Theme.Bold(30f), Theme.Accent, 28, 188, 580, 56);
         Add(ipLabel);
-        if (pcIps.Count > 1)
-            Add(Label("This PC has several addresses. Use the one that starts like your TV's (" + tv.Ip + "). Others: " + string.Join(", ", pcIps.Where(i => i != pc).ToArray()), Theme.Body(9f), Theme.Muted, 28, 246, 580, 34));
         Add(Label("5.  Press OK, then restart the TV (hold the power button until it switches off and on).", Theme.Body(10.5f), Theme.Text, 28, 284, 580, 48));
 
         var status = Label(note ?? "", Theme.Body(10f), Theme.Danger, 28, 342, 580, 44);
@@ -507,9 +504,9 @@ class TvSetupForm : Form
                 {
                     if (mine != scan) return;
                     if (now == null) { check.Enabled = true; status.ForeColor = Theme.Danger; status.Text = "The TV isn't answering. If you just restarted it, give it a minute and try again."; return; }
-                    var ips = TvDiscovery.LocalIPv4().ToList();
-                    if (TvDiscovery.NeedsDeveloperSetup(now, ips))
-                        ShowDeveloperHelp(now, ips, !now.DeveloperMode ? "Developer Mode is still off. Switch it on, enter the address above, press OK and restart the TV." : "Developer Mode points at " + now.DeveloperIp + ", not this PC (" + pc + "). Enter the address above, press OK and restart the TV.");
+                    string pcNow = TvDiscovery.RouteAddress(now.Ip);
+                    if (TvDiscovery.NeedsDeveloperSetup(now, pcNow))
+                        ShowDeveloperHelp(now, pcNow, !now.DeveloperMode ? "Developer Mode is still off. Switch it on, enter the address above, press OK and restart the TV." : "Developer Mode points at " + now.DeveloperIp + ", not this PC (" + pcNow + "). Enter the address above, press OK and restart the TV.");
                     else ShowReady(now);
                 });
             });

@@ -3,7 +3,10 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 
@@ -38,7 +41,7 @@ static class Tests
             Eq("uuid:11111111-2222-3333-4444-555555555501", tv.Duid, "Duid");
             Eq(true, tv.DeveloperMode, "DeveloperMode");
             Eq("192.168.1.20", tv.DeveloperIp, "DeveloperIp");
-            Eq(false, TvDiscovery.NeedsDeveloperSetup(tv, new[] { "10.0.0.5", "192.168.1.20" }), "needs setup");
+            Eq(false, TvDiscovery.NeedsDeveloperSetup(tv, "192.168.1.20"), "needs setup");
         });
 
         Test("parses a TV with Developer Mode off", delegate
@@ -49,7 +52,7 @@ static class Tests
             Eq("QE65Q80T", tv.Model, "Model");
             Eq(false, tv.DeveloperMode, "DeveloperMode");
             Eq("", tv.DeveloperIp, "DeveloperIp");
-            Eq(true, TvDiscovery.NeedsDeveloperSetup(tv, new[] { "192.168.1.20" }), "needs setup");
+            Eq(true, TvDiscovery.NeedsDeveloperSetup(tv, "192.168.1.20"), "needs setup");
         });
 
         Test("a TV whose developerIP is another PC needs setup", delegate
@@ -58,7 +61,7 @@ static class Tests
             True(tv != null, "TV was not parsed");
             Eq(true, tv.DeveloperMode, "DeveloperMode");
             Eq("192.168.1.99", tv.DeveloperIp, "DeveloperIp");
-            Eq(true, TvDiscovery.NeedsDeveloperSetup(tv, new[] { "192.168.1.20", "10.0.0.5" }), "needs setup");
+            Eq(true, TvDiscovery.NeedsDeveloperSetup(tv, "192.168.1.20"), "needs setup (another PC)");
         });
 
         Test("non-Samsung and malformed replies parse to null", delegate
@@ -92,10 +95,61 @@ static class Tests
             Eq("192.168.1.50", list[0].Ip, "Ip");
         });
 
-        Test("PC address: the one on the TV's network is preferred", delegate
+        Test("developerIP must equal the route address; blank or missing means not set", delegate
         {
-            Eq("192.168.1.20", TvDiscovery.PickPcIp("192.168.1.50", new[] { "10.0.0.5", "192.168.1.20" }), "same /24");
-            Eq("10.0.0.5", TvDiscovery.PickPcIp("172.16.0.9", new[] { "10.0.0.5", "192.168.1.20" }), "fallback first");
+            var on = TvDiscovery.ParseDevice(Read("tv-devmode-on.json"), "192.168.1.50");   // developerIP 192.168.1.20
+            Eq(false, TvDiscovery.NeedsDeveloperSetup(on, "192.168.1.20"), "matching");
+            Eq(true, TvDiscovery.NeedsDeveloperSetup(on, "172.28.0.1"), "a Hyper-V/WSL address is not the route address");
+            Eq(true, TvDiscovery.NeedsDeveloperSetup(on, ""), "no route address");
+            on.DeveloperIp = null;
+            Eq(true, TvDiscovery.NeedsDeveloperSetup(on, "192.168.1.20"), "null developerIP");
+            on.DeveloperIp = "  ";
+            Eq(true, TvDiscovery.NeedsDeveloperSetup(on, "192.168.1.20"), "blank developerIP");
+        });
+
+        Test("RouteAddress asks the routing table which local address reaches the TV", delegate
+        {
+            Eq("127.0.0.1", TvDiscovery.RouteAddress("127.0.0.1"), "loopback route");
+        });
+
+        Test("sweep adapters: real LAN adapters only, ones with a gateway first", delegate
+        {
+            Func<string, string, string, NetworkInterfaceType, bool, TvDiscovery.AdapterInfo> A = (name, desc, ip, t, gw) =>
+                new TvDiscovery.AdapterInfo { Name = name, Description = desc, Ip = ip, Type = t, HasGateway = gw };
+            var list = new List<TvDiscovery.AdapterInfo>
+            {
+                A("vEthernet (WSL)", "Hyper-V Virtual Ethernet Adapter", "172.28.0.1", NetworkInterfaceType.Ethernet, false),
+                A("vEthernet (Default Switch)", "Hyper-V Virtual Ethernet Adapter #2", "172.29.0.1", NetworkInterfaceType.Ethernet, false),
+                A("Ethernet 2", "VirtualBox Host-Only Ethernet Adapter", "192.168.56.1", NetworkInterfaceType.Ethernet, false),
+                A("VMware Network Adapter VMnet8", "VMware Virtual Ethernet Adapter for VMnet8", "192.168.100.1", NetworkInterfaceType.Ethernet, false),
+                A("Docker", "Docker Desktop Network", "10.0.75.1", NetworkInterfaceType.Ethernet, false),
+                A("Ethernet", "Realtek PCIe GbE Family Controller", "192.168.50.7", NetworkInterfaceType.Ethernet, false),
+                A("Wi-Fi", "Intel(R) Wi-Fi 6 AX201", "192.168.1.20", NetworkInterfaceType.Wireless80211, true),
+                A("Mobile", "Some PPP link", "10.9.9.9", NetworkInterfaceType.Ppp, true),
+            };
+            var picked = TvDiscovery.SelectSweepAdapters(list);
+            Eq("192.168.1.20,192.168.50.7", string.Join(",", picked.ToArray()), "picked");
+            var onlyVirtual = list.Take(5).ToList();
+            Eq(5, TvDiscovery.SelectSweepAdapters(onlyVirtual).Count, "falls back to everything rather than nothing");
+        });
+
+        Test("sweep reaches a TV that is the last of 200 silent hosts within the budget", delegate
+        {
+            var l = new TcpListener(IPAddress.Parse("127.0.0.200"), 0);
+            l.Start();
+            try
+            {
+                int port = ((IPEndPoint)l.LocalEndpoint).Port;
+                var hosts = new List<string>();
+                for (int i = 1; i <= 200; i++) hosts.Add("192.0.2." + i);   // TEST-NET-1: nothing answers
+                hosts.Add("127.0.0.200");
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                var open = TvDiscovery.ProbeOpen(hosts, port, TimeSpan.FromSeconds(3));
+                sw.Stop();
+                Eq("127.0.0.200", string.Join(",", open.ToArray()), "open hosts");
+                True(sw.Elapsed < TimeSpan.FromSeconds(2), "took " + sw.Elapsed.TotalSeconds + " s");
+            }
+            finally { l.Stop(); }
         });
 
         Test("Describe over HTTP: reads /api/v2/; a closed port gives null", delegate

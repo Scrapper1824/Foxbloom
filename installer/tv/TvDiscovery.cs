@@ -34,7 +34,7 @@ public static class TvDiscovery
     {
         var started = DateTime.UtcNow;
         Func<TimeSpan> left = () => timeout - (DateTime.UtcNow - started);
-        var locals = LocalIPv4().ToList();
+        var locals = SelectSweepAdapters(LocalAdapters());
 
         var hosts = Ssdp(locals, Min(TimeSpan.FromSeconds(3), left()));
         var tvs = Resolve(hosts, delegate (string ip) { return Describe(ip); });
@@ -118,35 +118,75 @@ public static class TvDiscovery
         return result;
     }
 
-    /** True when the TV can't accept an install from this PC yet: Developer Mode off, or set up for another PC. */
-    public static bool NeedsDeveloperSetup(TvInfo tv, IEnumerable<string> pcIps)
+    /** True when the TV can't accept an install from this PC yet: Developer Mode off, or its developerIP isn't `pcIp`
+     *  (the address this PC reaches the TV from, see RouteAddress). A blank developerIP counts as not set. */
+    public static bool NeedsDeveloperSetup(TvInfo tv, string pcIp)
     {
-        return !tv.DeveloperMode || !pcIps.Contains(tv.DeveloperIp ?? "");
+        return !tv.DeveloperMode || string.IsNullOrWhiteSpace(tv.DeveloperIp) || string.IsNullOrEmpty(pcIp) || tv.DeveloperIp.Trim() != pcIp;
     }
 
-    /** The PC address to show for the TV: the one on the TV's /24 if there is one, else the first. */
-    public static string PickPcIp(string tvIp, IEnumerable<string> pcIps)
+    /** The local address this PC uses to reach `tvIp` (the OS routing table decides; a UDP socket is "connected"
+     *  but nothing is sent). Falls back to the first real adapter's address, or "" if there is none. */
+    public static string RouteAddress(string tvIp)
     {
-        var all = pcIps.ToList();
-        var prefix = tvIp.Substring(0, tvIp.LastIndexOf('.') + 1);
-        return all.FirstOrDefault(i => i.StartsWith(prefix, StringComparison.Ordinal)) ?? all.FirstOrDefault() ?? "";
+        try
+        {
+            using (var s = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp))
+            {
+                s.Connect(IPAddress.Parse(tvIp), TvPort);
+                var ep = s.LocalEndPoint as IPEndPoint;
+                if (ep != null && !ep.Address.Equals(IPAddress.Any)) return ep.Address.ToString();
+            }
+        }
+        catch (Exception) { }
+        return SelectSweepAdapters(LocalAdapters()).FirstOrDefault() ?? "";
     }
 
-    /** This PC's IPv4 addresses on connected, non-loopback interfaces. */
-    public static IEnumerable<string> LocalIPv4()
+    public class AdapterInfo
     {
-        var result = new List<string>();
+        public string Name = "", Description = "", Ip = "";
+        public NetworkInterfaceType Type;
+        public bool HasGateway;
+    }
+
+    static readonly string[] VirtualMarks = { "vethernet", "hyper-v", "wsl", "virtualbox", "vmware", "docker", "loopback", "tap-", "tunnel", "bluetooth" };
+
+    /** Addresses worth scanning: physical Ethernet / Wi-Fi adapters only, ones with a default gateway first.
+     *  If that leaves nothing, every adapter is used rather than none. */
+    public static List<string> SelectSweepAdapters(IEnumerable<AdapterInfo> adapters)
+    {
+        var all = adapters.ToList();
+        var real = all.Where(a =>
+        {
+            var t = a.Type;
+            bool lan = t == NetworkInterfaceType.Ethernet || t == NetworkInterfaceType.GigabitEthernet || t == NetworkInterfaceType.FastEthernetT
+                || t == NetworkInterfaceType.FastEthernetFx || t == NetworkInterfaceType.Wireless80211;
+            if (!lan) return false;
+            var text = ((a.Name ?? "") + " " + (a.Description ?? "")).ToLowerInvariant();
+            return !VirtualMarks.Any(m => text.Contains(m));
+        }).ToList();
+        if (real.Count == 0) real = all;
+        return real.OrderBy(a => a.HasGateway ? 0 : 1).Select(a => a.Ip).Distinct().ToList();
+    }
+
+    /** Connected IPv4 adapters (no loopback or link-local) with what SelectSweepAdapters needs to know. */
+    public static List<AdapterInfo> LocalAdapters()
+    {
+        var result = new List<AdapterInfo>();
         try
         {
             foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
             {
                 if (nic.OperationalStatus != OperationalStatus.Up) continue;
-                if (nic.NetworkInterfaceType == NetworkInterfaceType.Loopback || nic.NetworkInterfaceType == NetworkInterfaceType.Tunnel) continue;
-                foreach (var ua in nic.GetIPProperties().UnicastAddresses)
+                if (nic.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
+                var props = nic.GetIPProperties();
+                bool gw = props.GatewayAddresses.Any(g => g.Address.AddressFamily == AddressFamily.InterNetwork && !g.Address.Equals(IPAddress.Any));
+                foreach (var ua in props.UnicastAddresses)
                 {
                     if (ua.Address.AddressFamily != AddressFamily.InterNetwork) continue;
-                    var s = ua.Address.ToString();
-                    if (!s.StartsWith("169.254.") && !result.Contains(s)) result.Add(s);
+                    var ip = ua.Address.ToString();
+                    if (ip.StartsWith("169.254.")) continue;
+                    result.Add(new AdapterInfo { Name = nic.Name, Description = nic.Description, Ip = ip, Type = nic.NetworkInterfaceType, HasGateway = gw });
                 }
             }
         }
@@ -200,30 +240,47 @@ public static class TvDiscovery
         lock (found) return found.ToList();
     }
 
-    /** Addresses on each of this PC's /24 networks that accept a connection on the TV port (300 ms each). */
+    /** Addresses on each of this PC's /24 networks (real adapters first) that accept a connection on the TV port. */
     static List<string> Sweep(List<string> locals, TimeSpan budget)
     {
-        var until = DateTime.UtcNow + budget;
-        var open = new List<string>();
         var targets = new List<string>();
         foreach (var local in locals)
         {
             var prefix = local.Substring(0, local.LastIndexOf('.') + 1);
             for (int i = 1; i < 255; i++) { var h = prefix + i; if (h != local && !targets.Contains(h)) targets.Add(h); }
         }
-        Parallel.ForEach(targets, new ParallelOptions { MaxDegreeOfParallelism = 64 }, delegate (string host)
+        return ProbeOpen(targets, TvPort, budget);
+    }
+
+    /** Starts a connection to every host at once and waits a single time (at most 1 s, and never past `budget`);
+     *  the hosts that accepted. All sockets are closed before returning. */
+    public static List<string> ProbeOpen(IEnumerable<string> hosts, int port, TimeSpan budget)
+    {
+        var wait = Min(budget, TimeSpan.FromSeconds(1));
+        var probes = new List<KeyValuePair<string, KeyValuePair<Socket, IAsyncResult>>>();
+        var open = new List<string>();
+        try
         {
-            if (DateTime.UtcNow > until) return;
-            try
+            foreach (var h in hosts)
             {
-                using (var c = new TcpClient())
+                try
                 {
-                    var ar = c.BeginConnect(host, TvPort, null, null);
-                    if (ar.AsyncWaitHandle.WaitOne(300) && c.Connected) lock (open) open.Add(host);
+                    IPAddress addr;
+                    if (!IPAddress.TryParse(h, out addr)) continue;
+                    var s = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                    probes.Add(new KeyValuePair<string, KeyValuePair<Socket, IAsyncResult>>(h, new KeyValuePair<Socket, IAsyncResult>(s, s.BeginConnect(new IPEndPoint(addr, port), null, null))));
                 }
+                catch (Exception) { }
             }
-            catch (Exception) { }
-        });
-        lock (open) return open.ToList();
+            var until = DateTime.UtcNow + wait;
+            while (DateTime.UtcNow < until && probes.Any(p => !p.Value.Value.IsCompleted)) Thread.Sleep(20);
+            foreach (var p in probes)
+            {
+                if (!p.Value.Value.IsCompleted) continue;
+                try { p.Value.Key.EndConnect(p.Value.Value); open.Add(p.Key); } catch (Exception) { }
+            }
+        }
+        finally { foreach (var p in probes) { try { p.Value.Key.Close(); } catch (Exception) { } } }
+        return open;
     }
 }

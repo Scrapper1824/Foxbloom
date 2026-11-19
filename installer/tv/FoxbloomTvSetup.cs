@@ -334,6 +334,15 @@ class TvSetupForm : Form
         Controls.Add(body);
     }
 
+    volatile Sdb activeSdb;   // the sdb in use by a running install, so closing the window can stop its server
+
+    protected override void OnFormClosed(FormClosedEventArgs e)
+    {
+        var sdb = activeSdb;
+        if (sdb != null) sdb.Stop();
+        base.OnFormClosed(e);
+    }
+
     protected override void OnHandleCreated(EventArgs e) { base.OnHandleCreated(e); Theme.DarkTitleBar(Handle); }
 
     protected override void OnShown(EventArgs e)
@@ -550,9 +559,11 @@ class TvSetupForm : Form
         Task.Factory.StartNew(delegate ()
         {
             string failure = null;
+            Sdb sdb = null;
             try
             {
-                var sdb = Sdb.Embedded();
+                sdb = Sdb.Embedded();
+                activeSdb = sdb;
                 string duid = sdb.GetDuid(tv.Ip);
                 if (SamsungCert.Status(new[] { duid }) != CertStatus.Ok)
                     say("Signing in to Samsung…\n\nYour browser has opened. Sign in there with your Samsung account and come back here. This can take a minute.");
@@ -566,6 +577,7 @@ class TvSetupForm : Form
             catch (TvInstallException e) { failure = e.Message; }
             catch (SamsungCertException e) { failure = e.Message; }
             catch (Exception e) { failure = "Something unexpected went wrong: " + e.Message; }
+            finally { if (sdb != null) sdb.Stop(); activeSdb = null; }
             OnUi(delegate { if (mine == scan) { if (failure == null) ShowDone(tv); else ShowInstallFailed(tv, failure); } });
         });
     }

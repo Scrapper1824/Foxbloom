@@ -37,8 +37,10 @@ public interface ISdbRunner
 public sealed class SdbProcessRunner : ISdbRunner
 {
     readonly string sdbPath;
-    readonly TimeSpan timeout;
-    public SdbProcessRunner(string sdbPath, TimeSpan timeout) { this.sdbPath = sdbPath; this.timeout = timeout; }
+    readonly TimeSpan timeout, drain;
+    public SdbProcessRunner(string sdbPath, TimeSpan timeout) : this(sdbPath, timeout, TimeSpan.FromSeconds(3)) { }
+    /** `drain`: how long to wait for the output pipes to close after sdb exits. sdb's background server can keep them open. */
+    public SdbProcessRunner(string sdbPath, TimeSpan timeout, TimeSpan drain) { this.sdbPath = sdbPath; this.timeout = timeout; this.drain = drain; }
 
     public SdbResult Run(string[] args)
     {
@@ -62,7 +64,7 @@ public sealed class SdbProcessRunner : ISdbRunner
                 try { p.Kill(); } catch { }
                 throw new TvInstallException("The TV didn't answer in time. Check that it is switched on, then try again.");
             }
-            p.WaitForExit();   // lets the output readers finish
+            p.WaitForExit((int)drain.TotalMilliseconds);   // lets the output readers finish, but never waits on a server that holds the pipes
             lock (text) return new SdbResult(p.ExitCode, text.ToString());
         }
     }
@@ -88,19 +90,61 @@ public sealed class Sdb
         using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream(ResourceName))
         {
             if (s == null) throw new TvInstallException("This copy of Foxbloom TV Setup can't install: it was built without the TV tool (sdb.exe). Download the latest FoxbloomTVSetup.exe from the Foxbloom releases page.");
-            string dir = Path.Combine(Path.GetTempPath(), "foxbloom-tv-sdb");
-            Directory.CreateDirectory(dir);
-            string path = Path.Combine(dir, "sdb.exe");
-            try { using (var f = File.Create(path)) s.CopyTo(f); }
-            catch (IOException) { if (!File.Exists(path)) throw; }   // already extracted and in use by another run
+            var ms = new MemoryStream();
+            s.CopyTo(ms);
+            string path = Extract(ms.ToArray(), Path.Combine(Path.GetTempPath(), "foxbloom-tv-sdb"));
             return new Sdb(new SdbProcessRunner(path, TimeSpan.FromSeconds(90)));
         }
     }
 
-    /** Installs and launches the app on the TV at `ip` using the embedded sdb.exe. */
+    /**
+     * Writes sdb.exe into `dir` under a name made from its content hash and returns the path. An existing file is
+     * reused only when it is byte-identical; otherwise it is rewritten, or (if it is locked) a fresh name is used.
+     */
+    public static string Extract(byte[] data, string dir)
+    {
+        Directory.CreateDirectory(dir);
+        string hash;
+        using (var sha = System.Security.Cryptography.SHA256.Create()) hash = BitConverter.ToString(sha.ComputeHash(data), 0, 6).Replace("-", "").ToLowerInvariant();
+        string path = Path.Combine(dir, "sdb-" + hash + ".exe");
+        try
+        {
+            if (File.Exists(path) && SameBytes(File.ReadAllBytes(path), data)) return path;
+            File.WriteAllBytes(path, data);
+            return path;
+        }
+        catch (IOException)
+        {
+            if (File.Exists(path)) { try { if (SameBytes(File.ReadAllBytes(path), data)) return path; } catch (IOException) { } }
+            string alt = Path.Combine(dir, "sdb-" + hash + "-" + Guid.NewGuid().ToString("N").Substring(0, 8) + ".exe");
+            File.WriteAllBytes(alt, data);
+            return alt;
+        }
+    }
+
+    static bool SameBytes(byte[] a, byte[] b)
+    {
+        if (a.Length != b.Length) return false;
+        for (int i = 0; i < a.Length; i++) if (a[i] != b[i]) return false;
+        return true;
+    }
+
+    /** Installs and launches the app on the TV at `ip` using the embedded sdb.exe, then stops sdb's server. */
     public static void Install(string ip, byte[] signedWgt, string appId = DefaultAppId)
     {
-        Embedded().InstallTo(ip, signedWgt, appId);
+        Embedded().InstallAndStop(ip, signedWgt, appId);
+    }
+
+    public void InstallAndStop(string ip, byte[] signedWgt, string appId)
+    {
+        try { InstallTo(ip, signedWgt, appId); }
+        finally { Stop(); }
+    }
+
+    /** Stops the background sdb server (port 26099) so it doesn't linger or clash with a Tizen Studio sdb. Never throws. */
+    public void Stop()
+    {
+        try { runner.Run(new[] { "kill-server" }); } catch { }
     }
 
     /** Connects to the TV and returns its DUID (what a developer certificate is made for). */

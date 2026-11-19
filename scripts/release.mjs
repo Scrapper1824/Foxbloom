@@ -60,6 +60,16 @@ if (import.meta.url === `file:///${process.argv[1]?.replace(/\\/g, '/').replace(
     console.error(`Releases are made from main (you're on "${branch}").`);
     process.exit(1);
   }
+  // FoxbloomTVSetup.exe goes on every release: stop now, before anything is published, if its vendor files are missing.
+  if (process.platform === 'win32') {
+    const need = ['sdb.exe', 'vd_tizen_dev_author_ca.cer', 'vd_tizen_dev_public2.crt'];
+    const missing = need.filter((f) => !fs.existsSync(path.join(root, 'installer', 'tv', 'vendor', f)));
+    if (missing.length) {
+      console.error(`Cannot release: these files are missing from installer/tv/vendor/ (needed for FoxbloomTVSetup.exe): ${missing.join(', ')}.
+See installer/tv/vendor/README.md for where each comes from.`);
+      process.exit(1);
+    }
+  }
   console.log(`Releasing Foxbloom ${tag} (was v${pkg.version})${dryRun ? ' — dry run, nothing will change' : ''}\n`);
 
   run('npm', ['run', 'build']);

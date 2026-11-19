@@ -141,5 +141,56 @@ static partial class Tests
             Throws<TvInstallException>(delegate { new Sdb(f).InstallTo("192.168.1.50 && calc", new byte[] { 1 }, Sdb.DefaultAppId); }, "address", "bad ip");
             Eq(0, f.Calls.Count, "nothing run");
         });
+
+        Test("InstallAndStop stops the sdb server after a successful install", delegate
+        {
+            var f = HappySdb();
+            new Sdb(f).InstallAndStop("192.168.1.50", new byte[] { 1 }, Sdb.DefaultAppId);
+            Eq("kill-server", f.Calls[f.Calls.Count - 1], "last call");
+        });
+
+        Test("InstallAndStop stops the sdb server after a failed install too", delegate
+        {
+            var f = HappySdb();
+            f.Reply = a => new SdbResult(0, "failed to connect");
+            Throws<TvInstallException>(delegate { new Sdb(f).InstallAndStop("192.168.1.50", new byte[] { 1 }, Sdb.DefaultAppId); }, "connect", "failure");
+            Eq("kill-server", f.Calls[f.Calls.Count - 1], "last call");
+        });
+
+        Test("a failing kill-server does not hide the install result", delegate
+        {
+            var f = HappySdb();
+            var inner = f.Reply;
+            f.Reply = a => { if (a == "kill-server") throw new TvInstallException("boom"); return inner(a); };
+            new Sdb(f).InstallAndStop("192.168.1.50", new byte[] { 1 }, Sdb.DefaultAppId);
+        });
+
+        Test("sdb.exe extraction reuses only a byte-identical file", delegate
+        {
+            string dir = Path.Combine(Path.GetTempPath(), "foxbloom-sdb-test-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                var data = new byte[] { 1, 2, 3, 4, 5 };
+                string a = Sdb.Extract(data, dir);
+                Eq(true, File.ReadAllBytes(a).SequenceEqual(data), "first extraction");
+                Eq(a, Sdb.Extract(data, dir), "reused path");
+                File.WriteAllBytes(a, new byte[] { 9, 9 });   // a stale or damaged copy
+                string b = Sdb.Extract(data, dir);
+                Eq(true, File.ReadAllBytes(b).SequenceEqual(data), "damaged copy replaced");
+                string c = Sdb.Extract(new byte[] { 7, 7, 7 }, dir);
+                True(c != a, "different sdb gets its own file");
+            }
+            finally { try { Directory.Delete(dir, true); } catch { } }
+        });
+
+        Test("the process runner returns even when a grandchild keeps the pipes open", delegate
+        {
+            // cmd starts a background ping that inherits cmd's redirected output, then cmd exits at once.
+            var runner = new SdbProcessRunner(Path.Combine(Environment.SystemDirectory, "cmd.exe"), TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(1));
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            runner.Run(new[] { "/c", "start", "/b", "ping", "-n", "12", "127.0.0.1" });
+            sw.Stop();
+            True(sw.Elapsed < TimeSpan.FromSeconds(6), "took " + sw.Elapsed.TotalSeconds + " s");
+        });
     }
 }

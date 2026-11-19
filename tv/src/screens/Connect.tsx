@@ -48,8 +48,11 @@ export function Connect({ fetchFn, initial }: { fetchFn?: FetchFn; initial?: str
           if (!st || typeof st.setupRequired !== 'boolean') return setError('That does not look like a Foxbloom server.');
           if (st.setupRequired) return setError('That server has not been set up yet. Finish setup on the website first.');
           const s = loadState();
-          // A status without a sign-in lists no home addresses: keep the ones already learned (Session.info refreshes them).
-          const localUrls = Array.isArray(st.localUrls) && st.localUrls.length ? st.localUrls : s.servers ? s.servers.localUrls : [];
+          // A status without a sign-in lists no home addresses: keep the ones already learned (Session.info refreshes them),
+          // but only for the same server. A different address may be a different server, and the old one's home address
+          // could still answer on the network: sign-ins and passwords must never go there.
+          const sameServer = !!s.servers && trimSlash(s.servers.publicUrl) === trimSlash(url);
+          const localUrls = Array.isArray(st.localUrls) && st.localUrls.length ? st.localUrls : sameServer ? s.servers!.localUrls : [];
           saveState({ servers: { publicUrl: url, localUrls: localUrls }, profiles: s.profiles });
           nav.reset([profilesScreen(f)]);
         },

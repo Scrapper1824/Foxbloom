@@ -100,6 +100,19 @@ describe('Profiles', () => {
     expect(loadState().servers).toEqual({ publicUrl: 'https://pub.test', localUrls: ['http://192.168.1.5:7979'] });
   });
 
+  it('Change server to a different address forgets the old home addresses', async () => {
+    await mount([p(1)]);
+    saveState({ servers: { publicUrl: 'https://pub.test', localUrls: ['http://192.168.1.5:7979'] }, profiles: [p(1)] });
+    await act(async () => button('Change server').click());
+    const key = (t: string) => (Array.prototype.slice.call(host.querySelectorAll('.key')) as HTMLButtonElement[]).filter((b) => b.textContent === t)[0];
+    for (let i = 0; i < 4; i++) act(() => key('Delete').click());
+    act(() => key('t').click());
+    act(() => key('v').click());
+    await act(async () => button('Connect').click());
+    await settle();
+    expect(loadState().servers).toEqual({ publicUrl: 'https://pub.tv', localUrls: [] });
+  });
+
   it('Connect gives a public HTTPS address as its example', async () => {
     await mount([p(1)]);
     await act(async () => button('Change server').click());

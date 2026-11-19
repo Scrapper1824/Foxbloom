@@ -69,6 +69,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Web.Script.Serialization;
 
 public class SamsungCertException : Exception
@@ -405,12 +406,18 @@ public sealed class SamsungSignIn : ISamsungSignIn
     public SamsungAccount SignIn(Action<string> openBrowser)
     {
         var listener = new TcpListener(IPAddress.Loopback, Port);
-        try { listener.Start(1); }
+        try { listener.Start(16); }   // a normal backlog: browsers open spare (preconnect) sockets
         catch (SocketException e)
         {
             throw new SamsungCertException("Port " + Port + " on this PC is in use, so the Samsung sign-in can't come back. " +
                 "Close Tizen Studio or any other Samsung TV installer, then try again.", e);
         }
+        // Each connection is read on its own thread, so an idle one can't hold up the callback; the first
+        // callback (valid or not) decides the outcome.
+        var gate = new object();
+        var done = new ManualResetEvent(false);
+        SamsungAccount result = null;
+        Exception failure = null;
         try
         {
             openBrowser(SignInUrl());
@@ -419,14 +426,36 @@ public sealed class SamsungSignIn : ISamsungSignIn
             {
                 var left = deadline - DateTime.UtcNow;
                 var pending = left > TimeSpan.Zero ? listener.BeginAcceptTcpClient(null, null) : null;
-                if (pending == null || !pending.AsyncWaitHandle.WaitOne(left))
+                int which = pending == null ? WaitHandle.WaitTimeout : WaitHandle.WaitAny(new[] { pending.AsyncWaitHandle, done }, left);
+                if (which == 1 || done.WaitOne(0)) break;
+                if (which == WaitHandle.WaitTimeout)
                     throw new SamsungCertException("No sign-in arrived within " + Describe(Timeout) +
                         ". If the Samsung page is still open, close it and click Install to try again.");
-                using (var client = listener.EndAcceptTcpClient(pending))
+                var client = listener.EndAcceptTcpClient(pending);
+                ThreadPool.QueueUserWorkItem(delegate
                 {
-                    var account = Handle(client);
-                    if (account != null) return account;
-                }
+                    try
+                    {
+                        SamsungAccount account = null;
+                        Exception error = null;
+                        try { account = Handle(client); }
+                        catch (SamsungCertException e) { error = e; }
+                        catch (Exception) { }   // a broken connection is just ignored
+                        if (account == null && error == null) return;
+                        lock (gate)
+                        {
+                            if (done.WaitOne(0)) return;
+                            result = account; failure = error;
+                            done.Set();
+                        }
+                    }
+                    finally { client.Close(); }
+                });
+            }
+            lock (gate)
+            {
+                if (failure != null) throw failure;
+                return result;
             }
         }
         finally { listener.Stop(); }
@@ -441,7 +470,7 @@ public sealed class SamsungSignIn : ISamsungSignIn
     SamsungAccount Handle(TcpClient client)
     {
         var stream = client.GetStream();
-        stream.ReadTimeout = 10000;
+        stream.ReadTimeout = 3000;    // a request must arrive promptly; idle sockets are dropped
         stream.WriteTimeout = 10000;
         string method, path, host, body;
         try

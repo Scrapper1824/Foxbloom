@@ -287,6 +287,32 @@ static partial class Tests
             Throws<SocketException>(delegate { Post(port, "GET", "/", "", "localhost"); }, null, "listener stopped after the callback");
         });
 
+        Test("sign-in: idle browser connections (preconnects) don't hold up the callback", delegate
+        {
+            int port = FreePort();
+            var signIn = new SamsungSignIn { Port = port, Timeout = TimeSpan.FromSeconds(20) };
+            var idle = new List<TcpClient>();
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            try
+            {
+                var account = signIn.SignIn(delegate
+                {
+                    for (int i = 0; i < 3; i++)   // like Chrome/Edge preconnect sockets: open, send nothing
+                    {
+                        var c = new TcpClient();
+                        c.Connect(IPAddress.Loopback, port);
+                        idle.Add(c);
+                    }
+                    string code = Uri.EscapeDataString("{\"access_token\":\"tok-idle\",\"userId\":\"u-1\",\"inputEmailID\":\"me@example.com\"}");
+                    Background(delegate { Post(port, "POST", "/signin/callback", "code=" + code + "&state=" + SamsungSignIn.State, "localhost:" + port); });
+                });
+                sw.Stop();
+                Eq("tok-idle", account.AccessToken, "token");
+                True(sw.Elapsed < TimeSpan.FromSeconds(1.5), "took " + sw.Elapsed.TotalSeconds + " s with idle connections open");
+            }
+            finally { foreach (var c in idle) c.Close(); }
+        });
+
         Test("sign-in: a callback with the wrong state, or another Host, is refused", delegate
         {
             int port = FreePort();

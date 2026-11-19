@@ -28,6 +28,7 @@ const Watchlist = lazy(() => import('./pages/Watchlist'));
 const SettingsPage = lazy(() => import('./pages/Settings'));
 const Requests = lazy(() => import('./pages/Requests'));
 const Stats = lazy(() => import('./pages/Stats'));
+const LinkTv = lazy(() => import('./pages/LinkTv'));
 
 interface NavItem {
   to: string;
@@ -228,6 +229,7 @@ function Shell() {
           <Route path="/history" element={<History />} />
           {isAdmin && <Route path="/stats" element={<Stats />} />}
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/link-tv" element={<LinkTv />} />
         </Routes>
         </Suspense>
       </main>

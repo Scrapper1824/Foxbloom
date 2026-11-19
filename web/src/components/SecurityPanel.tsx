@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from './AuthGate';
 import Spinner from './Spinner';
@@ -166,6 +167,9 @@ export default function SecurityPanel() {
           Sign out all other devices
         </button>
         {others.isSuccess && <span className="ok-text small">Done.</span>}
+        <Link className="btn small ghost" to="/link-tv">
+          Link a TV
+        </Link>
       </div>
       <p className="hint">Locked out? On the Foxbloom computer run <code>npm run reset-password</code>.</p>
     </section>

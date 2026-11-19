@@ -12,6 +12,10 @@ Files FoxbloomTVSetup.exe embeds but that are not kept in git (`vendor/*` is git
 The installer checks both certificates against pinned thumbprints (see `SamsungCert.cs`), so a wrong file is
 refused at run time, not silently trusted.
 
+Each file must also have its SHA-256 in `installer\tv\vendor.sha256` (committed; one `<sha256>  <file name>` line
+per file). `build.ps1` refuses to build when a file has no line there or its hash differs, so record the hashes when
+you first supply the files (the header of `vendor.sha256` shows how).
+
 Nothing here is downloaded automatically. Put the files in this folder by hand, then build:
 
     powershell -ExecutionPolicy Bypass -File installer\tv\build.ps1

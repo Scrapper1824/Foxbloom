@@ -3,7 +3,8 @@ Foxbloom TV Setup (FoxbloomTVSetup.exe) - third-party components
 
 sdb.exe (Smart Development Bridge)
   Copyright Samsung Electronics Co., Ltd.
-  Part of the Tizen SDK tools. Licensed under the Apache License, Version 2.0:
+  Part of the Tizen SDK tools. Licensed under the Apache License, Version 2.0 (full text in LICENSES.txt,
+  shown under "Licences" in the installer):
   https://www.apache.org/licenses/LICENSE-2.0
   Embedded unmodified and run only to connect to a Samsung TV in Developer Mode, copy the Foxbloom app to it,
   install and start it. Source: https://github.com/Samsung/sdb (via the Tizen SDK).

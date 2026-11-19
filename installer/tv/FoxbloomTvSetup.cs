@@ -326,6 +326,14 @@ class TvSetupForm : Form
         Controls.Add(logo);
         Controls.Add(Label("Foxbloom for Samsung TV", Theme.Bold(15f), Theme.Text, 84, 22, 500, 30));
         Controls.Add(Label("Put Foxbloom on your TV", Theme.Body(9.5f), Theme.Muted, 85, 50, 500, 20));
+        var licences = new LinkLabel
+        {
+            Text = "Licences", Font = Theme.Body(9f), AutoSize = false, TextAlign = ContentAlignment.MiddleRight,
+            Location = new Point(P(520), P(28)), Size = new Size(P(92), P(20)), BackColor = Color.Transparent,
+            LinkColor = Theme.Muted, ActiveLinkColor = Theme.Accent, VisitedLinkColor = Theme.Muted, LinkBehavior = LinkBehavior.HoverUnderline,
+        };
+        licences.LinkClicked += delegate { ShowLicences(); };
+        Controls.Add(licences);
 
         body.Location = new Point(0, P(88));
         body.Size = new Size(P(640), P(640 - 88));
@@ -350,6 +358,42 @@ class TvSetupForm : Form
     {
         base.OnShown(e);
         if (startIp != null) Contact(startIp, false); else StartScan();
+    }
+
+    /** The third-party notices (THIRD-PARTY.txt) and licence texts (LICENSES.txt) embedded by build.ps1. */
+    void ShowLicences()
+    {
+        // A TextBox needs CRLF line breaks; the files may come with LF only.
+        string text = (Resource("THIRD-PARTY.txt") + "\n\n" + Resource("LICENSES.txt")).Replace("\r\n", "\n").Replace("\n", "\r\n");
+        using (var f = new Form())
+        {
+            f.Text = "Foxbloom TV Setup - licences";
+            f.StartPosition = FormStartPosition.CenterParent;
+            f.ClientSize = new Size(P(620), P(520));
+            f.MinimizeBox = false;
+            f.ShowInTaskbar = false;
+            f.BackColor = Theme.Bg;
+            try { f.Icon = Icon; } catch { }
+            var box = new TextBox
+            {
+                Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, WordWrap = true, Dock = DockStyle.Fill,
+                Font = new Font("Consolas", 9f), BackColor = Theme.Panel, ForeColor = Theme.Text, BorderStyle = BorderStyle.None,
+                Text = text,
+            };
+            f.Controls.Add(box);
+            f.HandleCreated += delegate { Theme.DarkTitleBar(f.Handle); };
+            f.Shown += delegate { box.SelectionLength = 0; box.SelectionStart = 0; };
+            f.ShowDialog(this);
+        }
+    }
+
+    static string Resource(string name)
+    {
+        using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream(name))
+        {
+            if (s == null) return "(" + name + " is missing from this build.)";
+            using (var r = new System.IO.StreamReader(s, System.Text.Encoding.UTF8)) return r.ReadToEnd();
+        }
     }
 
     // ---- building blocks ----

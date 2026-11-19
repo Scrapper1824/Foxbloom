@@ -172,6 +172,65 @@ static partial class Tests
             Directory.Delete(dir, true);
         });
 
+        Test("saving is a pair: an interrupted save finishes on the next load, or leaves the old pair", delegate
+        {
+            // Two different bundles' files, to play "old" and "new".
+            var oldDir = NewTempDir();
+            var newDir = NewTempDir();
+            var samsung = new FakeSamsung();
+            var oldB = MakeTestBundle(samsung, oldDir, DuidA);
+            var newB = MakeTestBundle(samsung, newDir, DuidA);
+            Func<string, string, byte[]> bytes = (d, f) => File.ReadAllBytes(Path.Combine(d, f));
+
+            // Crashed after both .tmp files and the commit marker were written, before anything was replaced.
+            var dir = NewTempDir();
+            foreach (var f in Directory.GetFiles(oldDir)) File.Copy(f, Path.Combine(dir, Path.GetFileName(f)));
+            File.WriteAllBytes(Path.Combine(dir, "author.p12.tmp"), bytes(newDir, "author.p12"));
+            File.WriteAllBytes(Path.Combine(dir, "author.pwd.tmp"), bytes(newDir, "author.pwd"));
+            File.WriteAllBytes(Path.Combine(dir, "author.commit"), new byte[0]);
+            var loaded = new CertStore(dir).Load();
+            True(loaded != null, "marker + both tmps: loads");
+            Eq(newB.Author.Thumbprint, loaded.Author.Thumbprint, "marker + both tmps: the new author");
+            Eq("author.p12,author.pwd,distributor.p12,distributor.pwd",
+                string.Join(",", Directory.GetFiles(dir).Select(Path.GetFileName).OrderBy(f => f, StringComparer.Ordinal).ToArray()), "files after finishing");
+
+            // Crashed after the new .p12 was moved in, before the new password was.
+            dir = NewTempDir();
+            foreach (var f in Directory.GetFiles(oldDir)) File.Copy(f, Path.Combine(dir, Path.GetFileName(f)));
+            File.WriteAllBytes(Path.Combine(dir, "author.p12"), bytes(newDir, "author.p12"));
+            File.WriteAllBytes(Path.Combine(dir, "author.pwd.tmp"), bytes(newDir, "author.pwd"));
+            File.WriteAllBytes(Path.Combine(dir, "author.commit"), new byte[0]);
+            loaded = new CertStore(dir).Load();
+            True(loaded != null, "new p12 + pending pwd: loads");
+            Eq(newB.Author.Thumbprint, loaded.Author.Thumbprint, "new p12 + pending pwd: the new author");
+
+            // Crashed while writing the .tmp files (no marker yet): the old pair stays and the leftovers go.
+            dir = NewTempDir();
+            foreach (var f in Directory.GetFiles(oldDir)) File.Copy(f, Path.Combine(dir, Path.GetFileName(f)));
+            File.WriteAllBytes(Path.Combine(dir, "author.p12.tmp"), bytes(newDir, "author.p12"));
+            File.WriteAllBytes(Path.Combine(dir, "author.pwd.tmp"), new byte[] { 1, 2 });
+            loaded = new CertStore(dir).Load();
+            True(loaded != null, "no marker: loads");
+            Eq(oldB.Author.Thumbprint, loaded.Author.Thumbprint, "no marker: the old author");
+            True(!File.Exists(Path.Combine(dir, "author.p12.tmp")) && !File.Exists(Path.Combine(dir, "author.pwd.tmp")), "no marker: leftovers removed");
+
+            Directory.Delete(oldDir, true);
+            Directory.Delete(newDir, true);
+        });
+
+        Test("Samsung's error text never shows the access token", delegate
+        {
+            const string token = "tok-SECRET_123.abc";
+            string a = SamsungCertService.ErrorText("{\"message\":\"Invalid access token " + token + "\"}", token);
+            True(a.Contains("Invalid access token") && a.IndexOf(token, StringComparison.Ordinal) < 0, "message field: " + a);
+            string b = SamsungCertService.ErrorText("bad request access_token=" + token + "&user_id=u", token);
+            True(b.IndexOf(token, StringComparison.Ordinal) < 0 && b.Contains("bad request"), "plain body: " + b);
+            string c = SamsungCertService.ErrorText("{\"access_token\":\"other-token-9\",\"code\":7}", token);
+            True(c.IndexOf("other-token-9", StringComparison.Ordinal) < 0, "an access_token field with another value: " + c);
+            string d = SamsungCertService.ErrorText("failed for " + Uri.EscapeDataString(token + "/+"), token + "/+");
+            True(d.IndexOf(Uri.EscapeDataString(token + "/+"), StringComparison.Ordinal) < 0, "url-encoded token: " + d);
+        });
+
         Test("Check: a bundle missing a DUID reports NeedsNewDistributor", delegate
         {
             var dir = NewTempDir();

@@ -144,20 +144,55 @@ public sealed class CertStore
     public void SaveAuthor(byte[] p12, string password) { Save("author", p12, password); }
     public void SaveDistributor(byte[] p12, string password) { Save("distributor", p12, password); }
 
+    /*
+     * A .p12 and its password are saved as a pair, so a crash can't leave a new .p12 next to the old password:
+     * both are written as .tmp files, then an empty "<name>.commit" marker says both are complete, then each is
+     * moved into place and the marker removed. The next load finishes a save whose marker is there (Recover), and
+     * throws away .tmp leftovers without one, keeping the old pair.
+     */
     void Save(string name, byte[] p12, string password)
     {
         Directory.CreateDirectory(Dir);
         byte[] blob = ProtectedData.Protect(Encoding.UTF8.GetBytes(password), Entropy, DataProtectionScope.CurrentUser);
-        WriteReplacing(Path.Combine(Dir, name + ".p12"), p12);
-        WriteReplacing(Path.Combine(Dir, name + ".pwd"), blob);
+        string p12Path = Path.Combine(Dir, name + ".p12"), pwdPath = Path.Combine(Dir, name + ".pwd");
+        WriteFlushed(p12Path + ".tmp", p12);
+        WriteFlushed(pwdPath + ".tmp", blob);
+        WriteFlushed(Path.Combine(Dir, name + ".commit"), new byte[0]);
+        Recover(name);
     }
 
-    static void WriteReplacing(string path, byte[] data)
+    static void WriteFlushed(string path, byte[] data)
     {
-        string tmp = path + ".tmp";
-        File.WriteAllBytes(tmp, data);
-        if (File.Exists(path)) File.Delete(path);
-        File.Move(tmp, path);
+        using (var f = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None))
+        {
+            f.Write(data, 0, data.Length);
+            f.Flush(true);
+        }
+    }
+
+    /** Finishes a save that has its commit marker, or removes the .tmp files of one that never got that far. */
+    void Recover(string name)
+    {
+        string p12Path = Path.Combine(Dir, name + ".p12"), pwdPath = Path.Combine(Dir, name + ".pwd");
+        string marker = Path.Combine(Dir, name + ".commit");
+        if (File.Exists(marker))
+        {
+            MoveReplacing(p12Path + ".tmp", p12Path);
+            MoveReplacing(pwdPath + ".tmp", pwdPath);
+            File.Delete(marker);
+        }
+        else
+        {
+            if (File.Exists(p12Path + ".tmp")) File.Delete(p12Path + ".tmp");
+            if (File.Exists(pwdPath + ".tmp")) File.Delete(pwdPath + ".tmp");
+        }
+    }
+
+    static void MoveReplacing(string tmp, string path)
+    {
+        if (!File.Exists(tmp)) return;   // already moved before an interruption
+        if (File.Exists(path)) File.Replace(tmp, path, null);
+        else File.Move(tmp, path);
     }
 
     /** The saved bundle, or null when there is none or it can't be read. A readable author without a usable
@@ -175,6 +210,8 @@ public sealed class CertStore
         leaf = null; chain = new X509Certificate2[0];
         try
         {
+            if (!Directory.Exists(Dir)) return false;
+            Recover(name);
             string p12 = Path.Combine(Dir, name + ".p12"), pwd = Path.Combine(Dir, name + ".pwd");
             if (!File.Exists(p12) || !File.Exists(pwd)) return false;
             string password = Encoding.UTF8.GetString(ProtectedData.Unprotect(File.ReadAllBytes(pwd), Entropy, DataProtectionScope.CurrentUser));
@@ -688,15 +725,24 @@ public sealed class SamsungCertService : ISamsungCertService
             if (resp == null)
                 throw new SamsungCertException("Couldn't reach Samsung to request the " + what + " certificate. Check the internet connection and try again.");
             string detail = "";
-            try { using (var r = new StreamReader(resp.GetResponseStream(), Encoding.UTF8)) detail = ErrorText(r.ReadToEnd()); }
+            try { using (var r = new StreamReader(resp.GetResponseStream(), Encoding.UTF8)) detail = ErrorText(r.ReadToEnd(), TokenOf(fields)); }
             catch (IOException) { }
             throw new SamsungCertException("Samsung refused the " + what + " certificate request (HTTP " + (int)resp.StatusCode + ")" +
                 (detail.Length > 0 ? ": " + detail : "."));
         }
     }
 
-    /** A short, printable message from Samsung's error body (its "message" field when it is JSON). */
-    static string ErrorText(string body)
+    static string TokenOf(KeyValuePair<string, string>[] fields)
+    {
+        foreach (var f in fields) if (f.Key == "access_token") return f.Value;
+        return "";
+    }
+
+    static readonly Regex TokenField = new Regex(@"((?:access|refresh)_token\\?""?\s*[=:]\s*\\?""?)[^\s""\\&,;}]+", RegexOptions.IgnoreCase);
+
+    /** A short, printable message from Samsung's error body (its "message" field when it is JSON), with the access
+     *  token (secret, also URL-encoded) and any access_token/refresh_token value in it replaced by "(hidden)". */
+    internal static string ErrorText(string body, string secret)
     {
         string text = body ?? "";
         try
@@ -708,6 +754,10 @@ public sealed class SamsungCertService : ISamsungCertService
         }
         catch (ArgumentException) { }
         catch (InvalidOperationException) { }
+        if (!string.IsNullOrEmpty(secret))
+            foreach (var form in new[] { secret, Uri.EscapeDataString(secret), WebUtility.UrlEncode(secret) })
+                text = text.Replace(form, "(hidden)");
+        text = TokenField.Replace(text, "$1(hidden)");
         text = new string(text.Where(ch => ch >= 0x20 && ch < 0x7f).ToArray()).Trim();
         return text.Length > 200 ? text.Substring(0, 200) + "..." : text;
     }

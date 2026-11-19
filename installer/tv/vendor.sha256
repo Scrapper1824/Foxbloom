@@ -1,0 +1,7 @@
+# SHA-256 of each file in installer/tv/vendor/ that FoxbloomTVSetup.exe embeds (sdb.exe and Samsung's two CA
+# certificates). installer/tv/build.ps1 refuses to build when a vendor file has no line here or its hash differs,
+# so a swapped or damaged sdb.exe can't be shipped by accident. -NoVendor builds don't read this file.
+#
+# Format: one line per file, "<sha256 in hex>  <file name>" (two spaces, as sha256sum prints it). Lines starting
+# with # are comments. Fill it in when supplying the files, e.g.:
+#   (Get-FileHash installer\tv\vendor\sdb.exe -Algorithm SHA256).Hash.ToLower() + '  sdb.exe'

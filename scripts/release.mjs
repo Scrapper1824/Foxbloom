@@ -29,13 +29,14 @@ export function nextVersion(current, bump) {
 }
 
 const npmCli = process.env.npm_execpath;
-function run(file, fileArgs, { capture = false } = {}) {
+function run(file, fileArgs, { capture = false, onFail } = {}) {
   const [cmd, cmdArgs] = file === 'npm' && npmCli ? [process.execPath, [npmCli, ...fileArgs]] : [file, fileArgs];
   if (!capture) console.log(`$ ${file} ${fileArgs.join(' ')}`);
   if (dryRun && !capture) return '';
   const r = spawnSync(cmd, cmdArgs, { cwd: root, encoding: 'utf8', stdio: capture ? 'pipe' : 'inherit' });
   if (r.status !== 0) {
     console.error(`\n"${file} ${fileArgs.join(' ')}" failed${r.stderr ? `: ${r.stderr.trim()}` : ''}`);
+    if (onFail) onFail();
     process.exit(1);
   }
   return (r.stdout ?? '').trim();
@@ -74,8 +75,22 @@ See installer/tv/vendor/README.md for where each comes from.`);
 
   run('npm', ['run', 'build']);
   run('npm', ['test']);
+  const versionFiles = ['package.json', 'package-lock.json', 'server/package.json', 'web/package.json', 'tv/package.json'];
   run('npm', ['version', version, '--no-git-tag-version', '--workspaces', '--include-workspace-root']);
-  run('git', ['add', 'package.json', 'package-lock.json', 'server/package.json', 'web/package.json', 'tv/package.json']);
+  // FoxbloomTVSetup.exe is built now, before anything is committed or published, so a TV app (tsc, CSS/ES5 check) or
+  // installer (csc, vendor hash) error stops the release here instead of after the push. It is built after the version
+  // bump (so far only in the working tree) because the exe embeds tv/package.json's version; if the build fails, the
+  // bump is undone and the tree is as it was.
+  const tvSetup = path.join(root, 'installer', 'dist', 'FoxbloomTVSetup.exe');
+  if (process.platform === 'win32') {
+    run('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(root, 'installer', 'tv', 'build.ps1')], {
+      onFail: () => {
+        spawnSync('git', ['checkout', '--', ...versionFiles], { cwd: root, stdio: 'inherit' });
+        console.error('Nothing was committed or published; the version bump was undone.');
+      },
+    });
+  }
+  run('git', ['add', ...versionFiles]);
   run('git', ['commit', '-m', `Release ${tag}`]);
   run('git', ['tag', '-a', tag, '-m', `Foxbloom ${tag}`]);
   run('git', ['push', 'origin', 'main', tag]);
@@ -89,9 +104,9 @@ See installer/tv/vendor/README.md for where each comes from.`);
     const oldName = path.join(root, 'installer', 'dist', 'MediarrSetup.exe');
     fs.copyFileSync(setup, oldName);
     run('gh', ['release', 'upload', tag, setup, oldName, '--clobber']);
-    // The Samsung TV installer goes on every release too (needs installer/tv/vendor/, see the README there).
-    run('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(root, 'installer', 'tv', 'build.ps1')]);
-    run('gh', ['release', 'upload', tag, path.join(root, 'installer', 'dist', 'FoxbloomTVSetup.exe'), '--clobber']);
+    // The Samsung TV installer (built above, before the push) goes on every release too, with its third-party notice
+    // next to it (sdb.exe inside it is Apache-2.0).
+    run('gh', ['release', 'upload', tag, tvSetup, path.join(root, 'installer', 'tv', 'THIRD-PARTY.txt'), '--clobber']);
   }
   console.log(`\nReleased ${tag}. Foxbloom installs will offer it as an update.`);
 }

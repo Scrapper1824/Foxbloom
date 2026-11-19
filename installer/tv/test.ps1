@@ -15,4 +15,8 @@ $sources += @(Get-ChildItem (Join-Path $here 'tests') -Filter *.cs | ForEach-Obj
 & $csc /nologo /target:exe /debug+ "/out:$exe" /reference:System.dll /reference:System.Core.dll /reference:System.Web.Extensions.dll /reference:System.Security.dll /reference:System.Xml.dll /reference:System.IO.Compression.dll @sources
 if ($LASTEXITCODE -ne 0) { throw "csc failed ($LASTEXITCODE)" }
 & $exe (Join-Path $here 'tests\fixtures')
+$csharp = $LASTEXITCODE
+# build.ps1's vendor hash check (PowerShell, no Pester).
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $here 'tests\VendorHashes.Tests.ps1')
+if ($csharp -ne 0) { exit $csharp }
 exit $LASTEXITCODE

@@ -6,12 +6,15 @@
 #   Foxbloom.wgt   the UNSIGNED app: tv\dist + config.xml + icon.png, zipped (the installer signs it per TV)
 #   sdb.exe        Samsung's Smart Development Bridge          } from installer\tv\vendor\ (not in git; see the README there)
 #   SamsungCA.*    Samsung's two public CA certificates        }
-# Without -NoVendor, missing vendor files stop the build. With it, the exe builds but says "this build can't install".
+#   THIRD-PARTY.txt + LICENSES.txt   the notices and licence texts the installer's "Licences" link shows
+# Without -NoVendor, missing vendor files, or ones that don't match installer\tv\vendor.sha256, stop the build. With it,
+# the exe builds but says "this build can't install".
 param([switch]$NoVendor)
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $installer = Split-Path -Parent $here
 $repo = Split-Path -Parent $installer
+. (Join-Path $here 'VendorHashes.ps1')
 $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 if (-not (Test-Path $csc)) { $csc = Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319\csc.exe' }
 if (-not (Test-Path $csc)) { throw 'The .NET Framework 4 C# compiler (csc.exe) was not found.' }
@@ -23,7 +26,10 @@ $vendorFiles = @(
   @{ File = 'vd_tizen_dev_author_ca.cer'; Resource = 'SamsungCA.vd_tizen_dev_author_ca.cer'; From = "Samsung's Certificate Extension for Tizen Studio (its ca folder)" },
   @{ File = 'vd_tizen_dev_public2.crt'; Resource = 'SamsungCA.vd_tizen_dev_public2.crt'; From = "Samsung's Certificate Extension for Tizen Studio (its ca folder)" }
 )
-$resources = @()
+$resources = @(
+  "/resource:$(Join-Path $here 'THIRD-PARTY.txt'),THIRD-PARTY.txt",
+  "/resource:$(Join-Path $here 'LICENSES.txt'),LICENSES.txt"
+)
 if (-not $NoVendor) {
   $missing = @($vendorFiles | Where-Object { -not (Test-Path (Join-Path $vendor $_.File)) })
   if ($missing.Count -gt 0) {
@@ -31,6 +37,7 @@ if (-not $NoVendor) {
     throw ("Cannot build FoxbloomTVSetup.exe: these files are missing from installer\tv\vendor\:`n" + ($lines -join "`n") +
       "`nSee installer\tv\vendor\README.md. For a development build that cannot install on a TV, run this script with -NoVendor.")
   }
+  Test-VendorHashes -Dir $vendor -Files @($vendorFiles | ForEach-Object { $_.File }) -HashFile (Join-Path $here 'vendor.sha256')
   foreach ($v in $vendorFiles) { $resources += "/resource:$(Join-Path $vendor $v.File),$($v.Resource)" }
 }
 
@@ -44,7 +51,15 @@ $stage = Join-Path ([IO.Path]::GetTempPath()) ('foxbloom-wgt-' + [Guid]::NewGuid
 New-Item -ItemType Directory -Force $stage | Out-Null
 try {
   Copy-Item (Join-Path $tvDist '*') $stage -Recurse -Force
-  Copy-Item (Join-Path $repo 'tv\config.xml') (Join-Path $stage 'config.xml') -Force
+  # The widget's version is tv\package.json's (bumped by every release), not whatever tv\config.xml was committed with.
+  $tvVersion = (Get-Content (Join-Path $repo 'tv\package.json') -Raw | ConvertFrom-Json).version
+  if ($tvVersion -notmatch '^\d+\.\d+\.\d+$') { throw "tv\package.json's version ""$tvVersion"" isn't x.y.z." }
+  $configXml = [IO.File]::ReadAllText((Join-Path $repo 'tv\config.xml'))
+  $widgetTag = [regex]::Match($configXml, '<widget\b[^>]*>')
+  if (-not $widgetTag.Success -or $widgetTag.Value -notmatch '\sversion="[^"]*"') { throw 'tv\config.xml has no <widget version="..."> to set.' }
+  $newTag = [regex]::Replace($widgetTag.Value, '(\sversion=")[^"]*(")', ('${1}' + $tvVersion + '${2}'))
+  $configXml = $configXml.Substring(0, $widgetTag.Index) + $newTag + $configXml.Substring($widgetTag.Index + $widgetTag.Length)
+  [IO.File]::WriteAllText((Join-Path $stage 'config.xml'), $configXml, (New-Object Text.UTF8Encoding($false)))
   $icon = Join-Path $tvDist 'icon.png'
   if (-not (Test-Path $icon)) { $icon = Join-Path $repo 'tv\public\icon.png' }
   if (-not (Test-Path $icon)) { throw 'icon.png not found in tv\dist or tv\public.' }

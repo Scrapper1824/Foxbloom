@@ -180,11 +180,11 @@ describe('TV pairing', () => {
       method: 'POST',
       url: '/api/tv/pair',
       headers: CSRF,
-      payload: { deviceName: 'Living‮ room ​', baseUrl: 'http://foxbloom.local:3000' },
+      payload: { deviceName: 'Living\u202E room\u0000\u200B', baseUrl: 'http://foxbloom.local:3000' },
     });
     expect(res.statusCode).toBe(200);
     expect((await link(res.json().code)).json().deviceName).toBe('Living room');
-    const blank = await app.inject({ method: 'POST', url: '/api/tv/pair', headers: CSRF, payload: { deviceName: '‮', baseUrl: 'http://foxbloom.local:3000' } });
+    const blank = await app.inject({ method: 'POST', url: '/api/tv/pair', headers: CSRF, payload: { deviceName: '\u202E\u0007', baseUrl: 'http://foxbloom.local:3000' } });
     expect(blank.statusCode).toBe(400);
   });
 

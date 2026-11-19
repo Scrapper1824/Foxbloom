@@ -1,0 +1,8 @@
+HTTP/1.1 200 OK
+Cache-Control: max-age=3600
+ST: urn:dial-multiscreen-org:service:dial:1
+USN: uuid:roku:ecp:X00000000000::urn:dial-multiscreen-org:service:dial:1
+Ext:
+Server: Roku/9.4.0 UPnP/1.0 Roku/9.4.0
+LOCATION: http://192.168.1.77:8060/dial/dd.xml
+

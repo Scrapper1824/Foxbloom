@@ -148,14 +148,14 @@ export function fileKey(file: string): string {
   return crypto.createHash('sha1').update(`${file}|${st.size}|${Math.floor(st.mtimeMs)}`).digest('hex').slice(0, 20);
 }
 
-/** One text subtitle track as an .ass file (extracted once, then reused). */
-export async function extractSubtitle(file: string, track: SubtitleTrack): Promise<string> {
+/** One text subtitle track as an .ass (default) or plain .srt file (extracted once, then reused). */
+export async function extractSubtitle(file: string, track: SubtitleTrack, format: 'ass' | 'srt' = 'ass'): Promise<string> {
   if (!track.text) throw new Error('Image subtitles are burned into the video instead');
-  const out = path.join(cacheDir('cache', 'subs', fileKey(file)), `${track.order}.ass`);
+  const out = path.join(cacheDir('cache', 'subs', fileKey(file)), `${track.order}.${format}`);
   if (fs.existsSync(out)) return out;
-  const tmp = `${out}.part.ass`;
+  const tmp = `${out}.part.${format}`;
   const { ffmpeg } = requireFfmpeg();
-  const r = await run(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-y', '-i', file, '-map', `0:s:${track.order}`, '-c:s', 'ass', tmp], 180_000);
+  const r = await run(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-y', '-i', file, '-map', `0:s:${track.order}`, '-c:s', format === 'srt' ? 'srt' : 'ass', tmp], 180_000);
   if (r.code !== 0 || !fs.existsSync(tmp)) throw new Error(`Couldn’t extract the subtitles (${r.stderr.trim().split('\n').pop() ?? 'ffmpeg failed'})`);
   fs.renameSync(tmp, out);
   return out;

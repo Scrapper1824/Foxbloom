@@ -88,10 +88,18 @@ describe.skipIf(!tools || !FONT)('with real FFmpeg', () => {
     expect(fs.statSync(path.join(fonts.dir, fonts.names[0])).size).toBe(fs.statSync(FONT!).size);
   }, 60_000);
 
+  it('extracts SRT subtitles for the TV', async () => {
+    const p = await probeFile(clip);
+    const srt = fs.readFileSync(await extractSubtitle(clip, p.subtitles[0], 'srt'), 'utf8').replace(/\r\n/g, '\n');
+    expect(srt.startsWith('1\n')).toBe(true);
+    expect(srt).toContain('-->');
+    expect(srt).toContain('Hello from Foxbloom');
+  }, 60_000);
+
   it('converts to HLS with the best encoder, including after a seek', async () => {
     const info = await ffmpegInfo({ force: true });
     const p = await probeFile(clip);
-    const caps = { mp4: true, webm: true, h264: true, hevc: false, av1: false, vp9: true, aac: true, mp3: true, opus: true, flac: true, ac3: false, eac3: false };
+    const caps = { mp4: true, webm: true, h264: true, hevc: false, av1: false, vp9: true, aac: true, mp3: true, opus: true, flac: true, ac3: false, eac3: false, mkv: false, dts: false, switchesAudio: false, forceConvert: false };
     const d = decidePlayback(p, '.mkv', caps, { audio: 1, subtitle: null, quality: '480' }, true, 8e6);
     const s = createSession({ userId: 1, title: 'episode:1', file: clip, ffmpeg: tools!.ffmpeg, probe: p, decision: d, encoder: info.encoder, startAt: 0 });
     const first = await waitForSegment(s, 0, 60_000);
@@ -121,7 +129,7 @@ describe.skipIf(!tools || !FONT)('with real FFmpeg', () => {
     );
     expect(r.code, r.stderr).toBe(0);
     const p = await probeFile(mkv);
-    const caps = { mp4: true, webm: true, h264: true, hevc: false, av1: false, vp9: true, aac: true, mp3: true, opus: true, flac: true, ac3: false, eac3: false };
+    const caps = { mp4: true, webm: true, h264: true, hevc: false, av1: false, vp9: true, aac: true, mp3: true, opus: true, flac: true, ac3: false, eac3: false, mkv: false, dts: false, switchesAudio: false, forceConvert: false };
     const d = decidePlayback(p, '.mkv', caps, { audio: null, subtitle: null, quality: 'auto' }, false, 8e6);
     expect(d.copyVideo).toBe(true);
     const keys = await keyframes(mkv);
@@ -152,7 +160,7 @@ describe.skipIf(!tools || !FONT)('with real FFmpeg', () => {
     const info = await ffmpegInfo({ force: true });
     const encoder = which === 'gpu' ? info.encoder : 'libx264';
     const p = await probeFile(clip);
-    const d = decidePlayback(p, '.mkv', { mp4: true, webm: true, h264: true, hevc: false, av1: false, vp9: true, aac: true, mp3: true, opus: true, flac: true, ac3: false, eac3: false }, { audio: 0, subtitle: null, quality: 'auto' }, false, 8e6);
+    const d = decidePlayback(p, '.mkv', { mp4: true, webm: true, h264: true, hevc: false, av1: false, vp9: true, aac: true, mp3: true, opus: true, flac: true, ac3: false, eac3: false, mkv: false, dts: false, switchesAudio: false, forceConvert: false }, { audio: 0, subtitle: null, quality: 'auto' }, false, 8e6);
     const s = createSession({ userId: 2, title: `episode:${which}`, file: clip, ffmpeg: tools!.ffmpeg, probe: p, decision: d, encoder, startAt: 0 });
     for (const n of [0, 1, 2, 3]) {
       const seg = await waitForSegment(s, n, 60_000);

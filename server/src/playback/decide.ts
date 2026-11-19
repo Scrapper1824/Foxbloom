@@ -15,6 +15,14 @@ export interface ClientCaps {
   flac: boolean;
   ac3: boolean;
   eac3: boolean;
+  /** TV: plays Matroska files directly. */
+  mkv: boolean;
+  /** TV: plays DTS audio. */
+  dts: boolean;
+  /** TV: can switch between the file's audio tracks itself. */
+  switchesAudio: boolean;
+  /** TV: direct play already failed once, so always convert. */
+  forceConvert: boolean;
 }
 
 export type Quality = 'auto' | 'original' | '1080' | '720' | '480';
@@ -62,7 +70,7 @@ const VIDEO_OK: Record<string, (c: ClientCaps, bitDepth: number) => boolean> = {
   av1: (c) => c.av1,
   vp9: (c) => c.vp9,
 };
-const AUDIO_OK: Record<string, keyof ClientCaps> = { aac: 'aac', mp3: 'mp3', opus: 'opus', flac: 'flac', ac3: 'ac3', eac3: 'eac3' };
+const AUDIO_OK: Record<string, keyof ClientCaps> = { aac: 'aac', mp3: 'mp3', opus: 'opus', flac: 'flac', ac3: 'ac3', eac3: 'eac3', dts: 'dts' };
 
 export function defaultAudio(probe: MediaProbe): number | null {
   if (!probe.audio.length) return null;
@@ -106,6 +114,7 @@ export function decidePlayback(
   const transcode = (reason: string): Decision => ({ mode: 'transcode', reason, audio, burnSubtitle, height, videoBitrate });
 
   if (!probe.video) return transcode('No video track found');
+  if (caps.forceConvert) return transcode('The TV couldn’t play the original file');
   const videoOk = !!VIDEO_OK[probe.video.codec]?.(caps, probe.video.bitDepth);
   // H.264 (8-bit) the browser plays can go into the stream as it is when nothing else needs the picture
   // changed: no picture subtitles to draw in, no smaller size chosen or needed for the connection.
@@ -119,14 +128,14 @@ export function decidePlayback(
     canCopy ? { mode: 'transcode', reason: `${reason}: repackaged for the browser (the picture isn’t converted)`, audio, burnSubtitle: null, height: null, videoBitrate, copyVideo: true } : transcode(reason);
 
   const container = ext.toLowerCase();
-  const containerOk = ((container === '.mp4' || container === '.m4v') && caps.mp4) || (container === '.webm' && caps.webm);
+  const containerOk = ((container === '.mp4' || container === '.m4v') && caps.mp4) || (container === '.webm' && caps.webm) || (container === '.mkv' && caps.mkv);
   if (!videoOk) {
     return transcode(`The browser can’t play ${probe.video.codec.toUpperCase()}${probe.video.bitDepth > 8 ? ` ${probe.video.bitDepth}-bit` : ''} video`);
   }
   if (!containerOk) return convert(`The browser can’t play ${container.replace('.', '').toUpperCase() || 'this'} files directly`);
   if (audio !== null) {
     const track = probe.audio.find((a) => a.order === audio)!;
-    if (audio !== defaultAudio(probe)) return convert('Switching audio tracks needs a conversion');
+    if (audio !== defaultAudio(probe) && !caps.switchesAudio) return convert('Switching audio tracks needs a conversion');
     const cap = AUDIO_OK[track.codec];
     if (!cap || !caps[cap]) return convert(`The browser can’t play ${track.codec.toUpperCase()} audio`);
   }

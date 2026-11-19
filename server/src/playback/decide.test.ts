@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { copyArgs, decidePlayback, hlsArgs, hlsPlaylist, segmentCount, SEGMENT_SECONDS, segmentStarts, type ClientCaps, type PlayChoice } from './decide.js';
 import { parseProbe, type MediaProbe } from './probe.js';
 
-const chrome: ClientCaps = { mp4: true, webm: true, h264: true, hevc: false, av1: true, vp9: true, aac: true, mp3: true, opus: true, flac: true, ac3: false, eac3: false };
+const chrome: ClientCaps = { mp4: true, webm: true, h264: true, hevc: false, av1: true, vp9: true, aac: true, mp3: true, opus: true, flac: true, ac3: false, eac3: false, mkv: false, dts: false, switchesAudio: false, forceConvert: false };
 const MBPS = 1_000_000;
 
 function probe(over: Partial<MediaProbe> = {}): MediaProbe {
@@ -188,5 +188,39 @@ describe('reading ffprobe output', () => {
       [1, false, false],
     ]);
     expect(p.fonts).toEqual([{ index: 5, filename: 'Gandhi Sans.ttf' }]);
+  });
+});
+
+describe('TV capabilities', () => {
+  const hevcProbe = (audioCodec = 'aac') =>
+    probe({
+      video: { index: 0, codec: 'hevc', profile: 'Main', pixFmt: 'yuv420p', bitDepth: 8, width: 1920, height: 1080 },
+      audio: [
+        { index: 1, order: 0, codec: audioCodec, channels: 2, language: 'jpn', title: null, isDefault: true },
+        { index: 2, order: 1, codec: audioCodec, channels: 2, language: 'eng', title: null, isDefault: false },
+      ],
+    });
+  const tv: ClientCaps = { ...chrome, mkv: true, hevc: true };
+
+  it('plays MKV directly only when the TV can', () => {
+    expect(decidePlayback(hevcProbe(), '.mkv', tv, auto, false, 8 * MBPS).mode).toBe('direct');
+    expect(decidePlayback(hevcProbe(), '.mkv', { ...tv, mkv: false }, auto, false, 8 * MBPS).mode).toBe('transcode');
+  });
+
+  it('plays DTS audio only when the TV can', () => {
+    expect(decidePlayback(hevcProbe('dts'), '.mkv', { ...tv, dts: true }, auto, false, 8 * MBPS).mode).toBe('direct');
+    expect(decidePlayback(hevcProbe('dts'), '.mkv', tv, auto, false, 8 * MBPS)).toMatchObject({ mode: 'transcode', reason: expect.stringMatching(/DTS/) });
+  });
+
+  it('switches audio tracks directly when the TV can', () => {
+    expect(decidePlayback(hevcProbe(), '.mkv', { ...tv, switchesAudio: true }, { ...auto, audio: 1 }, false, 8 * MBPS)).toMatchObject({ mode: 'direct', audio: 1 });
+    expect(decidePlayback(hevcProbe(), '.mkv', tv, { ...auto, audio: 1 }, false, 8 * MBPS)).toMatchObject({ mode: 'transcode', reason: 'Switching audio tracks needs a conversion' });
+  });
+
+  it('converts everything when the TV asked for it', () => {
+    expect(decidePlayback(hevcProbe(), '.mkv', { ...tv, forceConvert: true }, auto, false, 8 * MBPS)).toMatchObject({
+      mode: 'transcode',
+      reason: 'The TV couldn’t play the original file',
+    });
   });
 });

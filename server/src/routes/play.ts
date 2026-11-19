@@ -110,7 +110,7 @@ function sendRange(req: FastifyRequest, reply: FastifyReply, file: string, onDon
   return reply.send(countedStream(file, onDone, { start: startByte, end: endByte }));
 }
 
-const CAP_KEYS: (keyof ClientCaps)[] = ['mp4', 'webm', 'h264', 'hevc', 'av1', 'vp9', 'aac', 'mp3', 'opus', 'flac', 'ac3', 'eac3'];
+const CAP_KEYS: (keyof ClientCaps)[] = ['mp4', 'webm', 'h264', 'hevc', 'av1', 'vp9', 'aac', 'mp3', 'opus', 'flac', 'ac3', 'eac3', 'mkv', 'dts', 'switchesAudio', 'forceConvert'];
 const parseCaps = (raw: unknown): ClientCaps =>
   Object.fromEntries(CAP_KEYS.map((k) => [k, !!(raw as Record<string, unknown> | undefined)?.[k]])) as unknown as ClientCaps;
 
@@ -317,12 +317,12 @@ export async function playRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
-  app.get<{ Params: { kind: string; id: string; track: string } }>('/api/play/:kind/:id/subtitle/:track', async (req, reply) => {
+  app.get<{ Params: { kind: string; id: string; track: string }; Querystring: { format?: string } }>('/api/play/:kind/:id/subtitle/:track', async (req, reply) => {
     const p = playable(req.params.kind, req.params.id);
     const probe = await probeFile(p.file);
     const track = probe.subtitles.find((s) => s.order === Number(req.params.track));
     if (!track || !track.text) return reply.code(404).send({ error: 'No such subtitle track' });
-    const file = await extractSubtitle(p.file, track);
+    const file = await extractSubtitle(p.file, track, req.query.format === 'srt' ? 'srt' : 'ass');
     reply.header('Content-Type', 'text/plain; charset=utf-8');
     return reply.send(fs.createReadStream(file));
   });

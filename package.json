@@ -8,7 +8,8 @@
   },
   "workspaces": [
     "server",
-    "web"
+    "web",
+    "tv"
   ],
   "scripts": {
     "dev": "concurrently -k -n server,web -c blue,magenta \"npm run dev -w server\" \"npm run dev -w web\"",
@@ -16,7 +17,7 @@
     "start": "node scripts/start.mjs",
     "console": "node server/dist/index.js",
     "tray": "wscript tray/Mediarr.vbs",
-    "test": "npm test -w server && npm test -w web",
+    "test": "npm test -w server && npm test -w web && npm test -w tv",
     "reset-password": "node server/dist/resetPassword.js",
     "release": "node scripts/release.mjs"
   },

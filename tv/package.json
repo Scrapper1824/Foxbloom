@@ -1,0 +1,23 @@
+{
+  "name": "foxbloom-tv",
+  "version": "0.8.5",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "test": "vitest run",
+    "build": "tsc --noEmit && vite build"
+  },
+  "dependencies": {
+    "preact": "^10.26.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-legacy": "^6.0.0",
+    "acorn": "^8.14.0",
+    "jsdom": "^26.0.0",
+    "terser": "^5.37.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0",
+    "vitest": "^5.1.0"
+  }
+}

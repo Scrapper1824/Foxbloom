@@ -1,0 +1,21 @@
+:root {
+  --bg: #1d2440;
+  --bg-2: #262f52;
+  --text: #eef0f7;
+  --muted: #aab2cc;
+  --accent: #f2a7c3;
+  --accent-ink: #3a1428;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); color: var(--text); font-family: 'Segoe UI', Arial, sans-serif; font-size: 28px; }
+/* Designed at 1920x1080; nothing important in the outer 5% of the screen. */
+.screen-root { width: 1920px; height: 1080px; padding: 54px 96px; overflow: hidden; }
+h1 { font-size: 64px; margin: 24px 0; }
+h2 { font-size: 48px; margin: 0 0 16px; }
+p { color: var(--muted); font-size: 28px; }
+.home, .dialog { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
+.btn { font: inherit; font-size: 30px; padding: 16px 40px; border: 4px solid transparent; border-radius: 14px; background: var(--bg-2); color: var(--text); }
+[data-focusable] { outline: none; }
+/* The rose focus ring. */
+.focused { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(242, 167, 195, 0.4); }
+.btn.focused { background: var(--accent); color: var(--accent-ink); }

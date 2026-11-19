@@ -65,7 +65,7 @@ if (import.meta.url === `file:///${process.argv[1]?.replace(/\\/g, '/').replace(
   run('npm', ['run', 'build']);
   run('npm', ['test']);
   run('npm', ['version', version, '--no-git-tag-version', '--workspaces', '--include-workspace-root']);
-  run('git', ['add', 'package.json', 'package-lock.json', 'server/package.json', 'web/package.json']);
+  run('git', ['add', 'package.json', 'package-lock.json', 'server/package.json', 'web/package.json', 'tv/package.json']);
   run('git', ['commit', '-m', `Release ${tag}`]);
   run('git', ['tag', '-a', tag, '-m', `Foxbloom ${tag}`]);
   run('git', ['push', 'origin', 'main', tag]);

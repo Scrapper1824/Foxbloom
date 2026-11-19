@@ -1,0 +1,50 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+import { focusFirst, moveFocus } from './focus';
+
+/** A 3x3 grid of 100px boxes with 20px gaps; box ids are "r-c". */
+function grid(): HTMLElement {
+  const root = document.createElement('div');
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 3; c++) {
+      const el = document.createElement('div');
+      el.id = 'b' + r + c;
+      el.setAttribute('data-focusable', '');
+      const left = c * 120;
+      const top = r * 120;
+      el.getBoundingClientRect = () => ({ left, top, right: left + 100, bottom: top + 100, width: 100, height: 100, x: left, y: top, toJSON() {} }) as DOMRect;
+      el.scrollIntoView = () => {};
+      root.appendChild(el);
+    }
+  }
+  document.body.innerHTML = '';
+  document.body.appendChild(root);
+  return root;
+}
+
+describe('focus', () => {
+  let root: HTMLElement;
+  beforeEach(() => {
+    root = grid();
+  });
+
+  it('focusFirst focuses the first focusable and marks it', () => {
+    expect(focusFirst(root)!.id).toBe('b00');
+    expect(root.querySelectorAll('.focused').length).toBe(1);
+  });
+
+  it('moves right and down to the nearest neighbour', () => {
+    focusFirst(root);
+    expect(moveFocus('right', root)!.id).toBe('b01');
+    expect(moveFocus('down', root)!.id).toBe('b11');
+    expect(root.querySelectorAll('.focused').length).toBe(1);
+    expect(root.querySelector('#b11')!.classList.contains('focused')).toBe(true);
+  });
+
+  it('returns null from the last column going right and keeps the focus', () => {
+    focusFirst(root);
+    moveFocus('right', root);
+    moveFocus('right', root);
+    expect(moveFocus('right', root)).toBeNull();
+    expect(root.querySelector('.focused')!.id).toBe('b02');
+  });
+});

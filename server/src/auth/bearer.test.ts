@@ -63,6 +63,13 @@ describe('bearer sessions', () => {
     expect(res.json().error).toBe('Cross-site request blocked');
   });
 
+  it('a valid cookie wins over a valid bearer: a foreign-origin POST is still blocked', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/auth/logout', headers: { cookie, ...bearer(), ...CSRF, origin: 'file://' } });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error).toBe('Cross-site request blocked');
+    expect(userForSession(token)).not.toBeNull();
+  });
+
   it('answers a preflight', async () => {
     const res = await app.inject({
       method: 'OPTIONS',

@@ -78,7 +78,7 @@ const nextEpisode = (p: Playable) => episodeAround(p, 1);
 const episodeLink = (e: EpisodeRow | null) =>
   e ? { kind: 'episode' as const, id: e.id, label: `S${String(e.season).padStart(2, '0')}E${String(e.episode).padStart(2, '0')}${e.title ? ` · ${e.title}` : ''}` } : null;
 
-const CONTENT_TYPES: Record<string, string> = { '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.webm': 'video/webm' };
+const CONTENT_TYPES: Record<string, string> = { '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.webm': 'video/webm', '.mkv': 'video/x-matroska' };
 
 /**
  * A file stream that reports how many bytes it read once it's done (finished, or cut short by the viewer),

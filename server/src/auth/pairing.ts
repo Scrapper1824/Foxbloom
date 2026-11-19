@@ -126,3 +126,17 @@ export function resetPairing() {
   starts.clear();
   wrong.clear();
 }
+
+/** Forget IPs whose start times and wrong guesses are all outside their windows and whose lock has passed. */
+export function prunePairingLimits(nowMs = Date.now()) {
+  for (const [ip, times] of starts) if (times.every((t) => nowMs - t >= PAIR_TTL_MS)) starts.delete(ip);
+  for (const [ip, w] of wrong) if (w.lockedUntil <= nowMs && w.times.every((t) => nowMs - t >= LINK_LOCK_MS)) wrong.delete(ip);
+}
+
+/** For tests. */
+export function pairingLimitSizes() {
+  return { starts: starts.size, wrong: wrong.size };
+}
+
+// POST /api/tv/pair is public, so keep the per-IP maps from growing without bound.
+setInterval(() => prunePairingLimits(), 10 * 60_000).unref();

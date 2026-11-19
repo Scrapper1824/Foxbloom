@@ -67,6 +67,14 @@ describe('watching', () => {
     expect((await call(viewer, 'GET', `/api/play/direct/movie/${id}`, undefined, { range: 'bytes=40-50' })).statusCode).toBe(416);
   });
 
+  it('serves an .mkv file as video/x-matroska', async () => {
+    const { viewer } = await users();
+    const id = addMovie(path.join(lib, 'Dune (2021)', 'Dune (2021) [1080p].mkv'));
+    const res = await call(viewer, 'GET', `/api/play/direct/movie/${id}`, undefined, { range: 'bytes=0-3' });
+    expect(res.statusCode).toBe(206);
+    expect(res.headers['content-type']).toBe('video/x-matroska');
+  });
+
   it('only plays files inside the title’s own library folder', async () => {
     const { viewer } = await users();
     const id = addMovie(path.join(dataDir, 'elsewhere', 'secret.mp4'));

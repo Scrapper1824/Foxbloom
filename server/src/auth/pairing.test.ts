@@ -6,7 +6,7 @@ import QRCode from 'qrcode';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../app.js';
 import { db, initDb } from '../db.js';
-import { resetPairing } from './pairing.js';
+import { pairingLimitSizes, pairStartLimited, prunePairingLimits, recordWrongCode, resetPairing } from './pairing.js';
 import { resetRateLimits } from './rateLimit.js';
 import { prepareSetupCode } from './routes.js';
 
@@ -175,11 +175,48 @@ describe('TV pairing', () => {
     spy.mockRestore();
   });
 
+  it('strips control, format and bidi characters from the TV name', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/tv/pair',
+      headers: CSRF,
+      payload: { deviceName: 'Living‮ room ​', baseUrl: 'http://foxbloom.local:3000' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect((await link(res.json().code)).json().deviceName).toBe('Living room');
+    const blank = await app.inject({ method: 'POST', url: '/api/tv/pair', headers: CSRF, payload: { deviceName: '‮', baseUrl: 'http://foxbloom.local:3000' } });
+    expect(blank.statusCode).toBe(400);
+  });
+
   it('rejects a bad server address or name', async () => {
     const bad = (payload: object) => app.inject({ method: 'POST', url: '/api/tv/pair', headers: CSRF, payload });
     expect((await bad({ deviceName: 'TV', baseUrl: 'ftp://x' })).statusCode).toBe(400);
     expect((await bad({ deviceName: 'TV', baseUrl: 'http://' + 'a'.repeat(200) })).statusCode).toBe(400);
     expect((await bad({ deviceName: 'x'.repeat(41), baseUrl: 'http://x' })).statusCode).toBe(400);
     expect((await bad({ deviceName: '', baseUrl: 'http://x' })).statusCode).toBe(400);
+  });
+});
+
+describe('pairing limit pruning', () => {
+  it('drops IPs whose times are all outside the window and whose lock has passed', () => {
+    const t0 = 1_000_000_000;
+    pairStartLimited('1.1.1.1', t0);
+    pairStartLimited('2.2.2.2', t0 + 9 * 60_000);
+    recordWrongCode('3.3.3.3', t0);
+    for (let i = 0; i < 10; i++) recordWrongCode('4.4.4.4', t0 + 14 * 60_000); // locked until t0 + 29 min
+    expect(pairingLimitSizes()).toEqual({ starts: 2, wrong: 2 });
+
+    prunePairingLimits(t0 + 16 * 60_000);
+    expect(pairingLimitSizes()).toEqual({ starts: 1, wrong: 1 }); // 2.2.2.2 still recent; 4.4.4.4 still locked
+
+    prunePairingLimits(t0 + 30 * 60_000);
+    expect(pairingLimitSizes()).toEqual({ starts: 0, wrong: 0 });
+  });
+
+  it('resetPairing still clears everything', () => {
+    pairStartLimited('1.1.1.1');
+    recordWrongCode('1.1.1.1');
+    resetPairing();
+    expect(pairingLimitSizes()).toEqual({ starts: 0, wrong: 0 });
   });
 });

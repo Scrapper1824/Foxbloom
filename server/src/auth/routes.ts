@@ -155,7 +155,8 @@ export async function authRoutes(app: FastifyInstance, opts: { dataDir: string }
   });
 
   app.post<{ Body: { deviceName?: string; baseUrl?: string } }>('/api/tv/pair', async (req, reply) => {
-    const deviceName = String(req.body?.deviceName ?? '').trim();
+    // No control, format or bidi characters: the name ends up in session lists and on the link page.
+    const deviceName = String(req.body?.deviceName ?? '').replace(/\p{C}/gu, '').trim();
     const baseUrl = String(req.body?.baseUrl ?? '').trim().replace(/\/+$/, '');
     if (!deviceName || deviceName.length > 40) return reply.code(400).send({ error: 'Give the TV a name of up to 40 characters.' });
     if (baseUrl.length > 200 || !/^https?:\/\/[^\s]+$/i.test(baseUrl)) return reply.code(400).send({ error: 'That server address isn’t valid.' });

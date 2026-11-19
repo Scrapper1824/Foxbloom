@@ -192,5 +192,15 @@ static partial class Tests
             sw.Stop();
             True(sw.Elapsed < TimeSpan.FromSeconds(6), "took " + sw.Elapsed.TotalSeconds + " s");
         });
+
+        Test("the process runner keeps the last line sdb prints right before exiting", delegate
+        {
+            var runner = new SdbProcessRunner(Path.Combine(Environment.SystemDirectory, "cmd.exe"), TimeSpan.FromSeconds(30));
+            for (int i = 0; i < 50; i++)
+            {
+                var r = runner.Run(new[] { "/c", "echo first& echo LAST" + i });
+                True(r.Output.Contains("first") && r.Output.Contains("LAST" + i), "run " + i + " lost output: [" + r.Output + "]");
+            }
+        });
     }
 }

@@ -54,8 +54,10 @@ public sealed class SdbProcessRunner : ISdbRunner
         var text = new StringBuilder();
         using (var p = new Process { StartInfo = psi })
         {
-            DataReceivedEventHandler add = (s, e) => { if (e.Data != null) lock (text) text.AppendLine(e.Data); };
-            p.OutputDataReceived += add; p.ErrorDataReceived += add;
+            var outDone = new System.Threading.ManualResetEvent(false);
+            var errDone = new System.Threading.ManualResetEvent(false);
+            p.OutputDataReceived += (s, e) => { if (e.Data != null) lock (text) text.AppendLine(e.Data); else outDone.Set(); };
+            p.ErrorDataReceived += (s, e) => { if (e.Data != null) lock (text) text.AppendLine(e.Data); else errDone.Set(); };
             try { p.Start(); }
             catch (Exception e) { throw new TvInstallException("The TV tool (sdb.exe) couldn't start: " + e.Message, e); }
             p.BeginOutputReadLine(); p.BeginErrorReadLine();
@@ -64,7 +66,9 @@ public sealed class SdbProcessRunner : ISdbRunner
                 try { p.Kill(); } catch { }
                 throw new TvInstallException("The TV didn't answer in time. Check that it is switched on, then try again.");
             }
-            p.WaitForExit((int)drain.TotalMilliseconds);   // lets the output readers finish, but never waits on a server that holds the pipes
+            // Wait for both streams to reach end-of-stream so the last lines are kept, but never longer than `drain`:
+            // sdb's background server can hold the pipes open forever.
+            System.Threading.WaitHandle.WaitAll(new System.Threading.WaitHandle[] { outDone, errDone }, (int)drain.TotalMilliseconds);
             lock (text) return new SdbResult(p.ExitCode, text.ToString());
         }
     }

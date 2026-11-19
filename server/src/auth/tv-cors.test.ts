@@ -78,3 +78,35 @@ describe('TV calls without a cookie (file:// origin)', () => {
     noCredentials(res);
   });
 });
+
+describe('login token for the TV', () => {
+  it('returns a usable token with x-foxbloom-client: tv', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      headers: { ...FILE, 'x-foxbloom-client': 'tv' },
+      payload: { username: 'owner', password: PASSWORD },
+    });
+    expect(res.statusCode).toBe(200);
+    const token = res.json().token as string;
+    expect(token).toMatch(/^[\w-]{20,100}$/);
+    expect(res.headers['set-cookie']).toBeDefined();
+    const status = await app.inject({ method: 'GET', url: '/api/auth/status', headers: { authorization: `Bearer ${token}` } });
+    expect(status.json().authenticated).toBe(true);
+  });
+
+  it('returns no token without the header', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/auth/login', headers: CSRF, payload: { username: 'owner', password: PASSWORD } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: true });
+  });
+
+  it('preflight allows the x-foxbloom-client header', async () => {
+    const res = await app.inject({
+      method: 'OPTIONS',
+      url: '/api/auth/login',
+      headers: { origin: 'file://', 'access-control-request-method': 'POST' },
+    });
+    expect(String(res.headers['access-control-allow-headers'])).toContain('x-foxbloom-client');
+  });
+});

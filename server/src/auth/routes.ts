@@ -62,6 +62,7 @@ function publicUser(u: UserRow) {
 function signIn(req: FastifyRequest, reply: FastifyReply, user: UserRow) {
   const token = createSession(user.id, req.ip, req.headers['user-agent']);
   setSessionCookie(req, reply, token);
+  return token;
 }
 
 const tooMany = (reply: FastifyReply, seconds: number) =>
@@ -148,8 +149,9 @@ export async function authRoutes(app: FastifyInstance, opts: { dataDir: string }
     }
 
     recordSuccess(req.ip, username);
-    signIn(req, reply, user);
-    return { ok: true };
+    const token = signIn(req, reply, user);
+    // The TV can't read the HttpOnly cookie, so it asks for the session token in the body.
+    return req.headers['x-foxbloom-client'] === 'tv' ? { ok: true, token } : { ok: true };
   });
 
   app.post<{ Body: { deviceName?: string; baseUrl?: string } }>('/api/tv/pair', async (req, reply) => {

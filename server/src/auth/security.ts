@@ -284,7 +284,7 @@ export function registerSecurity(app: FastifyInstance) {
         .code(204)
         .header('Access-Control-Allow-Origin', String(req.headers.origin))
         .header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE')
-        .header('Access-Control-Allow-Headers', 'authorization, content-type, x-requested-with')
+        .header('Access-Control-Allow-Headers', 'authorization, content-type, x-requested-with, x-foxbloom-client')
         .header('Access-Control-Max-Age', '600')
         .header('Vary', 'Origin')
         .send();

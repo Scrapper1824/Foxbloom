@@ -1,7 +1,8 @@
 import { createContext } from 'preact';
 import type { ComponentChild } from 'preact';
 import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { focusFirst, moveFocus } from './focus';
+import { focusElement, focusFirst, moveFocus } from './focus';
+import { peekPendingFocus, setPendingFocus, takePendingFocus } from './restore';
 import { keyFromEvent } from './remote';
 
 declare const tizen: any;
@@ -15,9 +16,11 @@ export interface Nav {
   push(screen: Screen): void;
   pop(): void;
   replace(screen: Screen): void;
+  /** Throws away the whole stack and starts again with these screens. */
+  reset(screens: Screen[]): void;
 }
 
-const NavContext = createContext<Nav>({ push: () => {}, pop: () => {}, replace: () => {} });
+const NavContext = createContext<Nav>({ push: () => {}, pop: () => {}, replace: () => {}, reset: () => {} });
 /** Lets a screen open, close or swap screens. */
 export const useNav = () => useContext(NavContext);
 
@@ -33,11 +36,34 @@ export function App({ initial }: { initial: Screen }) {
   const state = useRef({ stack, confirmExit });
   state.current = { stack, confirmExit };
 
+  // The data-key of the focused tile of each covered screen, by stack position (so Back can put the focus ring back).
+  const saved = useRef<Array<string | null>>([]);
+
   const nav = useMemo<Nav>(
     () => ({
-      push: (s) => setStack((st) => st.concat([s])),
-      pop: () => setStack((st) => (st.length > 1 ? st.slice(0, -1) : st)),
-      replace: (s) => setStack((st) => st.slice(0, -1).concat([s])),
+      push: (s) => {
+        const f = rootRef.current && rootRef.current.querySelector('.focused');
+        saved.current[state.current.stack.length - 1] = f ? f.getAttribute('data-key') : null;
+        setPendingFocus(null);
+        setStack((st) => st.concat([s]));
+      },
+      pop: () => {
+        const n = state.current.stack.length;
+        if (n > 1) {
+          setPendingFocus(saved.current[n - 2] || null);
+          saved.current.length = n - 2;
+        }
+        setStack((st) => (st.length > 1 ? st.slice(0, -1) : st));
+      },
+      replace: (s) => {
+        setPendingFocus(null);
+        setStack((st) => st.slice(0, -1).concat([s]));
+      },
+      reset: (screens) => {
+        saved.current = [];
+        setPendingFocus(null);
+        setStack(screens);
+      },
     }),
     [],
   );
@@ -45,7 +71,15 @@ export function App({ initial }: { initial: Screen }) {
   // Each new top screen (or the exit prompt) starts with its first focusable focused.
   const top = stack[stack.length - 1];
   useLayoutEffect(() => {
-    if (rootRef.current) focusFirst(rootRef.current);
+    const root = rootRef.current;
+    if (!root) return;
+    // Back to a screen that is already complete: the tile that had the focus. Screens that load first take it themselves.
+    const key = peekPendingFocus();
+    const el = key ? root.querySelector<HTMLElement>('[data-key="' + key + '"]') : null;
+    if (el) {
+      takePendingFocus();
+      focusElement(el, root);
+    } else focusFirst(root);
   }, [top, confirmExit]);
 
   useEffect(() => {
@@ -60,6 +94,7 @@ export function App({ initial }: { initial: Screen }) {
       const root = rootRef.current;
       if (!k || !root) return;
       const { stack: st, confirmExit: asking } = state.current;
+      if (k.key !== 'back' && k.key !== 'ok') setPendingFocus(null);
       if (k.key === 'back') {
         e.preventDefault();
         if (asking) setConfirmExit(false);
@@ -72,6 +107,10 @@ export function App({ initial }: { initial: Screen }) {
           const f = root.querySelector<HTMLElement>('.focused');
           if (f) f.click();
         }
+      } else if (k.key === 'play' || k.key === 'playpause') {
+        // Tiles that can play handle this themselves.
+        const f = root.querySelector('.focused');
+        if (f && !asking) f.dispatchEvent(new Event('FoxPlay'));
       } else if (k.key === 'up' || k.key === 'down' || k.key === 'left' || k.key === 'right') {
         e.preventDefault();
         if (!asking) moveFocus(k.key, root);

@@ -4,7 +4,7 @@ import { defaultFetch, trimSlash, withTimeout, type FetchFn } from '../connectio
 import { Field, Keyboard } from '../keyboard';
 import { Logo } from '../logo';
 import { loadState, saveState } from '../profiles';
-import { Profiles } from './Profiles';
+import { profilesScreen } from './Profiles';
 import { useFocusFirst } from './useFocus';
 
 /** Adds http:// when the address has no scheme, and drops trailing slashes. */
@@ -15,10 +15,10 @@ export function normalizeAddress(raw: string): string {
 }
 
 /** First run: type the Foxbloom address; it is checked and kept as the public address. */
-export function Connect({ fetchFn }: { fetchFn?: FetchFn }) {
+export function Connect({ fetchFn, initial }: { fetchFn?: FetchFn; initial?: string }) {
   const nav = useNav();
   const f = fetchFn || defaultFetch;
-  const [address, setAddress] = useState('');
+  const [address, setAddress] = useState(initial || '');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -49,7 +49,7 @@ export function Connect({ fetchFn }: { fetchFn?: FetchFn }) {
           if (st.setupRequired) return setError('That server has not been set up yet. Finish setup on the website first.');
           const s = loadState();
           saveState({ servers: { publicUrl: url, localUrls: Array.isArray(st.localUrls) ? st.localUrls : [] }, profiles: s.profiles });
-          nav.replace({ name: 'profiles', render: () => <Profiles /> });
+          nav.reset([profilesScreen(f)]);
         },
         () => {
           setBusy(false);

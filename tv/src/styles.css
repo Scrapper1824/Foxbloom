@@ -61,3 +61,72 @@ p { color: var(--muted); font-size: 28px; }
 .pin-message { min-height: 1.4em; }
 .pin-grid { display: grid; grid-template-columns: repeat(3, 150px); gap: 12px; }
 .pin-key { min-width: 0; height: 80px; font-size: 34px; }
+
+/* Task 9 screens: home, library, title, search */
+.browse { display: flex; flex-direction: column; height: 100%; }
+.topbar { flex: none; }
+.topbar-row { display: flex; align-items: center; gap: 16px; }
+.topbar-gap { flex: 1; }
+.nav-btn { font: inherit; font-size: 28px; padding: 10px 28px; color: var(--text); background: transparent; border: 4px solid transparent; border-radius: 12px; }
+.nav-btn.current { background: var(--bg-2); }
+.nav-btn.focused { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.where-label { color: var(--muted); font-size: 24px; }
+.update-notice { margin: 8px 0 0; color: var(--accent); font-size: 26px; }
+.browse-body { flex: 1; overflow: hidden; padding-top: 8px; }
+.loading { margin: 40px 0; }
+.load-error { display: flex; flex-direction: column; align-items: center; margin-top: 120px; }
+
+.hero { position: relative; height: 420px; margin-bottom: 8px; border-radius: 20px; overflow: hidden; background: var(--bg-2); }
+.hero-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.hero-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(29, 36, 64, 0.95) 0%, rgba(29, 36, 64, 0.75) 45%, rgba(29, 36, 64, 0.1) 100%); }
+.hero-text { position: relative; width: 980px; padding: 32px 48px; }
+.hero-text h1 { margin: 0 0 8px; font-size: 56px; }
+.hero-line { margin: 0 0 8px; color: var(--accent); }
+.hero-overview { margin: 0 0 20px; color: var(--text); max-height: 108px; overflow: hidden; line-height: 36px; }
+.hero-buttons { justify-content: flex-start; margin: 0; }
+
+.row-section { margin: 8px 0 4px; }
+.row-title { font-size: 34px; margin: 0 0 4px; }
+.poster-row { overflow: hidden; height: 420px; }
+.poster-row.wide { height: 330px; }
+.row-track, .grid-track { position: relative; }
+.row-track { height: 100%; }
+.tile { position: absolute; display: block; width: 200px; padding: 0; font: inherit; text-align: left; color: var(--text); background: transparent; border: 0; }
+.tile.wide { width: 360px; }
+.tile-art { position: relative; display: block; width: 200px; height: 300px; border-radius: 12px; overflow: hidden; background: var(--bg-2); border: 4px solid transparent; box-sizing: content-box; margin: -4px; }
+.tile.wide .tile-art { width: 360px; height: 203px; }
+.tile-art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tile-fallback { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 72px; color: var(--muted); }
+.tile.focused .tile-art { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(242, 167, 195, 0.4); }
+.tile.focused { border: 0; box-shadow: none; }
+.tile-title { display: block; margin-top: 14px; font-size: 26px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile-sub { display: block; font-size: 24px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 8px; background: rgba(0, 0, 0, 0.5); }
+.tile-progress span { display: block; height: 100%; background: var(--accent); }
+.poster-grid { overflow: hidden; }
+
+.title-page { height: 100%; overflow: hidden; }
+.title-head { display: flex; gap: 48px; margin-bottom: 24px; }
+.title-poster { width: 300px; height: 450px; object-fit: cover; border-radius: 16px; flex: none; }
+.title-info { flex: 1; }
+.title-info h1 { margin: 0 0 8px; font-size: 56px; }
+.title-meta { margin: 0 0 12px; }
+.title-overview { color: var(--text); max-height: 216px; overflow: hidden; line-height: 36px; margin: 0 0 24px; }
+.season-chips { display: flex; gap: 16px; margin: 8px 0 16px; }
+.season-chip { font: inherit; font-size: 28px; padding: 10px 28px; color: var(--text); background: var(--bg-2); border: 4px solid transparent; border-radius: 40px; }
+.season-chip.current { background: #3b4778; }
+.season-chip.focused { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.episode-list { display: flex; flex-direction: column; gap: 8px; }
+.episode { display: flex; align-items: center; gap: 24px; width: 100%; padding: 12px 24px; font: inherit; font-size: 28px; text-align: left; color: var(--text); background: var(--bg-2); border: 4px solid transparent; border-radius: 12px; }
+.episode.missing { opacity: 0.5; }
+.episode.focused { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(242, 167, 195, 0.4); }
+.ep-num { width: 56px; color: var(--muted); }
+.ep-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ep-status { color: var(--muted); font-size: 24px; }
+.episode.watched .ep-status { color: var(--accent); }
+
+.search-body { display: flex; gap: 24px; }
+.search-left { width: 1010px; flex: none; }
+.search-left .field { width: 100%; }
+.search-results { flex: 1; }
+.change-server { margin-top: 32px; }

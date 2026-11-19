@@ -5,6 +5,7 @@ import { App } from '../app';
 import { Profiles } from './Profiles';
 import { loadState, saveState, type Profile } from '../profiles';
 import { setPin } from '../pin';
+import { settle } from '../testing';
 import type { FetchFn } from '../connection';
 
 const p = (userId: number, extra: Partial<Profile> = {}): Profile => ({ userId, username: 'user' + userId, token: 'tok' + userId, pin: null, failedPins: 0, lockedUntil: 0, ...extra });
@@ -16,7 +17,7 @@ const fetchFn: FetchFn = (url, init) => {
   if (url.endsWith('/api/auth/logout')) return failLogout ? Promise.reject(new TypeError('offline')) : resp({ ok: true });
   return fetchBase(url);
 };
-const fetchBase: (url: string) => ReturnType<FetchFn> = (url) => (url.endsWith('/api/tv/pair') ? resp({ code: 'CODE-1', pairId: 'x', expiresIn: 600, qr: 'data:,' }) : resp({ status: 'waiting' }));
+const fetchBase: (url: string) => ReturnType<FetchFn> = (url) => url.endsWith('/api/auth/status') ? resp({ setupRequired: false, localUrls: [] }) : (url.endsWith('/api/tv/pair') ? resp({ code: 'CODE-1', pairId: 'x', expiresIn: 600, qr: 'data:,' }) : resp({ status: 'waiting' }));
 
 describe('Profiles', () => {
   let host: HTMLElement;
@@ -87,5 +88,22 @@ describe('Profiles', () => {
     await act(async () => (host.querySelector('.profile-more') as HTMLButtonElement).click());
     await act(async () => button('Remove').click());
     expect(loadState().profiles).toEqual([]);
+  });
+
+  it('Change server opens Connect with the current address, and a new address keeps the profiles', async () => {
+    await mount([p(1), p(2)]);
+    await act(async () => button('Change server').click());
+    const input = host.querySelector('.field-input') as HTMLInputElement;
+    expect(input.value).toBe('https://pub.test');
+    const key = (t: string) => (Array.prototype.slice.call(host.querySelectorAll('.key')) as HTMLButtonElement[]).filter((b) => b.textContent === t)[0];
+    for (let i = 0; i < 4; i++) act(() => key('Delete').click());
+    act(() => key('t').click());
+    act(() => key('v').click());
+    expect(input.value).toBe('https://pub.tv');
+    await act(async () => button('Connect').click());
+    await settle();
+    expect(host.textContent).toContain("Who's watching?");
+    expect(loadState().servers!.publicUrl).toBe('https://pub.tv');
+    expect(loadState().profiles.map((x) => x.userId)).toEqual([1, 2]);
   });
 });

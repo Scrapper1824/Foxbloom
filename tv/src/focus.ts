@@ -2,12 +2,15 @@ export type Dir = 'up' | 'down' | 'left' | 'right';
 
 const SELECTOR = '[data-focusable]';
 
-function setFocused(el: HTMLElement, root: HTMLElement) {
+/** Puts the focus ring on el. Tells listeners (the tile rows) with a bubbling 'foxfocus' event so they can slide their window. */
+export function focusElement(el: HTMLElement, root: HTMLElement) {
   const old = root.querySelectorAll('.focused');
   for (let i = 0; i < old.length; i++) old[i].classList.remove('focused');
   el.classList.add('focused');
   if (typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  el.dispatchEvent(new Event('foxfocus', { bubbles: true }));
 }
+const setFocused = focusElement;
 
 /** Focuses the first focusable element under root (in document order). */
 export function focusFirst(root: HTMLElement): HTMLElement | null {

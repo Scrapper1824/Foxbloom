@@ -1,19 +1,21 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { useNav } from '../app';
+import { useNav, type Screen } from '../app';
 import { Api } from '../api';
 import { defaultFetch, pickBase, trimSlash, type FetchFn } from '../connection';
-import { Home } from '../home';
 import { Logo } from '../logo';
 import { clearPin } from '../pin';
 import { loadState, removeProfile, upsertProfile, type Profile } from '../profiles';
 import { AddPerson } from './AddPerson';
+import { Connect } from './Connect';
+import { homeScreen } from './Home';
 import { SetPin, VerifyPin } from './PinPad';
 import { useFocusFirst } from './useFocus';
 
 const COLORS = ['#f2a7c3', '#8fd3c7', '#f4c97a', '#9db7f5', '#c6a3f0', '#f09a8a'];
 const colorFor = (id: number) => COLORS[Math.abs(id) % COLORS.length];
 
-const homeScreen = { name: 'home', render: () => <Home /> };
+/** Who's watching, as a screen (also where signed-out people are sent). */
+export const profilesScreen = (fetchFn?: FetchFn): Screen => ({ name: 'profiles', render: () => <Profiles fetchFn={fetchFn} /> });
 
 function LockIcon() {
   return (
@@ -48,8 +50,8 @@ export function Profiles({ fetchFn }: { fetchFn?: FetchFn }) {
 
   const open = (p: Profile) => {
     if (!p.token) addPerson('Sign in again, ' + p.username, p);
-    else if (p.pin) nav.push({ name: 'pin', render: () => <VerifyPin profile={p} onOk={() => nav.replace(homeScreen)} /> });
-    else nav.push(homeScreen);
+    else if (p.pin) nav.push({ name: 'pin', render: () => <VerifyPin profile={p} onOk={() => nav.replace(homeScreen(p, f))} /> });
+    else nav.push(homeScreen(p, f));
   };
 
   const options = (p: Profile) => nav.push({ name: 'profile-options', render: () => <ProfileOptions profile={p} base={base} fetchFn={f} /> });
@@ -83,6 +85,9 @@ export function Profiles({ fetchFn }: { fetchFn?: FetchFn }) {
           </button>
         </div>
       </div>
+      <button data-focusable class="btn change-server" onClick={() => nav.push({ name: 'connect', render: () => <Connect fetchFn={f} initial={publicUrl} /> })}>
+        Change server
+      </button>
       {where && <p class="where">{where.where === 'home' ? 'Home' : 'Away'}</p>}
     </div>
   );

@@ -4,7 +4,7 @@ import { Api, ApiError } from '../api';
 import { defaultFetch, trimSlash, type FetchFn } from '../connection';
 import { Field, Keyboard } from '../keyboard';
 import { loadState, saveState, upsertProfile, type Profile } from '../profiles';
-import { Home } from '../home';
+import { homeScreen } from './Home';
 import { SetPin } from './PinPad';
 import { useFocusFirst } from './useFocus';
 
@@ -46,9 +46,9 @@ export function AddPerson({ base, publicUrl, fetchFn, heading, existing, pollMs,
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useFocusFirst(rootRef, phase);
 
-  const finish = () => {
+  const finish = (p: Profile) => {
     if (onFinished) onFinished();
-    else nav.replace({ name: 'home', render: () => <Home /> });
+    else nav.replace(homeScreen(p, f));
   };
 
   /** Stores the new sign-in (and the server's home addresses) and moves on to the PIN offer. */
@@ -66,7 +66,7 @@ export function AddPerson({ base, publicUrl, fetchFn, heading, existing, pollMs,
       const next: Profile = { userId: user.id, username: user.username, token: token, pin: old ? old.pin : null, failedPins: 0, lockedUntil: 0 };
       upsertProfile(next);
       setProfile(next);
-      if (next.pin) finish();
+      if (next.pin) finish(next);
       else setPhase('pinOffer');
     });
   };
@@ -126,7 +126,7 @@ export function AddPerson({ base, publicUrl, fetchFn, heading, existing, pollMs,
   if (phase === 'pinSet' && profile) {
     return (
       <div ref={rootRef} class="addperson">
-        <SetPin profile={profile} onSet={() => finish()} />
+        <SetPin profile={profile} onSet={() => finish(profile)} />
       </div>
     );
   }
@@ -137,7 +137,7 @@ export function AddPerson({ base, publicUrl, fetchFn, heading, existing, pollMs,
         <h1>Add a PIN to your profile?</h1>
         <p>A PIN keeps others on this TV from opening it as you.</p>
         <div class="row">
-          <button data-focusable class="btn" onClick={finish}>
+          <button data-focusable class="btn" onClick={() => finish(profile!)}>
             Skip
           </button>
           <button data-focusable class="btn" onClick={() => setPhase('pinSet')}>

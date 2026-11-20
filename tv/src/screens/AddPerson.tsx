@@ -16,8 +16,8 @@ export function deviceName(): string {
   let model = '';
   try {
     const android = androidBridge();
-    if (android) model = String(android.model() || '').trim();
-    else if (typeof webapis !== 'undefined' && webapis && webapis.productinfo) model = String(webapis.productinfo.getModel() || '').trim();
+    if (android) return (String(android.model() || '').trim() || 'Android TV').slice(0, 40);
+    if (typeof webapis !== 'undefined' && webapis && webapis.productinfo) model = String(webapis.productinfo.getModel() || '').trim();
   } catch (e) {
     model = '';
   }

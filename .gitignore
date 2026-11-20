@@ -29,3 +29,10 @@ Thumbs.db
 # TV installer: sdb.exe and Samsung CA certificates are supplied by hand (see installer/tv/vendor/README.md)
 installer/tv/vendor/*
 !installer/tv/vendor/README.md
+
+# Android app: Gradle output, the local SDK path, and the TV web app copied in at build time
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/app/src/main/assets/web/

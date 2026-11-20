@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Full screen, no action bar, and the TV app's background colour (var bg in tv/src/styles.css) while the page loads. -->
+    <style name="Theme.Foxbloom" parent="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">@color/background</item>
+    </style>
+    <color name="background">#1d2440</color>
+</resources>

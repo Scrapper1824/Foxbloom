@@ -4,6 +4,7 @@ import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } fro
 import { focusElement, focusFirst, moveFocus } from './focus';
 import { holdingMenuFocus, peekPendingFocus, setPendingFocus, takePendingFocus } from './restore';
 import { keyFromEvent } from './remote';
+import { androidBridge } from './platform';
 
 declare const tizen: any;
 
@@ -25,6 +26,8 @@ const NavContext = createContext<Nav>({ push: () => {}, pop: () => {}, replace: 
 export const useNav = () => useContext(NavContext);
 
 function exitApp() {
+  const android = androidBridge();
+  if (android) return android.exit();
   if (typeof tizen !== 'undefined' && tizen && tizen.application) tizen.application.getCurrentApplication().exit();
 }
 

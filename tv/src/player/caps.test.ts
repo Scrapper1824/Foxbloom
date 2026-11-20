@@ -33,3 +33,18 @@ describe('detectCaps', () => {
     expect(c.av1).toBe(false);
   });
 });
+
+describe('detectCaps on the Android app', () => {
+  const reported = { mp4: true, mkv: true, h264: true, hevc: true, av1: false, vp9: true, aac: true, mp3: true, opus: true, flac: true, ac3: false, eac3: true, dts: false, webm: true };
+
+  it('uses what the Android app reports, always switching audio itself and never forcing conversion', () => {
+    const c = detectCaps({ FoxbloomAndroid: { caps: () => JSON.stringify(reported) } } as never);
+    expect(c).toEqual({ ...reported, switchesAudio: true, forceConvert: false });
+  });
+
+  it('falls back to the plain browser result when caps() throws or is not JSON', () => {
+    const plain = detectCaps({} as never);
+    expect(detectCaps({ FoxbloomAndroid: { caps: () => { throw new Error('x'); } } } as never)).toEqual(plain);
+    expect(detectCaps({ FoxbloomAndroid: { caps: () => 'not json' } } as never)).toEqual(plain);
+  });
+});

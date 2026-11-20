@@ -36,3 +36,6 @@ android/build/
 android/app/build/
 android/local.properties
 android/app/src/main/assets/web/
+
+# Built Android TV APK (embedded by the TV installer)
+installer/tv/build/

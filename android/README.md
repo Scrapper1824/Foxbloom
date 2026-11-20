@@ -17,6 +17,17 @@ Needs the Android SDK (`platforms;android-35`, `build-tools;37.0.0`) and JDK 21.
 The version comes from `tv/package.json`: `versionName` is its version, `versionCode` = major·10000 + minor·100 + patch
 (0.9.7 → 907).
 
+## Release APK (signed)
+
+Updates only install over an app signed with the same key, so there is one release key, kept outside the repo in
+`%APPDATA%\Foxbloom\android` (override with `FOXBLOOM_ANDROID_KEY_DIR`): `foxbloom.jks` plus `key.properties`.
+
+1. `npm run android:key` — once. Creates the key; refuses if one exists. **Back up that folder and never replace it.**
+2. `npm run android:apk` — builds `tv`, runs `assembleRelease`, checks the APK's versionCode against `tv/package.json`
+   and copies it to `installer/tv/build/Foxbloom.apk` (git-ignored; the TV installer embeds it).
+
+Verify a build: `apksigner verify --print-certs installer/tv/build/Foxbloom.apk`.
+
 ## Try it on the emulator
 
 ```

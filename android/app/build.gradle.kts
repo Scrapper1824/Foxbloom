@@ -1,4 +1,5 @@
 import groovy.json.JsonSlurper
+import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -7,6 +8,11 @@ plugins {
 // The app's version is the TV web app's version (tv/package.json); versionCode = major*10000 + minor*100 + patch (0.9.7 -> 907).
 val tvVersion = (JsonSlurper().parse(rootProject.file("../tv/package.json")) as Map<*, *>)["version"] as String
 val (vMajor, vMinor, vPatch) = tvVersion.split("-")[0].split(".").map { it.toInt() }
+
+// Release signing: key.properties (storeFile, storePassword, keyAlias, keyPassword) in the key folder, which lives
+// outside the repo (created once by `npm run android:key`).
+val keyDir = File(System.getenv("FOXBLOOM_ANDROID_KEY_DIR") ?: "${System.getenv("APPDATA")}/Foxbloom/android")
+val keyProps = File(keyDir, "key.properties")
 
 android {
     namespace = "org.foxbloom.tv"
@@ -19,6 +25,24 @@ android {
         targetSdk = 35
         versionName = tvVersion
         versionCode = vMajor * 10000 + vMinor * 100 + vPatch
+    }
+
+    signingConfigs {
+        create("release") {
+            if (keyProps.isFile) {
+                val p = Properties().apply { keyProps.inputStream().use { load(it) } }
+                storeFile = file(p.getProperty("storeFile"))
+                storePassword = p.getProperty("storePassword")
+                keyAlias = p.getProperty("keyAlias")
+                keyPassword = p.getProperty("keyPassword")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.getByName("release")
+        }
     }
 
     compileOptions {
@@ -63,3 +87,12 @@ val copyWeb = tasks.register<CopyWebTask>("copyWeb") {
     target.set(layout.projectDirectory.dir("src/main/assets/web"))
 }
 tasks.named("preBuild") { dependsOn(copyWeb) }
+
+// A release APK must be signed with the Foxbloom key; fail clearly rather than produce an unsigned one.
+tasks.configureEach {
+    if (name == "assembleRelease" || name == "packageRelease") {
+        doFirst {
+            if (!keyProps.isFile) throw GradleException("No Android signing key: run npm run android:key once (and back up %APPDATA%/Foxbloom/android)")
+        }
+    }
+}

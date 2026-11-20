@@ -31,7 +31,7 @@ export function Search({ session }: { session: Session }) {
   return (
     <div class="browse">
       <TopBar session={session} active="search" />
-      <div class="browse-body search-body" ref={content}>
+      <div class="browse-body search-body" data-scroll-area ref={content}>
         <div class="search-left">
           <Field label="Search" value={query} onValue={(v) => setQuery(() => v)} active onActivate={() => {}} placeholder="Type a title" />
           <Keyboard onType={(c) => setQuery((v) => (v + c).slice(0, 60))} onBackspace={() => setQuery((v) => v.slice(0, -1))} onDone={() => setQuery(() => '')} doneLabel="Clear" />

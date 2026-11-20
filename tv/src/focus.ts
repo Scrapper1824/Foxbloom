@@ -1,16 +1,48 @@
 export type Dir = 'up' | 'down' | 'left' | 'right';
 
 const SELECTOR = '[data-focusable]';
+const AREA = '[data-scroll-area]';
+
+/**
+ * The element that has the focus ring. Remembered here, not only as a class, because Preact rewrites an element's
+ * whole class attribute when its class prop changes (Shift turning on, a menu button becoming current), which wiped
+ * the ring and sent the next arrow press back to the first button on the screen.
+ */
+let remembered: HTMLElement | null = null;
+const watched: HTMLElement[] = [];
+
+function watch(root: HTMLElement) {
+  if (watched.indexOf(root) >= 0 || typeof MutationObserver === 'undefined') return;
+  watched.push(root);
+  new MutationObserver(() => {
+    if (remembered && !remembered.classList.contains('focused') && root.contains(remembered)) remembered.classList.add('focused');
+  }).observe(root, { attributes: true, attributeFilter: ['class'], subtree: true });
+}
+
+function areaOf(el: Element): HTMLElement | null {
+  return el.closest ? (el.closest(AREA) as HTMLElement | null) : null;
+}
+
+/** Near the top of a scrolling area, show it from its very top (so a banner above the first buttons isn't cut off). */
+function scrollAreaToTopIfNear(el: HTMLElement) {
+  const area = areaOf(el);
+  if (!area || !area.scrollTop) return;
+  const intoContent = el.getBoundingClientRect().top - area.getBoundingClientRect().top + area.scrollTop;
+  if (intoContent < area.clientHeight / 2) area.scrollTop = 0;
+}
 
 /** Puts the focus ring on el. Tells listeners (the tile rows) with a bubbling 'foxfocus' event so they can slide their window. */
 export function focusElement(el: HTMLElement, root: HTMLElement) {
   const old = root.querySelectorAll('.focused');
   for (let i = 0; i < old.length; i++) old[i].classList.remove('focused');
   el.classList.add('focused');
+  remembered = el;
+  watch(root);
   // Not scrollIntoView({ block: 'nearest' }): Chromium before 61 reads the options object as `true` (align to top), so
   // every move would jump. scrollIntoViewIfNeeded(false) scrolls only when el is out of view, and as little as needed.
   const s = el as HTMLElement & { scrollIntoViewIfNeeded?: (center?: boolean) => void };
   if (typeof s.scrollIntoViewIfNeeded === 'function') s.scrollIntoViewIfNeeded(false);
+  scrollAreaToTopIfNear(el);
   el.dispatchEvent(new Event('foxfocus', { bubbles: true }));
 }
 const setFocused = focusElement;
@@ -29,15 +61,22 @@ export function focusFirst(root: HTMLElement): HTMLElement | null {
  */
 export function moveFocus(dir: Dir, root: HTMLElement): HTMLElement | null {
   const items = Array.prototype.slice.call(root.querySelectorAll(SELECTOR)) as HTMLElement[];
-  const current = root.querySelector<HTMLElement>(SELECTOR + '.focused');
+  const marked = root.querySelector<HTMLElement>(SELECTOR + '.focused');
+  const current = marked || (remembered && root.contains(remembered) ? remembered : null);
   if (!current) return focusFirst(root);
+  // Up and down stay inside the current scrolling area while it has something that way: its top part may be scrolled
+  // out of sight, and the menu bar above it would otherwise look nearer than the area's own first buttons.
+  const area = dir === 'up' || dir === 'down' ? areaOf(current) : null;
   const c = current.getBoundingClientRect();
   const cx = (c.left + c.right) / 2;
   const cy = (c.top + c.bottom) / 2;
   let best: HTMLElement | null = null;
   let bestScore = Infinity;
-  for (const el of items) {
+  for (let pass = area ? 0 : 1; pass < 2 && !best; pass++) {
+    const stayIn = pass === 0 ? area : null;
+    for (const el of items) {
     if (el === current) continue;
+    if (stayIn && !stayIn.contains(el)) continue;
     const r = el.getBoundingClientRect();
     const x = (r.left + r.right) / 2;
     const y = (r.top + r.bottom) / 2;
@@ -74,6 +113,7 @@ export function moveFocus(dir: Dir, root: HTMLElement): HTMLElement | null {
     if (score < bestScore) {
       bestScore = score;
       best = el;
+    }
     }
   }
   if (!best) return null;

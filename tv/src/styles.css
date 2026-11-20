@@ -27,11 +27,12 @@ p { color: var(--muted); font-size: 28px; }
 .connect, .passform, .profiles, .addperson { display: flex; flex-direction: column; align-items: center; height: 100%; }
 .addperson.center { justify-content: center; }
 .connect h1, .passform h1, .addperson h1 { margin: 8px 0; font-size: 52px; }
-.field { display: flex; align-items: center; width: 1100px; padding: 10px 24px; margin: 8px 0; border: 4px solid transparent; border-radius: 14px; background: var(--bg-2); }
+.field { display: flex; flex-direction: column; align-items: stretch; width: 1100px; padding: 8px 24px 10px; margin: 8px 0; border: 4px solid transparent; border-radius: 14px; background: var(--bg-2); text-align: left; }
 .field.active { background: #313c68; }
-.field > * + * { margin-left: 20px; }
-.field-label { width: 260px; color: var(--muted); }
-.field-input { flex: 1; font: inherit; color: var(--text); background: transparent; border: 0; outline: none; padding: 6px 0; }
+.field-label { display: block; font-size: 20px; color: var(--muted); }
+.field-box { position: relative; display: block; }
+.field-input { display: block; width: 100%; font: inherit; color: var(--text); background: transparent; border: 0; outline: none; padding: 2px 0; margin: 0; text-align: left; }
+.field-placeholder { position: absolute; top: 2px; left: 0; color: var(--muted); opacity: 0.7; pointer-events: none; }
 .keyboard { margin: 8px 0; }
 .key-row { display: flex; justify-content: center; margin: 8px 0; }
 .key-row > * + * { margin-left: 8px; }
@@ -149,8 +150,10 @@ p { color: var(--muted); font-size: 28px; }
 /* Task 10: the player. AVPlay draws the video under the web page, so everything behind the player is see-through. */
 html.video-on, html.video-on body { background: transparent; }
 .avplayer, .html5-video { position: fixed; top: 0; left: 0; width: 1920px; height: 1080px; }
+/* AVPlay's <object> is appended after the app; without these it stacks on top and hides the player's controls. */
+.avplayer { z-index: 0; }
 .html5-video { z-index: -1; background: #000; }
-.player { position: fixed; top: 0; left: 0; width: 1920px; height: 1080px; overflow: hidden; }
+.player { position: fixed; top: 0; left: 0; z-index: 1; width: 1920px; height: 1080px; overflow: hidden; }
 .player-msg { background: var(--bg); padding: 54px 96px; }
 .player-msg .loading { text-align: center; margin-top: 480px; }
 .player-dialog { position: absolute; top: 0; left: 0; width: 1920px; height: 1080px; background: rgba(13, 17, 33, 0.82); }

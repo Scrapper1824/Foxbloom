@@ -52,17 +52,20 @@ export function Field({ label, value, onValue, active, onActivate, secret, place
   return (
     <div data-focusable class={'field' + (active ? ' active' : '')} onClick={onActivate}>
       <span class="field-label">{label}</span>
-      <input
-        class="field-input"
-        type={secret ? 'password' : 'text'}
-        value={value}
-        placeholder={placeholder}
-        tabIndex={-1}
-        autocomplete="off"
-        autocapitalize="off"
-        onFocus={onActivate}
-        onInput={(e) => onValue((e.target as HTMLInputElement).value)}
-      />
+      <span class="field-box">
+        <input
+          class="field-input"
+          type={secret ? 'password' : 'text'}
+          value={value}
+          tabIndex={-1}
+          autocomplete="off"
+          autocapitalize="off"
+          onFocus={onActivate}
+          onInput={(e) => onValue((e.target as HTMLInputElement).value)}
+        />
+        {/* Drawn here rather than as the input's placeholder: the TV's browser kept that showing after typing. */}
+        {!value && placeholder && <span class="field-placeholder">{placeholder}</span>}
+      </span>
     </div>
   );
 }

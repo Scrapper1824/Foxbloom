@@ -61,7 +61,7 @@ export function Library({ session }: { session: Session }) {
   return (
     <div class="browse">
       <TopBar session={session} active="library" />
-      <div class="browse-body" ref={content}>
+      <div class="browse-body" data-scroll-area ref={content}>
         <div class="season-chips">
           {TYPES.map((t) => (
             <button key={t} data-focusable data-key={'type:' + t} class={'season-chip' + (t === type ? ' current' : '')} onClick={() => pick(t)}>

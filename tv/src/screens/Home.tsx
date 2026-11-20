@@ -110,7 +110,7 @@ export function Home({ session }: { session: Session }) {
   return (
     <div class="browse">
       <TopBar session={session} active="home" />
-      <div class="browse-body" ref={content}>
+      <div class="browse-body" data-scroll-area ref={content}>
         {error && <LoadError message={error} onRetry={retry} />}
         {!data && !error && <p class="loading">Loading…</p>}
         {empty && <p class="loading">Nothing to watch yet. Add titles from the Foxbloom website.</p>}

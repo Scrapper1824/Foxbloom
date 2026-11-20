@@ -5,7 +5,6 @@ import type { PlayInfo, StartResult } from '../types';
 import { detectCaps } from './caps';
 import { pickAudio } from './tracks';
 import { savedQuality, setPref, type Quality } from '../prefs';
-import { dlog } from '../debuglog';
 import type { TvPlayer } from './types';
 
 export const CANT_PLAY = 'This video can’t play on this TV.';
@@ -17,27 +16,6 @@ const KEEPALIVE_FOR_MS = 30 * 60000;
 export const SEEK_CHECK_MS = 1500;
 /** How far from the chosen time still counts as having got there (s). */
 const SEEK_SLACK = 5;
-/**
- * Set (to the app version) once this TV's player refused to jump in an original file: it then always asks for a converted
- * stream, where jumping works. Tried again after each app update, in case a fix made the original file work.
- */
-const NO_DIRECT_SEEK = 'foxbloom.tv.noDirectSeek';
-const appVersion = () => (typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'dev');
-function directSeekBroken(player: string): boolean {
-  try {
-    return localStorage.getItem(NO_DIRECT_SEEK + '.' + player) === appVersion();
-  } catch (_e) {
-    return false;
-  }
-}
-function rememberDirectSeekBroken(player: string) {
-  try {
-    localStorage.setItem(NO_DIRECT_SEEK + '.' + player, appVersion());
-  } catch (_e) {
-    /* lasts until the app closes */
-  }
-}
-
 export interface Playback {
   phase: 'starting' | 'playing' | 'ended' | 'failed';
   /** What went wrong, when phase is 'failed'. */
@@ -50,8 +28,6 @@ export interface Playback {
   duration: number;
   audio: number | null;
   quality: Quality;
-  /** Which player plays it ('samsung' or 'builtin'). */
-  player: string;
   /** When the player last refused a jump (Date.now()), 0 if never: the screen says so. */
   seekRefused: number;
   /** The current stream token, for subtitle URLs. */
@@ -100,7 +76,7 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
     gen: 0,
     started: false,
     ended: false,
-    forced: directSeekBroken(p.name),
+    forced: false,
     failedGen: -1,
     /** The player stopped with an error: its clock can't be trusted (AVPlay may read 0 or throw). */
     broken: false,
@@ -153,19 +129,6 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
     } else fail(CANT_PLAY, false);
   };
 
-  /**
-   * The player refused to jump in the original file (AVPlay on some TVs refuses every jump in it): play a converted
-   * stream from `at` instead, here and for later videos. False when already converted (nothing more to switch to).
-   */
-  const convertForSeeking = (at: number, a: number | null, play: boolean): boolean => {
-    if (r.mode !== 'direct' || r.forced) return false;
-    dlog('jumps refused in the original file: converting from ' + Math.round(at) + 's');
-    rememberDirectSeekBroken(p.name);
-    r.forced = true;
-    start(at, a, play);
-    return true;
-  };
-
   /** Picks the chosen track in a direct-played file (the server leaves that to the TV when switchesAudio is set). */
   const selectAudio = (order: number | null): boolean => {
     if (order === null) return true;
@@ -194,13 +157,11 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
         if (r.hls) endHls(r.hls);
         r.hls = res.sessionId || null;
         r.mode = res.mode;
-        dlog('stream ' + res.mode + ' (' + res.reason + ') from ' + at + 's, ' + p.name + ' player');
         r.url = session.streamUrl(res.url, res.streamToken);
         setToken(res.streamToken || null);
         p.open(r.url, at).then(
-          (landed) => {
+          () => {
             if (gen !== r.gen || !r.live || r.failedGen === gen) return;
-            if (landed === false && convertForSeeking(at, a, play)) return;
             const defaultAudio = info.audio.filter((x) => x.isDefault)[0] || info.audio[0];
             if (res.mode === 'direct' && defaultAudio && a !== defaultAudio.order) selectAudio(a);
             r.started = true;
@@ -210,15 +171,6 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
             if (play) p.play();
             setTime(at);
             setSt({ phase: 'playing', error: null, canRetry: true, playing: play, buffering: false });
-            // Some players say they moved to the start point but play from 0:00: check, and convert from there if so.
-            if (res.mode === 'direct' && at > SEEK_SLACK) {
-              window.setTimeout(() => {
-                if (gen !== r.gen || !r.live || !r.started || r.broken || r.seekTarget !== null) return;
-                const t = p.time();
-                dlog('check start: video at ' + t.toFixed(1) + 's, wanted ' + at + 's');
-                if (t < at - SEEK_SLACK) convertForSeeking(at, a, r.playing);
-              }, SEEK_CHECK_MS);
-            }
           },
           () => playFailed(gen),
         );
@@ -297,7 +249,6 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
     duration: duration,
     audio: audio,
     quality: quality,
-    player: p.name,
     seekRefused: seekRefused,
     streamToken: token,
     play: play,
@@ -319,22 +270,18 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
         checked = true;
         r.seekTarget = null;
         const at = r.started && !r.broken ? p.time() : 0;
-        dlog('check: video at ' + at.toFixed(1) + 's, wanted ' + to + 's' + (Math.abs(at - to) <= SEEK_SLACK ? ' (ok)' : ' -> restarting there'));
         if (Math.abs(at - to) <= SEEK_SLACK) {
           r.lastTime = at;
           return;
         }
         r.lastTime = to;
-        // In the original file, starting it again needs the same jump: switch to a converted stream instead.
-        if (convertForSeeking(to, a, r.playing)) return;
         start(to, a, r.playing);
       };
       p.seek(to).then((ok) => {
         if (ok) return void window.setTimeout(check, SEEK_CHECK_MS);
         if (checked || gen !== r.seekGen || !r.live) return;
         checked = true;
-        if (convertForSeeking(to, a, r.playing)) return;
-        // Refused in a converted stream too: starting again needs the same jump, so it would play from 0:00. Stay put.
+        // Refused outright: starting the stream again needs the same jump, so it would play from 0:00. Stay put.
         r.seekTarget = null;
         r.lastTime = r.started && !r.broken ? p.time() || r.lastTime : r.lastTime;
         setTime(r.lastTime);

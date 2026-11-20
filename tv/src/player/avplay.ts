@@ -1,5 +1,4 @@
 import type { TvPlayer } from './types';
-import { dlog, errText, setDstatus } from '../debuglog';
 
 // Samsung's player API; only on the TV (loaded by $WEBAPIS/webapis/webapis.js in index.html).
 declare const webapis: any;
@@ -24,116 +23,14 @@ const call = (f: () => void) => {
 };
 
 /**
- * Where a stream address finally leads (after the redirects of a proxy, an http to https move, a CDN). AVPlay plays
- * a redirected stream but can refuse every jump in it (PLAYER_ERROR_INVALID_STATE), so it is given the final address.
- * Starts a plain request (no extra headers, so no CORS preflight, which can't follow a redirect), reads the address
- * that answered once its headers arrive, and stops it there; any trouble keeps the original.
- */
-export function finalUrl(url: string): Promise<string> {
-  return new Promise<string>((resolve) => {
-    let done = false;
-    const finish = (u: string) => {
-      if (done) return;
-      done = true;
-      resolve(u);
-    };
-    try {
-      const x = new XMLHttpRequest();
-      x.open('GET', url, true);
-      x.timeout = 6000;
-      x.onreadystatechange = () => {
-        if (x.readyState < 2) return;
-        finish(x.status >= 200 && x.status < 300 && x.responseURL ? x.responseURL : url);
-        try {
-          x.abort();
-        } catch (_e) {
-          /* already done */
-        }
-      };
-      x.onerror = x.ontimeout = () => finish(url);
-      x.send();
-    } catch (_e) {
-      finish(url);
-    }
-  });
-}
-
-const hostOf = (u: string) => (/^(https?:\/\/[^/]+)/.exec(u) || ['', ''])[1];
-
-/**
  * TvPlayer on webapis.avplay. AVPlay draws the video on a plane under the web page, inside an
  * <object type="application/avplayer"> element; the page above it must be transparent (the player screen sees to that).
  */
-export function avPlayer(av: any = webapis.avplay, doc: Document = document, win: Window = window, resolveUrl: (url: string) => Promise<string> = finalUrl): TvPlayer {
+export function avPlayer(av: any = webapis.avplay, doc: Document = document, win: Window = window): TvPlayer {
   let ended = () => {};
   let error = (_m: string) => {};
   let buffering = (_on: boolean) => {};
   let obj: HTMLElement | null = null;
-  const state = () => {
-    try {
-      return String(av.getState());
-    } catch (_e) {
-      return '?';
-    }
-  };
-  const nowMs = () => {
-    try {
-      return String(av.getCurrentTime());
-    } catch (_e) {
-      return '?';
-    }
-  };
-  setDstatus(() => 'AVPlay ' + state() + ' time ' + nowMs() + ' ms');
-
-  /** Moves to `ms`. Some TVs refuse seekTo (INVALID_STATE) but still take a jump forward/back by the difference. */
-  function seekMs(ms: number, what: string, done: (ok: boolean) => void) {
-    const fallback = (e: unknown) => {
-      if (!/INVALID_?STATE/i.test(errText(e))) return done(false);
-      let cur = 0;
-      try {
-        cur = Number(av.getCurrentTime()) || 0;
-      } catch (_e) {
-        /* treat as the start */
-      }
-      const d = Math.round(ms - cur);
-      if (Math.abs(d) < 1000) return done(true);
-      dlog((d > 0 ? 'jumpForward ' : 'jumpBackward ') + Math.abs(d) + what);
-      try {
-        (d > 0 ? av.jumpForward : av.jumpBackward).call(
-          av,
-          Math.abs(d),
-          () => {
-            dlog('jump ok' + what + ', time ' + nowMs());
-            done(true);
-          },
-          (e2: unknown) => {
-            dlog('jump FAILED' + what + ': ' + errText(e2));
-            done(false);
-          },
-        );
-      } catch (e2) {
-        dlog('jump THREW' + what + ': ' + errText(e2));
-        done(false);
-      }
-    };
-    dlog('seekTo ' + ms + what + ', state ' + state() + ', time ' + nowMs());
-    try {
-      av.seekTo(
-        ms,
-        () => {
-          dlog('seekTo ok' + what + ', time ' + nowMs());
-          done(true);
-        },
-        (e: unknown) => {
-          dlog('seekTo FAILED' + what + ': ' + errText(e));
-          fallback(e);
-        },
-      );
-    } catch (e) {
-      dlog('seekTo THREW' + what + ': ' + errText(e));
-      fallback(e);
-    }
-  }
 
   function shutdown() {
     call(() => av.stop());
@@ -141,16 +38,57 @@ export function avPlayer(av: any = webapis.avplay, doc: Document = document, win
   }
 
   return {
-    name: 'samsung',
-    open(given, startAt) {
-      return resolveUrl(given)
-        .then(undefined, () => given)
-        .then((url) => openAt(url || given, startAt, given));
+    open(url, startAt) {
+      return new Promise<void>((resolve, reject) => {
+        try {
+          shutdown(); // AVPlay only opens from its idle state
+          if (!obj) {
+            obj = doc.createElement('object');
+            obj.setAttribute('type', 'application/avplayer');
+            obj.className = 'avplayer';
+            doc.body.appendChild(obj);
+          }
+          av.open(url);
+          const r = displayRect(0, 0, win.innerWidth || 1920, win.innerHeight || 1080, win);
+          av.setDisplayRect(r[0], r[1], r[2], r[3]);
+          av.setListener({
+            onbufferingstart: () => buffering(true),
+            onbufferingprogress: () => {},
+            onbufferingcomplete: () => buffering(false),
+            onstreamcompleted: () => ended(),
+            oncurrentplaytime: () => {},
+            onevent: () => {},
+            onsubtitlechange: () => {},
+            ondrmevent: () => {},
+            onerror: (e: unknown) => error(String(e)),
+          });
+        } catch (e) {
+          reject(e instanceof Error ? e : new Error(String(e)));
+          return;
+        }
+        av.prepareAsync(
+          () => {
+            if (!(startAt > 0)) return resolve();
+            try {
+              av.seekTo(Math.floor(startAt * 1000), () => resolve(), () => resolve());
+            } catch (_e) {
+              resolve(); // play from the start rather than never opening
+            }
+          },
+          (e: unknown) => reject(new Error(String(e))),
+        );
+      });
     },
     play: () => call(() => av.play()),
     pause: () => call(() => av.pause()),
     seek(seconds) {
-      return new Promise<boolean>((resolve) => seekMs(Math.max(0, Math.floor(seconds * 1000)), '', resolve));
+      return new Promise<boolean>((resolve) => {
+        try {
+          av.seekTo(Math.max(0, Math.floor(seconds * 1000)), () => resolve(true), () => resolve(false));
+        } catch (_e) {
+          resolve(false);
+        }
+      });
     },
     time() {
       try {
@@ -195,72 +133,4 @@ export function avPlayer(av: any = webapis.avplay, doc: Document = document, win
       obj = null;
     },
   };
-
-  function openAt(url: string, startAt: number, given: string): Promise<boolean> {
-    if (hostOf(url) !== hostOf(given)) dlog('address redirected: ' + hostOf(given) + ' -> ' + hostOf(url));
-    return new Promise<boolean>((resolve, reject) => {
-      try {
-        shutdown(); // AVPlay only opens from its idle state
-        if (!obj) {
-          obj = doc.createElement('object');
-          obj.setAttribute('type', 'application/avplayer');
-          obj.className = 'avplayer';
-          doc.body.appendChild(obj);
-        }
-        dlog('open ' + url.replace(/st=[^&]+/, 'st=…').replace(/^https?:\/\/[^/]+/, '') + ' at ' + startAt + 's');
-        av.open(url);
-        const r = displayRect(0, 0, win.innerWidth || 1920, win.innerHeight || 1080, win);
-        av.setDisplayRect(r[0], r[1], r[2], r[3]);
-        av.setListener({
-          onbufferingstart: () => {
-            dlog('buffering start');
-            buffering(true);
-          },
-          onbufferingprogress: () => {},
-          onbufferingcomplete: () => {
-            dlog('buffering done, time ' + nowMs());
-            buffering(false);
-          },
-          onstreamcompleted: () => {
-            dlog('stream completed');
-            ended();
-          },
-          oncurrentplaytime: () => {},
-          onevent: () => {},
-          onsubtitlechange: () => {},
-          ondrmevent: () => {},
-          onerror: (e: unknown) => {
-            dlog('onerror ' + errText(e));
-            error(String(e));
-          },
-        });
-      } catch (e) {
-        reject(e instanceof Error ? e : new Error(String(e)));
-        return;
-      }
-      av.prepareAsync(
-        () => {
-          dlog(
-            'prepared, state ' +
-              state() +
-              ', length ' +
-              (function () {
-                try {
-                  return av.getDuration();
-                } catch (_e) {
-                  return '?';
-                }
-              })() +
-              ' ms',
-          );
-          if (!(startAt > 0)) return resolve(true);
-          seekMs(Math.floor(startAt * 1000), ' (opening)', resolve); // a failed jump plays from the start rather than never opening
-        },
-        (e: unknown) => {
-          dlog('prepare FAILED: ' + errText(e));
-          reject(new Error(String(e)));
-        },
-      );
-    });
-  }
 }

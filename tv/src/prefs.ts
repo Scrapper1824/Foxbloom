@@ -2,10 +2,7 @@
 export interface Prefs {
   quality?: Quality;
   autoSkip?: boolean;
-  /** Samsung's player (AVPlay) or the TV browser's built-in one. */
-  player?: PlayerKind;
 }
-export type PlayerKind = 'samsung' | 'builtin';
 export type Quality = 'auto' | 'original' | '1080' | '720' | '480';
 export const QUALITIES: Quality[] = ['auto', 'original', '1080', '720', '480'];
 
@@ -32,11 +29,6 @@ export function setPref<K extends keyof Prefs>(userId: number, name: K, value: P
   } catch (_e) {
     /* storage full or unavailable: the choice lasts until the app closes */
   }
-}
-
-/** The player to use: the saved choice, Samsung's where the TV has it, otherwise the built-in one. */
-export function pickPlayer(saved: PlayerKind | undefined, hasSamsung: boolean): PlayerKind {
-  return hasSamsung && saved !== 'builtin' ? 'samsung' : 'builtin';
 }
 
 /** The saved quality, or Auto. */

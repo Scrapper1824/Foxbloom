@@ -195,6 +195,14 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
       setTime(duration);
       setSt((s) => Object.assign({}, s, { phase: 'ended', playing: false, buffering: false }));
     });
+    // The Android app paused by itself (Home, another app's sound): show Play, and keep a converted stream alive.
+    if (p.onPaused)
+      p.onPaused(() => {
+        if (!r.live || !r.started || !r.playing) return;
+        r.playing = false;
+        save();
+        setSt((s) => Object.assign({}, s, { playing: false }));
+      });
     start(startPoint(info), audio, true);
 
     const clock = window.setInterval(() => {

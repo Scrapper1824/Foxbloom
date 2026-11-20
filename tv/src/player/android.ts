@@ -14,13 +14,15 @@ const call = (f: () => void) => {
 /**
  * TvPlayer on the Android TV app's ExoPlayer. Commands go through the bridge (times in ms); the app answers by calling
  * `window.__foxbloomPlayer(event, arg)` with: 'ready' (prepared, at the start point), 'buffering' ('1'/'0'), 'ended',
- * 'error' (message) and 'seeked' ('1' landed / '0' failed). The video is drawn by the app under the transparent page.
+ * 'error' (message), 'seeked' ('1' landed / '0' failed) and 'paused' (the app paused playback itself: Home, lost
+ * audio focus). The video is drawn by the app under the transparent page.
  */
 export function androidPlayer(bridge: AndroidBridge, win: Window = window): TvPlayer {
   const w = win as PlayerWindow;
   let ended = () => {};
   let error = (_m: string) => {};
   let buffering = (_on: boolean) => {};
+  let paused = () => {};
   let opening: { resolve: () => void; reject: (e: Error) => void } | null = null;
   let seeking: ((landed: boolean) => void) | null = null;
 
@@ -38,6 +40,9 @@ export function androidPlayer(bridge: AndroidBridge, win: Window = window): TvPl
         break;
       case 'ended':
         ended();
+        break;
+      case 'paused':
+        paused();
         break;
       case 'error':
         if (opening) {
@@ -116,6 +121,7 @@ export function androidPlayer(bridge: AndroidBridge, win: Window = window): TvPl
     onEnded: (cb) => (ended = cb),
     onError: (cb) => (error = cb),
     onBuffering: (cb) => (buffering = cb),
+    onPaused: (cb) => (paused = cb),
     close() {
       call(() => bridge.close());
       delete w.__foxbloomPlayer;

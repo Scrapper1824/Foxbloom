@@ -108,6 +108,16 @@ describe('androidPlayer', () => {
     p.close();
   });
 
+  it('reports a pause by the app itself (Home, lost audio) through onPaused', () => {
+    const f = fakeBridge();
+    const p = androidPlayer(f.bridge, window);
+    let paused = 0;
+    p.onPaused!(() => paused++);
+    fire('paused');
+    expect(paused).toBe(1);
+    p.close();
+  });
+
   it('close() closes the bridge and removes the global', () => {
     const f = fakeBridge();
     const p = androidPlayer(f.bridge, window);

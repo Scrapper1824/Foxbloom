@@ -59,6 +59,8 @@ dependencies {
     implementation("androidx.webkit:webkit:1.18.0")
     // Media3 1.10+ needs compileSdk 36; 1.9.x is the newest line that builds against 35.
     implementation("androidx.media3:media3-exoplayer:1.9.4")
+    // Converted streams are HLS (.m3u8); without this module ExoPlayer can't open them at all.
+    implementation("androidx.media3:media3-exoplayer-hls:1.9.4")
     implementation("androidx.media3:media3-ui:1.9.4")
     testImplementation("junit:junit:4.13.2")
 }

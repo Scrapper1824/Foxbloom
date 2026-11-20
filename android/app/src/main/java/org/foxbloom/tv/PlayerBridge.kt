@@ -55,6 +55,16 @@ class PlayerBridge(
     fun open(url: String, startMs: Long) = onMain {
         release()
         val gen = ++generation
+        // Nothing the page sends may crash the app (an exception here would be uncaught on the main thread).
+        try {
+            load(gen, url, startMs)
+        } catch (e: Exception) {
+            release()
+            emit("error", e.javaClass.simpleName + (e.message?.let { ": $it" } ?: ""))
+        }
+    }
+
+    private fun load(gen: Int, url: String, startMs: Long) {
         val p = ExoPlayer.Builder(activity, DefaultRenderersFactory(activity).setEnableDecoderFallback(true))
             .setAudioAttributes(
                 AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),
@@ -144,8 +154,13 @@ class PlayerBridge(
     @JavascriptInterface
     fun exit() = onMain { activity.finish() }
 
-    /** The app went to the background (Home): stop playing; the page resumes with play(). */
-    fun onStop() = onMain { player?.playWhenReady = false }
+    /** The app went to the background (Home): stop playing, and tell the page, which resumes with play(). */
+    fun onStop() = onMain {
+        val p = player ?: return@onMain
+        if (!p.playWhenReady) return@onMain
+        p.playWhenReady = false
+        emit("paused", "")
+    }
 
     /** The activity is going away. */
     fun destroy() = onMain {
@@ -219,6 +234,16 @@ class PlayerBridge(
         private fun settleSeek() {
             val p = player ?: return
             seekCheck.landed(p.currentPosition)?.let { emit("seeked", if (it) "1" else "0") }
+        }
+
+        // The player paused itself (another app took the audio, headphones unplugged, ...): the page shows Play.
+        // The page's own pause() is a USER_REQUEST, and the end of the stream arrives as 'ended'.
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            if (!current || playWhenReady) return
+            if (reason == Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST ||
+                reason == Player.PLAY_WHEN_READY_CHANGE_REASON_END_OF_MEDIA_ITEM
+            ) return
+            emit("paused", "")
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {

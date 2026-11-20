@@ -82,6 +82,10 @@ class FakePlayer implements TvPlayer {
   /** An error event from the player, as AVPlay sends one mid-playback. */
   fail() { this.err('decoder failed'); }
   onBuffering() {}
+  private paused: () => void = () => {};
+  onPaused(cb: () => void) { this.paused = cb; }
+  /** The player paused on its own (the Android app went to the background). */
+  pauseItself() { this.playing = false; this.paused(); }
   close() { this.closed++; this.playing = false; }
 }
 
@@ -329,6 +333,24 @@ describe('Player', () => {
     expect(put[0]).toMatchObject({ path: '/api/play/movie/5/progress', body: { position: 42, duration: 1200 } });
     expect(p.closed).toBeGreaterThan(0);
     expect(host.textContent).toContain('Launcher');
+  });
+
+  it('a pause by the player itself shows Play, saves the progress, and OK plays again', async () => {
+    const f = playFetch({ mode: 'direct', url: '/api/play/direct/movie/5', reason: 'ok', streamToken: 'st1' });
+    const p = new FakePlayer();
+    await mount(f.fetchFn, p);
+    p.t = 42;
+    expect(host.querySelector('[data-key="playpause"]')!.textContent).toBe('Pause');
+    act(() => p.pauseItself());
+    await settle();
+    expect(host.querySelector('[data-key="playpause"]')!.textContent).toBe('Play');
+    const put = f.calls.filter((c) => c.method === 'PUT');
+    expect(put.length).toBe(1);
+    expect(put[0]).toMatchObject({ path: '/api/play/movie/5/progress', body: { position: 42 } });
+    act(() => (host.querySelector('[data-key="playpause"]') as HTMLElement).click());
+    await settle();
+    expect(p.playing).toBe(true);
+    expect(host.querySelector('[data-key="playpause"]')!.textContent).toBe('Pause');
   });
 
   it('leaving a converted stream ends it on the server', async () => {

@@ -14,6 +14,8 @@ export interface TvPlayer {
   onEnded(cb: () => void): void;
   onError(cb: (msg: string) => void): void;
   onBuffering(cb: (on: boolean) => void): void;
+  /** The player paused on its own (the Android app went to the background, another app took the sound). AVPlay and <video> never do. */
+  onPaused?(cb: () => void): void;
   /** Stops and lets go of the video; open() may be called again afterwards. */
   close(): void;
 }

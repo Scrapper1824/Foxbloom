@@ -11,6 +11,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { keyDir } from './android-key.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 const args = process.argv.slice(2);
@@ -61,13 +62,19 @@ if (import.meta.url === `file:///${process.argv[1]?.replace(/\\/g, '/').replace(
     console.error(`Releases are made from main (you're on "${branch}").`);
     process.exit(1);
   }
-  // FoxbloomTVSetup.exe goes on every release: stop now, before anything is published, if its vendor files are missing.
+  // FoxbloomTVSetup.exe goes on every release: stop now, before anything is published, if its vendor files or the
+  // Android signing key (for the APK inside it) are missing.
   if (process.platform === 'win32') {
-    const need = ['sdb.exe', 'vd_tizen_dev_author_ca.cer', 'vd_tizen_dev_public2.crt'];
+    const need = ['sdb.exe', 'vd_tizen_dev_author_ca.cer', 'vd_tizen_dev_public2.crt', 'adb.exe', 'AdbWinApi.dll', 'AdbWinUsbApi.dll'];
     const missing = need.filter((f) => !fs.existsSync(path.join(root, 'installer', 'tv', 'vendor', f)));
     if (missing.length) {
       console.error(`Cannot release: these files are missing from installer/tv/vendor/ (needed for FoxbloomTVSetup.exe): ${missing.join(', ')}.
 See installer/tv/vendor/README.md for where each comes from.`);
+      process.exit(1);
+    }
+    if (!fs.existsSync(path.join(keyDir(), 'key.properties'))) {
+      console.error(`Cannot release: the Android signing key is missing from ${keyDir()} (needed to sign the Android TV app).
+Restore it from your backup; only if there has never been one, run npm run android:key.`);
       process.exit(1);
     }
   }
@@ -81,13 +88,16 @@ See installer/tv/vendor/README.md for where each comes from.`);
   // installer (csc, vendor hash) error stops the release here instead of after the push. It is built after the version
   // bump (so far only in the working tree) because the exe embeds tv/package.json's version; if the build fails, the
   // bump is undone and the tree is as it was.
+  // The Android TV APK it embeds is built first, after the bump too, because its versionCode comes from tv/package.json.
   const tvSetup = path.join(root, 'installer', 'dist', 'FoxbloomTVSetup.exe');
   if (process.platform === 'win32') {
+    const undoBump = () => {
+      spawnSync('git', ['checkout', '--', ...versionFiles], { cwd: root, stdio: 'inherit' });
+      console.error('Nothing was committed or published; the version bump was undone.');
+    };
+    run('npm', ['run', 'android:apk'], { onFail: undoBump });
     run('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(root, 'installer', 'tv', 'build.ps1')], {
-      onFail: () => {
-        spawnSync('git', ['checkout', '--', ...versionFiles], { cwd: root, stdio: 'inherit' });
-        console.error('Nothing was committed or published; the version bump was undone.');
-      },
+      onFail: undoBump,
     });
   }
   run('git', ['add', ...versionFiles]);
@@ -100,7 +110,7 @@ See installer/tv/vendor/README.md for where each comes from.`);
     run('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(root, 'installer', 'build.ps1')]);
     const setup = path.join(root, 'installer', 'dist', 'FoxbloomSetup.exe');
     // Only the two installers go on a release. The TV installer (built above, before the push) carries sdb's
-    // Apache-2.0 notice inside it (its "Licences" link), so no separate notice file is uploaded.
+    // and adb's Apache-2.0 notices inside it (its "Licences" link), so no separate notice file is uploaded.
     run('gh', ['release', 'upload', tag, setup, tvSetup, '--clobber']);
   }
   console.log(`\nReleased ${tag}. Foxbloom installs will offer it as an update.`);

@@ -17,9 +17,11 @@
     "start": "node scripts/start.mjs",
     "console": "node server/dist/index.js",
     "tray": "wscript tray/Mediarr.vbs",
-    "test": "npm test -w server && npm test -w web && npm test -w tv",
+    "test": "npm test -w server && npm test -w web && npm test -w tv && node --test scripts/android.test.mjs",
     "reset-password": "node server/dist/resetPassword.js",
-    "release": "node scripts/release.mjs"
+    "release": "node scripts/release.mjs",
+    "android:key": "node scripts/android-key.mjs",
+    "android:apk": "node scripts/build-apk.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

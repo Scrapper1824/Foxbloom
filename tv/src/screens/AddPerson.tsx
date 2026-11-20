@@ -3,6 +3,7 @@ import { useNav } from '../app';
 import { Api, ApiError } from '../api';
 import { defaultFetch, trimSlash, type FetchFn } from '../connection';
 import { Field, Keyboard } from '../keyboard';
+import { androidBridge } from '../platform';
 import { loadState, saveState, upsertProfile, type Profile } from '../profiles';
 import { homeScreen } from './Home';
 import { SetPin } from './PinPad';
@@ -14,6 +15,8 @@ declare const webapis: any;
 export function deviceName(): string {
   let model = '';
   try {
+    const android = androidBridge();
+    if (android) return (String(android.model() || '').trim() || 'Android TV').slice(0, 40);
     if (typeof webapis !== 'undefined' && webapis && webapis.productinfo) model = String(webapis.productinfo.getModel() || '').trim();
   } catch (e) {
     model = '';

@@ -1,3 +1,5 @@
+import type { AndroidBridge } from '../platform';
+
 /** What the player can play, in the shape the server's /start expects (see server/src/playback/decide.ts). */
 export interface ClientCaps {
   mp4: boolean;
@@ -28,6 +30,8 @@ export type TvCaps = ClientCaps & {
 export interface CapsEnv {
   webapis?: any;
   tizen?: any;
+  /** Set when the page is hosted by the Android TV app, which knows its own decoders. */
+  FoxbloomAndroid?: AndroidBridge;
   MediaSource?: { isTypeSupported(type: string): boolean };
 }
 
@@ -64,6 +68,14 @@ function tizenVersion(env: CapsEnv, year: number | null): number {
  * DTS only when the TV says so. On a desktop browser only the always-on basics plus what MediaSource reports.
  */
 export function detectCaps(env: CapsEnv = window as unknown as CapsEnv): TvCaps {
+  if (env.FoxbloomAndroid) {
+    try {
+      // The Android app asks MediaCodec what it decodes; it switches audio tracks itself and direct play is trusted.
+      return { ...JSON.parse(env.FoxbloomAndroid.caps()), switchesAudio: true, forceConvert: false };
+    } catch (_e) {
+      /* a bridge that can't say: fall through to the browser guess */
+    }
+  }
   const ms = env.MediaSource;
   const can = (type: string) => {
     try {

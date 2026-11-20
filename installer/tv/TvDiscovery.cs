@@ -243,13 +243,19 @@ public static class TvDiscovery
     /** Addresses on each of this PC's /24 networks (real adapters first) that accept a connection on the TV port. */
     static List<string> Sweep(List<string> locals, TimeSpan budget)
     {
+        return ProbeOpen(SweepHosts(locals), TvPort, budget);
+    }
+
+    /** Every other address on each local /24 network, in order, without repeats. */
+    public static List<string> SweepHosts(List<string> locals)
+    {
         var targets = new List<string>();
         foreach (var local in locals)
         {
             var prefix = local.Substring(0, local.LastIndexOf('.') + 1);
             for (int i = 1; i < 255; i++) { var h = prefix + i; if (h != local && !targets.Contains(h)) targets.Add(h); }
         }
-        return ProbeOpen(targets, TvPort, budget);
+        return targets;
     }
 
     /** Starts a connection to every host at once and waits a single time (at most 1 s, and never past `budget`);

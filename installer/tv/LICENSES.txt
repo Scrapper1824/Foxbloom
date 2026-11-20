@@ -1,7 +1,9 @@
 Licence texts for the third-party components of Foxbloom TV Setup (FoxbloomTVSetup.exe); see THIRD-PARTY.txt.
 
 ================================================================================
-Apache License 2.0 - applies to sdb.exe (Smart Development Bridge, Samsung Electronics Co., Ltd.)
+Apache License 2.0 - applies to sdb.exe (Smart Development Bridge, Samsung Electronics Co., Ltd.),
+adb.exe / AdbWinApi.dll / AdbWinUsbApi.dll (Android Debug Bridge, The Android Open Source Project) and the
+AndroidX libraries inside Foxbloom.apk
 ================================================================================
 
                                  Apache License

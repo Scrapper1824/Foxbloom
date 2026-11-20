@@ -191,6 +191,8 @@ static partial class Tests
         SamsungCertTests();
         WgtSignerTests();
         SdbTests();
+        AdbTests();
+        AndroidDiscoveryTests();
 
         Console.WriteLine();
         Console.WriteLine(passed + " passed, " + failed + " failed");

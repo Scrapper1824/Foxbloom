@@ -204,9 +204,10 @@ function Playing({ session, item, info, makePlayer }: { session: Session; item: 
   const t = scrub !== null ? scrub : pb.time;
   const intro = extras.segments.intro;
   const credits = extras.segments.credits;
-  const inIntro = !!intro && t >= intro.start && t < intro.end - 1;
-  const inCredits = !!credits && t >= credits.start && t < credits.end - 1;
-  const skip = pb.phase === 'playing' && countdown === null && !menu && (inIntro || inCredits) ? (inIntro ? 'Skip intro' : info.next ? 'Next episode' : 'Skip credits') : null;
+  // Where the video really is (not where you're moving the bar to): passing through an intro shows no Skip button.
+  const inIntro = !!intro && pb.time >= intro.start && pb.time < intro.end - 1;
+  const inCredits = !!credits && pb.time >= credits.start && pb.time < credits.end - 1;
+  const skip = pb.phase === 'playing' && countdown === null && !menu && scrub === null && (inIntro || inCredits) ? (inIntro ? 'Skip intro' : info.next ? 'Next episode' : 'Skip credits') : null;
   const askingNext = countdown !== null && !!info.next;
 
   const goNext = () => {
@@ -283,15 +284,17 @@ function Playing({ session, item, info, makePlayer }: { session: Session; item: 
   }, [pb.playing]);
 
   // Where the focus ring goes: the dialog's first button, the menu's current choice, the Skip button while it shows, else the bar.
+  // Not to Skip while you're moving through the video on the bar (you landed there yourself and may keep going).
   useLayoutEffect(() => {
     const el = root.current;
     if (!el) return;
     const sr = (el.closest('.screen-root') as HTMLElement | null) || el;
+    const seeking = Date.now() - lastOwnSeek.current < OWN_SEEK_MS && !!el.querySelector('.player-bar.focused');
     const target =
       el.querySelector<HTMLElement>('.player-dialog [data-focusable]') ||
       el.querySelector<HTMLElement>('.player-menu .menu-option.on') ||
       el.querySelector<HTMLElement>('.player-menu [data-focusable]') ||
-      el.querySelector<HTMLElement>('.player-skip') ||
+      (seeking ? null : el.querySelector<HTMLElement>('.player-skip')) ||
       el.querySelector<HTMLElement>('.player-bar');
     if (target && !target.classList.contains('focused')) focusElement(target, sr);
   }, [pb.phase, menu, askingNext, skip !== null]);

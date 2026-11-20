@@ -211,6 +211,33 @@ describe('Player', () => {
     expect(host.textContent).toContain('Skip intro');
   });
 
+  it('moving through the video into an intro or the credits keeps the focus on the bar', async () => {
+    const withCredits = Object.assign({}, info, { segments: { credits: { start: 300, end: 400 } } });
+    const f = playFetch({ mode: 'direct', url: '/api/play/direct/movie/5', reason: 'ok', streamToken: 'st1' }, { info: withCredits });
+    const p = new FakePlayer();
+    await mount(f.fetchFn, p);
+    p.t = 285;
+    await wait(400);
+    expect(host.querySelector('.player-bar.focused')).not.toBeNull();
+    press(39);
+    await wait(300); // two separate presses, not a held key
+    press(39);
+    await wait(50);
+    // Passing through: no Skip button, and the ring stays on the bar.
+    expect(host.querySelector('.player-skip')).toBeNull();
+    expect(host.querySelector('.player-bar.focused')).not.toBeNull();
+    await wait(1200);
+    await settle();
+    expect(p.seeks).toEqual([305]);
+    // Landed in the credits: the button shows, but you are still on the bar and can keep moving.
+    expect(host.querySelector('.player-skip')).not.toBeNull();
+    expect(host.querySelector('.player-bar.focused')).not.toBeNull();
+    press(39);
+    await wait(1200);
+    await settle();
+    expect(p.seeks).toEqual([305, 315]);
+  });
+
   it('with auto-skip on, the intro is skipped once and a note says so', async () => {
     setPref(1, 'autoSkip', true);
     const f = playFetch({ mode: 'direct', url: '/api/play/direct/movie/5', reason: 'ok', streamToken: 'st1' }, { info: withIntro });

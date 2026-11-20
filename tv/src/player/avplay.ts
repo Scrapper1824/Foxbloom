@@ -141,6 +141,7 @@ export function avPlayer(av: any = webapis.avplay, doc: Document = document, win
   }
 
   return {
+    name: 'samsung',
     open(given, startAt) {
       return resolveUrl(given)
         .then(undefined, () => given)
@@ -195,9 +196,9 @@ export function avPlayer(av: any = webapis.avplay, doc: Document = document, win
     },
   };
 
-  function openAt(url: string, startAt: number, given: string): Promise<void> {
+  function openAt(url: string, startAt: number, given: string): Promise<boolean> {
     if (hostOf(url) !== hostOf(given)) dlog('address redirected: ' + hostOf(given) + ' -> ' + hostOf(url));
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<boolean>((resolve, reject) => {
       try {
         shutdown(); // AVPlay only opens from its idle state
         if (!obj) {
@@ -252,8 +253,8 @@ export function avPlayer(av: any = webapis.avplay, doc: Document = document, win
               })() +
               ' ms',
           );
-          if (!(startAt > 0)) return resolve();
-          seekMs(Math.floor(startAt * 1000), ' (opening)', () => resolve()); // a failed jump plays from the start rather than never opening
+          if (!(startAt > 0)) return resolve(true);
+          seekMs(Math.floor(startAt * 1000), ' (opening)', resolve); // a failed jump plays from the start rather than never opening
         },
         (e: unknown) => {
           dlog('prepare FAILED: ' + errText(e));

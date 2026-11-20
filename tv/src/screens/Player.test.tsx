@@ -42,6 +42,7 @@ function playFetch(start: Record<string, unknown>, opts: { info?: unknown; pendi
 
 /** A player that fails (or opens) as each test says. */
 class FakePlayer implements TvPlayer {
+  name = 'fake';
   opens: { url: string; startAt: number }[] = [];
   /** One entry per open(): 'ok', 'reject' (open fails) or 'event' (an onError event before playback). */
   script: Array<'ok' | 'reject' | 'event'> = [];
@@ -55,10 +56,11 @@ class FakePlayer implements TvPlayer {
     if (how === 'reject') return Promise.reject(new Error('cannot open'));
     if (how === 'event') {
       setTimeout(() => this.err('decoder failed'), 0);
-      return new Promise<void>(() => {});
+      return new Promise<boolean>(() => {});
     }
+    if (this.refuseSeeks && startAt > 0) return Promise.resolve(false); // the start-point jump refused: plays from 0
     this.t = startAt;
-    return Promise.resolve();
+    return Promise.resolve(true);
   }
   play() { this.playing = true; }
   pause() { this.playing = false; }
@@ -233,8 +235,43 @@ describe('Player', () => {
     expect(localStorage.getItem('foxbloom.tv.prefs.1')).toContain('"autoSkip":true');
   });
 
-  it('a jump the TV refuses (reports an error) stays where the video is, without restarting, and says so', async () => {
+  it('a jump the TV refuses in the original file switches to a converted stream from the chosen time, and remembers it', async () => {
     const f = playFetch({ mode: 'direct', url: '/api/play/direct/movie/5', reason: 'ok', streamToken: 'st1' });
+    const p = new FakePlayer();
+    p.refuseSeeks = true;
+    await mount(f.fetchFn, p);
+    p.t = 100;
+    await wait(400);
+    press(39);
+    await wait(1200);
+    await settle();
+    expect(p.seeks).toEqual([110]);
+    const s = starts(f.calls);
+    expect(s.length).toBe(2);
+    expect(s[1].body).toMatchObject({ startAt: 110 });
+    expect(s[1].body.caps.forceConvert).toBe(true);
+    expect(host.textContent).not.toContain('couldn’t jump');
+    // The next video on this TV starts converted straight away.
+    act(() => render(null, host));
+    const g = playFetch({ mode: 'hls', url: '/api/play/hls/s2/main.m3u8', sessionId: 's2', reason: 'convert', streamToken: 'st1' });
+    await mount(g.fetchFn, new FakePlayer());
+    expect(starts(g.calls)[0].body.caps.forceConvert).toBe(true);
+  });
+
+  it('when the start point can’t be reached in the original file, it starts converted from there instead of 0:00', async () => {
+    const f = playFetch({ mode: 'direct', url: '/api/play/direct/movie/5', reason: 'ok', streamToken: 'st1' }, { info: Object.assign({}, info, { position: 300 }) });
+    const p = new FakePlayer();
+    p.refuseSeeks = true;
+    await mount(f.fetchFn, p);
+    await settle();
+    const s = starts(f.calls);
+    expect(s.length).toBe(2);
+    expect(s[1].body).toMatchObject({ startAt: 300 });
+    expect(s[1].body.caps.forceConvert).toBe(true);
+  });
+
+  it('a jump the TV refuses in a converted stream stays where the video is, without restarting, and says so', async () => {
+    const f = playFetch({ mode: 'hls', url: '/api/play/hls/s1/main.m3u8', sessionId: 's1', reason: 'convert', streamToken: 'st1' });
     const p = new FakePlayer();
     p.refuseSeeks = true;
     await mount(f.fetchFn, p);

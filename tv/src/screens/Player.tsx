@@ -5,7 +5,7 @@ import { markSignedOut } from '../profiles';
 import { keyFromEvent, type Key } from '../remote';
 import type { Session } from '../session';
 import type { PlayExtras, PlayInfo, PlayItem, Segment, Trickplay } from '../types';
-import { getPref, QUALITIES, setPref, type Quality } from '../prefs';
+import { getPref, pickPlayer, QUALITIES, setPref, type PlayerKind, type Quality } from '../prefs';
 import { dlines, dstatus, onDlog } from '../debuglog';
 import { avPlayer, hasAvPlay } from '../player/avplay';
 import { html5Player } from '../player/html5';
@@ -16,10 +16,16 @@ import { usePlayback, type Playback } from '../player/usePlayback';
 import { profilesScreen } from './Profiles';
 import { LoadError, useLoad } from './useLoad';
 
-const defaultPlayer = (): TvPlayer => (hasAvPlay() ? avPlayer() : html5Player());
+/** This person's chosen player (Settings, Player), Samsung's by default on the TV. */
+const chosenPlayer =
+  (session: Session): (() => TvPlayer) =>
+  () =>
+    pickPlayer(getPref(session.profile.userId, 'player'), hasAvPlay()) === 'samsung' ? avPlayer() : html5Player();
 
-export function playerScreen(session: Session, item: PlayItem, makePlayer: () => TvPlayer = defaultPlayer): Screen {
-  return { name: 'player', render: () => <Player key={item.kind + item.id} session={session} item={item} makePlayer={makePlayer} /> };
+/** The player screen for `item`; `at` starts there instead of where it was left off (switching players mid-video). */
+export function playerScreen(session: Session, item: PlayItem, makePlayer?: () => TvPlayer, at?: number): Screen {
+  const make = makePlayer || chosenPlayer(session);
+  return { name: 'player', render: () => <Player key={item.kind + item.id + (at !== undefined ? '@' + at : '')} session={session} item={item} makePlayer={make} at={at} /> };
 }
 
 const HIDE_MS = 5000;
@@ -36,6 +42,7 @@ const EXTRAS_TRIES = 120;
 /** A jump you made yourself this recently means you want to watch that part: auto-skip leaves it alone. */
 const OWN_SEEK_MS = 2500;
 const NOTE_MS = 5000;
+const PLAYERS: PlayerKind[] = ['samsung', 'builtin'];
 const QUALITY_LABEL: Record<Quality, string> = { auto: 'Auto', original: 'Original', '1080': '1080p', '720': '720p', '480': '480p' };
 
 const two = (n: number) => (n < 10 ? '0' : '') + n;
@@ -47,7 +54,7 @@ export function clock(sec: number): string {
 }
 
 /** Plays one title. Loads what to play, then hands over to Playing. */
-export function Player({ session, item, makePlayer }: { session: Session; item: PlayItem; makePlayer: () => TvPlayer }) {
+export function Player({ session, item, makePlayer, at }: { session: Session; item: PlayItem; makePlayer: () => TvPlayer; at?: number }) {
   const info = useLoad<PlayInfo>(session, '/api/play/' + item.kind + '/' + item.id + '/info');
   if (info.error) {
     return (
@@ -63,7 +70,8 @@ export function Player({ session, item, makePlayer }: { session: Session; item: 
       </div>
     );
   }
-  return <Playing session={session} item={item} info={info.data} makePlayer={makePlayer} />;
+  const data = at !== undefined ? Object.assign({}, info.data, { position: at }) : info.data;
+  return <Playing session={session} item={item} info={data} makePlayer={makePlayer} />;
 }
 
 /** The text subtitle track `order` as cues (fetched as SRT with the stream token); [] while loading or off. */
@@ -137,7 +145,7 @@ function Preview({ tp, t, duration, sheetUrl }: { tp: Trickplay; t: number; dura
   );
 }
 
-function TracksMenu({ info, pb, subtitle, onAudio, onSubtitle, onQuality, autoSkip, onAutoSkip }: { info: PlayInfo; pb: Playback; subtitle: number | null; onAudio: (o: number) => void; onSubtitle: (o: number | null) => void; onQuality: (q: Quality) => void; autoSkip: boolean; onAutoSkip: () => void }) {
+function TracksMenu({ info, pb, subtitle, onAudio, onSubtitle, onQuality, autoSkip, onAutoSkip, player, onPlayer }: { info: PlayInfo; pb: Playback; subtitle: number | null; onAudio: (o: number) => void; onSubtitle: (o: number | null) => void; onQuality: (q: Quality) => void; autoSkip: boolean; onAutoSkip: () => void; player: string; onPlayer: ((k: PlayerKind) => void) | null }) {
   const subs = textSubtitles(info);
   return (
     <div class="player-menu">
@@ -175,6 +183,13 @@ function TracksMenu({ info, pb, subtitle, onAudio, onSubtitle, onQuality, autoSk
         <button data-focusable data-key="autoskip" class={'menu-option' + (autoSkip ? ' on' : '')} onClick={onAutoSkip}>
           {'Auto-skip intros & credits: ' + (autoSkip ? 'On' : 'Off')}
         </button>
+        {onPlayer && <h2 class="menu-gap">Player</h2>}
+        {onPlayer &&
+          PLAYERS.map((k) => (
+            <button key={k} data-focusable data-key={'player:' + k} class={'menu-option' + (k === player ? ' on' : '')} onClick={() => onPlayer(k)}>
+              {k === 'samsung' ? 'Samsung' : 'Built-in'}
+            </button>
+          ))}
       </div>
     </div>
   );
@@ -399,6 +414,12 @@ function Playing({ session, item, info, makePlayer }: { session: Session; item: 
     pb.chooseQuality(q);
     setMenu(false);
   };
+  // Another player: remembered for this person, and this video starts again in it from here.
+  const choosePlayer = (k: PlayerKind) => {
+    setMenu(false);
+    setPref(uid, 'player', k);
+    if (k !== pb.player) nav.replace(playerScreen(session, item, undefined, Math.max(0, Math.floor(pb.time) - 1)));
+  };
   const toggleAutoSkip = () => {
     setPref(uid, 'autoSkip', !autoSkip);
     setAutoSkip(!autoSkip);
@@ -445,7 +466,7 @@ function Playing({ session, item, info, makePlayer }: { session: Session; item: 
           </div>
         </div>
       ) : menu ? (
-        <TracksMenu info={info} pb={pb} subtitle={subtitle} onAudio={chooseAudio} onSubtitle={chooseSubtitle} onQuality={chooseQuality} autoSkip={autoSkip} onAutoSkip={toggleAutoSkip} />
+        <TracksMenu info={info} pb={pb} subtitle={subtitle} onAudio={chooseAudio} onSubtitle={chooseSubtitle} onQuality={chooseQuality} autoSkip={autoSkip} onAutoSkip={toggleAutoSkip} player={pb.player} onPlayer={hasAvPlay() ? choosePlayer : null} />
       ) : null}
 
       {note && <div class="player-note">{note}</div>}

@@ -58,7 +58,7 @@ describe('avPlayer', () => {
     const f = fakeAv();
     f.av.seekTo = () => { throw new Error('seek failed'); };
     const p = avPlayer(f.av, document, { innerWidth: 1920, innerHeight: 1080 } as Window, same);
-    await expect(p.open('https://x.test/v', 30)).resolves.toBeUndefined();
+    await expect(p.open('https://x.test/v', 30)).resolves.toBe(false);
     p.close();
   });
 

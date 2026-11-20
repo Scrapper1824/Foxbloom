@@ -15,7 +15,7 @@
 - Package name `org.foxbloom.tv`, never changed. `minSdk 24`, `targetSdk`/`compileSdk 35` (SDK platform installed: `platforms;android-35`, build-tools `37.0.0`).
 - Android SDK at `%LOCALAPPDATA%\Android\Sdk`; build with JDK 21 (`C:\Program Files\Eclipse Adoptium\jdk-21.0.12.101-hotspot`). Emulator AVD `foxbloom_tv` (Android TV 16, 1080p) exists.
 - `versionName` = `tv/package.json` version; `versionCode` = major·10000 + minor·100 + patch (0.9.7 → 907).
-- Signing key lives in `%APPDATA%\Foxbloom\android\` (`foxbloom-release.jks` + `key.properties`), never in git. A release without it stops with an error.
+- Signing key lives in `%APPDATA%\Foxbloom\android\` (`foxbloom.jks` + `key.properties`), never in git. A release without it stops with an error.
 - The GitHub release still uploads only FoxbloomSetup.exe and FoxbloomTVSetup.exe; the APK is embedded in FoxbloomTVSetup.exe.
 - No change in look or behaviour of the Samsung app; one `tv` bundle (ES5 + legacy polyfills) serves both TVs.
 - No FFmpeg/NDK in the app. Caps report AC3/E-AC3/DTS only when the device decodes them or can pass them through.

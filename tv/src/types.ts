@@ -133,8 +133,27 @@ export interface PlayInfo {
   audio: (PlayTrack & { channels: number })[];
   subtitles: SubtitleTrack[];
   segments: Partial<Record<'intro' | 'credits', Segment>>;
+  /** Preview thumbnails, or null while they're still being made (or turned off on the server). */
+  trickplay?: Trickplay | null;
   position: number;
   next: { kind: 'episode'; id: number; label: string } | null;
+}
+
+/** Preview thumbnail sheets: one thumbnail every `interval` s, `columns` x `rows` per sheet image. */
+export interface Trickplay {
+  interval: number;
+  width: number;
+  height: number;
+  columns: number;
+  rows: number;
+  count: number;
+  sheets: number;
+}
+
+/** GET /api/play/:kind/:id/extras: intro/credits and thumbnails as the server finishes them. */
+export interface PlayExtras {
+  segments: Partial<Record<'intro' | 'credits', Segment>>;
+  trickplay: Trickplay | null;
 }
 
 /** POST /api/play/:kind/:id/start */

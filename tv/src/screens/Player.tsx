@@ -4,7 +4,8 @@ import { focusElement } from '../focus';
 import { markSignedOut } from '../profiles';
 import { keyFromEvent, type Key } from '../remote';
 import type { Session } from '../session';
-import type { PlayInfo, PlayItem, Segment } from '../types';
+import type { PlayExtras, PlayInfo, PlayItem, Segment, Trickplay } from '../types';
+import { getPref, QUALITIES, setPref, type Quality } from '../prefs';
 import { avPlayer, hasAvPlay } from '../player/avplay';
 import { html5Player } from '../player/html5';
 import { cueAt, parseSrt, type Cue } from '../player/srt';
@@ -28,6 +29,13 @@ const HELD_MS = 250;
 /** Seeks wait until the arrows rest, so holding them doesn't restart a conversion for every step. */
 const SEEK_SETTLE_MS = 600;
 const COUNTDOWN = 10;
+/** How often to ask for intro/credits and thumbnails the server is still making, and for how long (like the website). */
+const EXTRAS_EVERY_MS = 5000;
+const EXTRAS_TRIES = 120;
+/** A jump you made yourself this recently means you want to watch that part: auto-skip leaves it alone. */
+const OWN_SEEK_MS = 2500;
+const NOTE_MS = 5000;
+const QUALITY_LABEL: Record<Quality, string> = { auto: 'Auto', original: 'Original', '1080': '1080p', '720': '720p', '480': '480p' };
 
 const two = (n: number) => (n < 10 ? '0' : '') + n;
 export function clock(sec: number): string {
@@ -87,7 +95,27 @@ function SegmentMark({ seg, duration, kind }: { seg: Segment | undefined; durati
   return <div class={'player-seg ' + kind} style={{ left: pct(seg.start, duration), width: pct(seg.end - seg.start, duration) }} />;
 }
 
-function TracksMenu({ info, pb, subtitle, onAudio, onSubtitle }: { info: PlayInfo; pb: Playback; subtitle: number | null; onAudio: (o: number) => void; onSubtitle: (o: number | null) => void }) {
+/** The thumbnail of moment `t`, above the bar while you move through the video (cut from its sheet image). */
+function Preview({ tp, t, duration, sheetUrl }: { tp: Trickplay; t: number; duration: number; sheetUrl: (sheet: number) => string }) {
+  const perSheet = tp.columns * tp.rows;
+  const i = Math.min(Math.max(0, Math.floor(t / tp.interval)), Math.max(0, tp.count - 1));
+  const inSheet = i % perSheet;
+  const style = {
+    left: pct(t, duration),
+    width: tp.width + 'px',
+    height: tp.height + 'px',
+    marginLeft: -tp.width / 2 + 'px',
+    backgroundImage: 'url("' + sheetUrl(Math.floor(i / perSheet)) + '")',
+    backgroundPosition: -(inSheet % tp.columns) * tp.width + 'px ' + -Math.floor(inSheet / tp.columns) * tp.height + 'px',
+  };
+  return (
+    <div class="player-preview" style={style}>
+      <span>{clock(t)}</span>
+    </div>
+  );
+}
+
+function TracksMenu({ info, pb, subtitle, onAudio, onSubtitle, onQuality, autoSkip, onAutoSkip }: { info: PlayInfo; pb: Playback; subtitle: number | null; onAudio: (o: number) => void; onSubtitle: (o: number | null) => void; onQuality: (q: Quality) => void; autoSkip: boolean; onAutoSkip: () => void }) {
   const subs = textSubtitles(info);
   return (
     <div class="player-menu">
@@ -114,6 +142,18 @@ function TracksMenu({ info, pb, subtitle, onAudio, onSubtitle }: { info: PlayInf
           </button>
         ))}
       </div>
+      <div class="player-menu-col">
+        <h2>Quality</h2>
+        {QUALITIES.map((q) => (
+          <button key={q} data-focusable data-key={'quality:' + q} class={'menu-option' + (q === pb.quality ? ' on' : '')} onClick={() => onQuality(q)}>
+            {QUALITY_LABEL[q]}
+          </button>
+        ))}
+        <h2 class="menu-gap">Skipping</h2>
+        <button data-focusable data-key="autoskip" class={'menu-option' + (autoSkip ? ' on' : '')} onClick={onAutoSkip}>
+          {'Auto-skip intros & credits: ' + (autoSkip ? 'On' : 'Off')}
+        </button>
+      </div>
     </div>
   );
 }
@@ -134,10 +174,36 @@ function Playing({ session, item, info, makePlayer }: { session: Session; item: 
   const timers = useRef({ hide: 0, scrub: 0 });
   const lastKey = useRef<{ key: Key | null; at: number }>({ key: null, at: 0 });
 
+  const uid = session.profile.userId;
+  const base = '/api/play/' + info.kind + '/' + info.id;
+  const [autoSkip, setAutoSkip] = useState(() => !!getPref(uid, 'autoSkip'));
+  const [note, setNote] = useState<string | null>(null);
+  const lastOwnSeek = useRef(0);
+  const skipped = useRef<Record<string, boolean>>({});
+
+  // Intro/credits and thumbnails the server is still making arrive later: ask again every few seconds for a while.
+  const [extras, setExtras] = useState<PlayExtras>({ segments: info.segments, trickplay: info.trickplay || null });
+  useEffect(() => {
+    if (extras.trickplay && extras.segments.intro) return;
+    let tries = 0;
+    const id = window.setInterval(() => {
+      if (++tries > EXTRAS_TRIES) return window.clearInterval(id);
+      session.get<PlayExtras>(base + '/extras').then(
+        (x) => {
+          if (!x) return;
+          setExtras({ segments: x.segments || {}, trickplay: x.trickplay || null });
+          if (x.trickplay && x.segments && x.segments.intro) window.clearInterval(id);
+        },
+        () => {},
+      );
+    }, EXTRAS_EVERY_MS);
+    return () => window.clearInterval(id);
+  }, []);
+
   const duration = pb.duration;
   const t = scrub !== null ? scrub : pb.time;
-  const intro = info.segments.intro;
-  const credits = info.segments.credits;
+  const intro = extras.segments.intro;
+  const credits = extras.segments.credits;
   const inIntro = !!intro && t >= intro.start && t < intro.end - 1;
   const inCredits = !!credits && t >= credits.start && t < credits.end - 1;
   const skip = pb.phase === 'playing' && countdown === null && !menu && (inIntro || inCredits) ? (inIntro ? 'Skip intro' : info.next ? 'Next episode' : 'Skip credits') : null;
@@ -147,6 +213,7 @@ function Playing({ session, item, info, makePlayer }: { session: Session; item: 
     if (info.next) nav.replace(playerScreen(session, { kind: 'episode', id: info.next.id, title: item.title, label: info.next.label }, makePlayer));
   };
   const doSkip = () => {
+    lastOwnSeek.current = Date.now();
     if (inIntro) pb.seek(intro!.end);
     else if (info.next) goNext();
     else if (credits) pb.seek(credits.end);
@@ -162,6 +229,26 @@ function Playing({ session, item, info, makePlayer }: { session: Session; item: 
       window.clearTimeout(timers.current.scrub);
     };
   }, []);
+
+  // Auto-skip (when turned on): reaching an intro or the credits skips it, once each. A part you jumped into yourself
+  // is left to play, and the credits of an episode with a next one go straight to it.
+  useEffect(() => {
+    if (!autoSkip || !pb.playing || pb.phase !== 'playing' || countdown !== null || scrub !== null) return;
+    const seg = inIntro ? intro! : inCredits ? credits! : null;
+    if (!seg) return;
+    const k = (inIntro ? 'intro:' : 'credits:') + seg.start;
+    if (skipped.current[k]) return;
+    skipped.current[k] = true;
+    if (Date.now() - lastOwnSeek.current < OWN_SEEK_MS) return;
+    if (!inIntro && info.next) return goNext();
+    pb.seek(seg.end);
+    setNote(inIntro ? 'Skipped the intro' : 'Skipped the credits');
+  });
+  useEffect(() => {
+    if (!note) return;
+    const id = window.setTimeout(() => setNote(null), NOTE_MS);
+    return () => window.clearTimeout(id);
+  }, [note]);
 
   // "Up next" when an episode ends, counting down to playing it.
   useEffect(() => {
@@ -207,6 +294,7 @@ function Playing({ session, item, info, makePlayer }: { session: Session; item: 
   }, [pb.phase, menu, askingNext, skip !== null]);
 
   const seekBy = (d: number) => {
+    lastOwnSeek.current = Date.now();
     const from = scrub !== null ? scrub : pb.time;
     const to = Math.min(Math.max(0, from + d), Math.max(0, duration - 0.5));
     setScrub(to);
@@ -277,6 +365,21 @@ function Playing({ session, item, info, makePlayer }: { session: Session; item: 
     setSubtitle(o);
     setMenu(false);
   };
+  const chooseQuality = (q: Quality) => {
+    pb.chooseQuality(q);
+    setMenu(false);
+  };
+  const toggleAutoSkip = () => {
+    setPref(uid, 'autoSkip', !autoSkip);
+    setAutoSkip(!autoSkip);
+  };
+  const sheetUrl = (sheet: number) => {
+    try {
+      return session.streamUrl(base + '/trickplay/' + sheet + '.jpg', pb.streamToken || undefined);
+    } catch (_e) {
+      return '';
+    }
+  };
   const line = pb.phase === 'playing' || pb.phase === 'ended' ? cueAt(cues, pb.time) : '';
   const showBar = controls && !menu && !askingNext && pb.phase !== 'failed';
 
@@ -312,9 +415,10 @@ function Playing({ session, item, info, makePlayer }: { session: Session; item: 
           </div>
         </div>
       ) : menu ? (
-        <TracksMenu info={info} pb={pb} subtitle={subtitle} onAudio={chooseAudio} onSubtitle={chooseSubtitle} />
+        <TracksMenu info={info} pb={pb} subtitle={subtitle} onAudio={chooseAudio} onSubtitle={chooseSubtitle} onQuality={chooseQuality} autoSkip={autoSkip} onAutoSkip={toggleAutoSkip} />
       ) : null}
 
+      {note && <div class="player-note">{note}</div>}
       {skip && (
         <button data-focusable data-key="skip" class="btn player-skip" onClick={doSkip}>
           {skip}
@@ -334,6 +438,7 @@ function Playing({ session, item, info, makePlayer }: { session: Session; item: 
               <SegmentMark seg={credits} duration={duration} kind="credits" />
               <div class="player-fill" style={{ width: pct(t, duration) }} />
               <div class="player-knob" style={{ left: pct(t, duration) }} />
+              {scrub !== null && extras.trickplay && <Preview tp={extras.trickplay} t={scrub} duration={duration} sheetUrl={sheetUrl} />}
             </div>
             <span class="player-clock">{clock(duration)}</span>
           </div>
@@ -342,7 +447,7 @@ function Playing({ session, item, info, makePlayer }: { session: Session; item: 
               {pb.playing ? 'Pause' : 'Play'}
             </button>
             <button data-focusable data-key="tracks" class="btn" onClick={() => setMenu(true)}>
-              {'Audio & subtitles'}
+              Settings
             </button>
             {info.next && (
               <button data-focusable data-key="next" class="btn" onClick={goNext}>

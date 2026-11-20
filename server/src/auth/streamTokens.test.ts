@@ -6,8 +6,8 @@ import type { FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildApp } from '../app.js';
 import { db, initDb, now } from '../db.js';
-import { usePlaybackDataDir } from '../playback/ffmpeg.js';
-import type { MediaProbe } from '../playback/probe.js';
+import { cacheDir, usePlaybackDataDir } from '../playback/ffmpeg.js';
+import { fileKey, type MediaProbe } from '../playback/probe.js';
 import { createSession as createStream, startPlayback, stopPlayback, useLauncher } from '../playback/sessions.js';
 import { currentVersion } from '../system/updater.js';
 import { resetRateLimits } from './rateLimit.js';
@@ -102,6 +102,20 @@ describe('stream tokens', () => {
     const res = await get(`/api/play/movie/${movieId}/subtitle/0?st=${st}`);
     expect(res.statusCode).toBe(200);
     expect(res.body).toContain('hi');
+  });
+
+  it("stream token opens its own title's preview thumbnails (and not another title's)", async () => {
+    const file = (db.prepare('SELECT file_path FROM media WHERE id = ?').get(movieId) as { file_path: string }).file_path;
+    const dir = path.join(cacheDir('cache', 'trickplay'), fileKey(file));
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'sheet0.jpg'), 'jpegbytes');
+    const st = issueStreamToken(userId, `movie:${movieId}`, bearer);
+    const res = await get(`/api/play/movie/${movieId}/trickplay/0.jpg?st=${st}`);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toBe('jpegbytes');
+    expect(res.headers['cross-origin-resource-policy']).toBe('cross-origin');
+    const other = issueStreamToken(userId, `movie:${otherId}`, bearer);
+    expect((await get(`/api/play/movie/${movieId}/trickplay/0.jpg?st=${other}`)).statusCode).toBe(401);
   });
 
   it('stream token for another title', async () => {

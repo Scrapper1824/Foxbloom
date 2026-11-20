@@ -182,9 +182,14 @@ html.video-on, html.video-on body { background: transparent; }
 .player-subs.raised { bottom: 330px; }
 .player-spinner { position: absolute; top: 480px; left: 900px; width: 120px; height: 120px; border: 10px solid rgba(255, 255, 255, 0.25); border-top-color: var(--accent); border-radius: 50%; animation: player-spin 1s linear infinite; }
 @keyframes player-spin { to { transform: rotate(360deg); } }
-.player-menu { position: absolute; top: 0; right: 0; display: flex; width: 1100px; height: 1080px; padding: 54px 96px 54px 60px; background: rgba(13, 17, 33, 0.92); }
+.player-menu { position: absolute; top: 0; right: 0; display: flex; width: 1560px; height: 1080px; padding: 54px 96px 54px 60px; background: rgba(13, 17, 33, 0.92); }
 .player-menu-col { display: flex; flex: 1; flex-direction: column; overflow: hidden; }
 .player-menu-col + .player-menu-col { margin-left: 40px; }
 .menu-option { font: inherit; font-size: 28px; text-align: left; margin: 0 0 12px; padding: 14px 24px; border: 4px solid transparent; border-radius: 12px; background: var(--bg-2); color: var(--text); }
 .menu-option.on { background: #3b4778; font-weight: 700; }
 .menu-option.focused { background: var(--accent); color: var(--accent-ink); }
+.menu-gap { margin-top: 28px; }
+/* Preview thumbnail above the bar while moving through the video (cut from a sheet by background-position). */
+.player-preview { position: absolute; bottom: 48px; border: 4px solid #fff; border-radius: 10px; background-color: #000; background-repeat: no-repeat; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6); }
+.player-preview span { position: absolute; left: 50%; bottom: 8px; width: 120px; margin-left: -60px; padding: 2px 0; border-radius: 8px; text-align: center; font-size: 26px; color: #fff; background: rgba(13, 17, 33, 0.8); }
+.player-note { position: absolute; top: 54px; right: 96px; padding: 16px 28px; border-radius: 14px; background: rgba(13, 17, 33, 0.85); color: var(--text); font-size: 30px; }

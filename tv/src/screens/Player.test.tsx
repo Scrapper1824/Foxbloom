@@ -4,6 +4,7 @@ import { useEffect } from 'preact/hooks';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { App, useNav } from '../app';
 import { saveState, type Profile } from '../profiles';
+import { setPref } from '../prefs';
 import { settle } from '../testing';
 import { Session } from '../session';
 import type { FetchFn } from '../connection';
@@ -61,7 +62,10 @@ class FakePlayer implements TvPlayer {
   }
   play() { this.playing = true; }
   pause() { this.playing = false; }
-  seek(s: number) { this.t = s; return Promise.resolve(); }
+  /** Like some TVs: seekTo "succeeds" but the video stays where it was. */
+  ignoreSeeks = false;
+  seeks: number[] = [];
+  seek(s: number) { this.seeks.push(s); if (!this.ignoreSeeks) this.t = s; return Promise.resolve(); }
   time() { return this.t; }
   duration() { return 1200; }
   audioTracks() { return [{ index: 1, language: 'eng' }]; }
@@ -113,6 +117,114 @@ describe('Player', () => {
     await settle();
   };
   const starts = (calls: Call[]) => calls.filter((c) => c.path === '/api/play/movie/5/start');
+
+  const wait = (ms: number) => act(() => new Promise<void>((r) => setTimeout(r, ms)));
+  const clockText = () => host.querySelector('.player-clock')!.textContent;
+
+  it('Right on the bar jumps 10 s once you stop pressing, and stays there', async () => {
+    const f = playFetch({ mode: 'direct', url: '/api/play/direct/movie/5', reason: 'ok', streamToken: 'st1' });
+    const p = new FakePlayer();
+    await mount(f.fetchFn, p);
+    p.t = 100;
+    await wait(400); // the on-screen clock catches up (it reads the player every 250 ms)
+    press(39);
+    await wait(2400);
+    expect(p.seeks).toEqual([110]);
+    expect(clockText()).toBe('1:50');
+    expect(starts(f.calls).length).toBe(1); // no restart needed
+  });
+
+  it('a jump the TV ignores restarts the stream at the chosen time instead of snapping back', async () => {
+    const f = playFetch({ mode: 'hls', url: '/api/play/hls/s1/main.m3u8', sessionId: 's1', reason: 'convert', streamToken: 'st1' });
+    const p = new FakePlayer();
+    p.ignoreSeeks = true;
+    await mount(f.fetchFn, p);
+    p.t = 100;
+    await wait(400); // the on-screen clock catches up (it reads the player every 250 ms)
+    press(39);
+    await wait(900);
+    expect(clockText()).toBe('1:50'); // the bar stays on the chosen time while the jump is checked
+    await wait(1600);
+    await settle();
+    const s = starts(f.calls);
+    expect(s.length).toBe(2);
+    expect(s[1].body.startAt).toBe(110);
+    expect(p.opens[1].startAt).toBe(110);
+    expect(clockText()).toBe('1:50');
+  });
+
+  it('holding Right shows the preview thumbnail of the chosen moment above the bar', async () => {
+    const tp = { interval: 10, width: 320, height: 180, columns: 10, rows: 10, count: 120, sheets: 2 };
+    const f = playFetch({ mode: 'direct', url: '/api/play/direct/movie/5', reason: 'ok', streamToken: 'st1' }, { info: Object.assign({}, info, { trickplay: tp }) });
+    const p = new FakePlayer();
+    await mount(f.fetchFn, p);
+    expect(host.querySelector('.player-preview')).toBeNull();
+    p.t = 100;
+    await wait(400);
+    press(39);
+    const box = host.querySelector('.player-preview') as HTMLElement;
+    expect(box).not.toBeNull();
+    // 110 s = thumbnail 11: sheet 0, column 1, row 1.
+    expect(box.style.backgroundImage).toContain('https://pub.test/api/play/movie/5/trickplay/0.jpg?st=st1');
+    expect(box.style.backgroundPosition).toBe('-320px -180px');
+    expect(box.textContent).toContain('1:50');
+    await wait(2400);
+    expect(host.querySelector('.player-preview')).toBeNull(); // gone once the jump is made
+  });
+
+  it('Quality in the menu restarts the stream at that quality, and is remembered for this person', async () => {
+    const f = playFetch({ mode: 'hls', url: '/api/play/hls/abc/main.m3u8', sessionId: 'abc', reason: 'convert', streamToken: 'st1' });
+    const p = new FakePlayer();
+    await mount(f.fetchFn, p);
+    expect(starts(f.calls)[0].body.quality).toBe('auto');
+    p.t = 300;
+    await wait(400);
+    await act(async () => (host.querySelector('[data-key="tracks"]') as HTMLElement).click());
+    await act(async () => (host.querySelector('[data-key="quality:720"]') as HTMLElement).click());
+    await settle();
+    expect(starts(f.calls).length).toBe(2);
+    expect(starts(f.calls)[1].body).toMatchObject({ quality: '720', startAt: 299 }); // a second back, as for an audio change
+    act(() => {
+      render(null, host);
+    });
+    const g = playFetch({ mode: 'hls', url: '/api/play/hls/abc/main.m3u8', sessionId: 'abc', reason: 'convert', streamToken: 'st1' });
+    await mount(g.fetchFn, new FakePlayer());
+    expect(starts(g.calls)[0].body.quality).toBe('720');
+  });
+
+  const withIntro = Object.assign({}, info, { segments: { intro: { start: 0, end: 60 } } });
+
+  it('auto-skip is off unless turned on: the intro shows a Skip button and plays on', async () => {
+    const f = playFetch({ mode: 'direct', url: '/api/play/direct/movie/5', reason: 'ok', streamToken: 'st1' }, { info: withIntro });
+    const p = new FakePlayer();
+    await mount(f.fetchFn, p);
+    p.t = 5;
+    await wait(600);
+    expect(p.seeks).toEqual([]);
+    expect(host.textContent).toContain('Skip intro');
+  });
+
+  it('with auto-skip on, the intro is skipped once and a note says so', async () => {
+    setPref(1, 'autoSkip', true);
+    const f = playFetch({ mode: 'direct', url: '/api/play/direct/movie/5', reason: 'ok', streamToken: 'st1' }, { info: withIntro });
+    const p = new FakePlayer();
+    await mount(f.fetchFn, p);
+    p.t = 5;
+    await wait(600);
+    expect(p.seeks).toEqual([60]);
+    expect(host.textContent).toContain('Skipped the intro');
+  });
+
+  it('the auto-skip switch in the menu turns it on and remembers it', async () => {
+    const f = playFetch({ mode: 'direct', url: '/api/play/direct/movie/5', reason: 'ok', streamToken: 'st1' });
+    await mount(f.fetchFn, new FakePlayer());
+    await act(async () => (host.querySelector('[data-key="tracks"]') as HTMLElement).click());
+    const sw = host.querySelector('[data-key="autoskip"]') as HTMLElement;
+    expect(sw.textContent).toContain('Off');
+    await act(async () => sw.click());
+    expect((host.querySelector('[data-key="autoskip"]') as HTMLElement).textContent).toContain('On');
+    expect(localStorage.getItem('foxbloom.tv.prefs.1')).toContain('"autoSkip":true');
+  });
 
   it('starts the stream with the stream token in the URL', async () => {
     const f = playFetch({ mode: 'direct', url: '/api/play/direct/movie/5', reason: 'ok', streamToken: 'st1' });

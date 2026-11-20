@@ -4,6 +4,7 @@ import type { Session } from '../session';
 import type { PlayInfo, StartResult } from '../types';
 import { detectCaps } from './caps';
 import { pickAudio } from './tracks';
+import { savedQuality, setPref, type Quality } from '../prefs';
 import type { TvPlayer } from './types';
 
 export const CANT_PLAY = 'This video can’t play on this TV.';
@@ -11,6 +12,10 @@ const SAVE_EVERY_MS = 10000;
 /** While paused, ask for the playlist this often so the server keeps a converted stream (it ends unused ones after a minute). */
 const KEEPALIVE_MS = 20000;
 const KEEPALIVE_FOR_MS = 30 * 60000;
+/** After a jump, how long to wait before checking the video really moved (some TVs ignore seekTo without an error). */
+export const SEEK_CHECK_MS = 1500;
+/** How far from the chosen time still counts as having got there (s). */
+const SEEK_SLACK = 5;
 
 export interface Playback {
   phase: 'starting' | 'playing' | 'ended' | 'failed';
@@ -23,6 +28,7 @@ export interface Playback {
   time: number;
   duration: number;
   audio: number | null;
+  quality: Quality;
   /** The current stream token, for subtitle URLs. */
   streamToken: string | null;
   play(): void;
@@ -30,6 +36,8 @@ export interface Playback {
   toggle(): void;
   seek(t: number): void;
   chooseAudio(order: number): void;
+  /** Restarts the stream from here at that quality, and remembers it for this person. */
+  chooseQuality(q: Quality): void;
   retry(): void;
 }
 
@@ -49,6 +57,9 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
   const p = player.current;
   const caps = useRef(detectCaps()).current;
   const [audio, setAudioState] = useState<number | null>(() => pickAudio(info));
+  const [quality, setQualityState] = useState<Quality>(() => savedQuality(session.profile.userId));
+  const qualityRef = useRef(quality);
+  qualityRef.current = quality;
   const [st, setSt] = useState<{ phase: Playback['phase']; error: string | null; canRetry: boolean; playing: boolean; buffering: boolean }>({
     phase: 'starting',
     error: null,
@@ -75,6 +86,9 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
     url: '',
     last: { at: 0, audio: null as number | null, play: true },
     pausedSince: 0,
+    /** A jump in progress: the bar shows this time until the video gets there (or the stream restarts there). */
+    seekTarget: null as number | null,
+    seekGen: 0,
   }).current;
 
   const endHls = (id: string) => {
@@ -82,6 +96,7 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
   };
   /** Where playback is: the player's clock while it works, otherwise the last position it reported. */
   const now = () => {
+    if (r.seekTarget !== null) return r.seekTarget;
     if (r.started && !r.broken) {
       const t = p.time();
       if (t > 0) r.lastTime = t;
@@ -125,9 +140,11 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
     const gen = ++r.gen;
     r.started = false;
     r.ended = false;
+    r.seekTarget = null;
+    r.seekGen++;
     r.last = { at: at, audio: a, play: play };
     setSt({ phase: 'starting', error: null, canRetry: true, playing: false, buffering: true });
-    const body = { audio: a, subtitle: null, caps: Object.assign({}, caps, { forceConvert: r.forced }), startAt: at };
+    const body = { audio: a, subtitle: null, quality: qualityRef.current, caps: Object.assign({}, caps, { forceConvert: r.forced }), startAt: at };
     session.send<StartResult>('POST', base + '/start', body).then(
       (res) => {
         if (gen !== r.gen || !r.live) {
@@ -229,6 +246,7 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
     time: time,
     duration: duration,
     audio: audio,
+    quality: quality,
     streamToken: token,
     play: play,
     pause: pause,
@@ -238,7 +256,26 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
       const to = Math.min(Math.max(0, t), Math.max(0, duration - 0.5));
       setTime(to);
       r.lastTime = to;
-      p.seek(to);
+      r.seekTarget = to;
+      const gen = ++r.seekGen;
+      const a = audio;
+      // Then check the video really went there. Some TVs (AVPlay on certain files and streams) report success but stay
+      // put; the bar would snap back. Starting the stream again at that point always lands where it was asked.
+      let checked = false;
+      const check = () => {
+        if (checked || gen !== r.seekGen || !r.live) return;
+        checked = true;
+        r.seekTarget = null;
+        const at = r.started && !r.broken ? p.time() : 0;
+        if (Math.abs(at - to) <= SEEK_SLACK) {
+          r.lastTime = at;
+          return;
+        }
+        r.lastTime = to;
+        start(to, a, r.playing);
+      };
+      p.seek(to).then(() => window.setTimeout(check, SEEK_CHECK_MS));
+      window.setTimeout(check, SEEK_CHECK_MS * 3); // in case the TV never answers the seek at all
     },
     chooseAudio(order: number) {
       if (order === audio) return;
@@ -246,6 +283,13 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
       // The original file: the TV switches itself. A conversion: start again with that track from here.
       if (r.started && r.mode === 'direct' && selectAudio(order)) return;
       start(Math.max(0, (now() || r.last.at) - 1), order, r.started ? r.playing : r.last.play);
+    },
+    chooseQuality(q: Quality) {
+      setPref(session.profile.userId, 'quality', q);
+      if (q === quality) return;
+      setQualityState(q);
+      qualityRef.current = q;
+      start(Math.max(0, (now() || r.last.at) - 1), audio, r.started ? r.playing : r.last.play);
     },
     retry: () => start(Math.max(0, now() || r.last.at), audio, true),
   };

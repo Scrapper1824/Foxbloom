@@ -210,6 +210,15 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
             if (play) p.play();
             setTime(at);
             setSt({ phase: 'playing', error: null, canRetry: true, playing: play, buffering: false });
+            // Some players say they moved to the start point but play from 0:00: check, and convert from there if so.
+            if (res.mode === 'direct' && at > SEEK_SLACK) {
+              window.setTimeout(() => {
+                if (gen !== r.gen || !r.live || !r.started || r.broken || r.seekTarget !== null) return;
+                const t = p.time();
+                dlog('check start: video at ' + t.toFixed(1) + 's, wanted ' + at + 's');
+                if (t < at - SEEK_SLACK) convertForSeeking(at, a, r.playing);
+              }, SEEK_CHECK_MS);
+            }
           },
           () => playFailed(gen),
         );
@@ -316,6 +325,8 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
           return;
         }
         r.lastTime = to;
+        // In the original file, starting it again needs the same jump: switch to a converted stream instead.
+        if (convertForSeeking(to, a, r.playing)) return;
         start(to, a, r.playing);
       };
       p.seek(to).then((ok) => {

@@ -107,6 +107,17 @@ describe('stream tokens', () => {
     expect((await app.inject({ method: 'HEAD', url: `/api/play/direct/movie/${movieId}?st=${other}` })).statusCode).toBe(401);
   });
 
+  it('the direct file also answers at an address ending in its file type (stream.mp4), as Samsung TVs need to jump in it', async () => {
+    const st = issueStreamToken(userId, `movie:${movieId}`, bearer);
+    const res = await get(`/api/play/direct/movie/${movieId}/stream.mp4?st=${st}`, { range: 'bytes=0-3' });
+    expect(res.statusCode).toBe(206);
+    expect(res.body).toBe('0123');
+    expect((await app.inject({ method: 'HEAD', url: `/api/play/direct/movie/${movieId}/stream.mp4?st=${st}` })).statusCode).toBe(200);
+    const other = issueStreamToken(userId, `movie:${otherId}`, bearer);
+    expect((await get(`/api/play/direct/movie/${movieId}/stream.mp4?st=${other}`)).statusCode).toBe(401);
+    expect((await get(`/api/play/direct/movie/${movieId}/other.txt?st=${st}`)).statusCode).toBe(404);
+  });
+
   it("stream token opens its own title's subtitle", async () => {
     const st = issueStreamToken(userId, `movie:${movieId}`, bearer);
     const res = await get(`/api/play/movie/${movieId}/subtitle/0?st=${st}`);
@@ -244,6 +255,7 @@ describe('start', () => {
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.mode).toBe('direct');
+    expect(body.url).toBe(`/api/play/direct/movie/${movieId}/stream.mp4`); // names the file type, as Samsung TVs need
     expect(streamTokenUser(body.streamToken, `movie:${movieId}`)).toBe(userId);
     expect(streamTokenUser(body.streamToken, `movie:${otherId}`)).toBeNull();
   });

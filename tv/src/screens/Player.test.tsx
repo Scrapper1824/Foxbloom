@@ -258,6 +258,36 @@ describe('Player', () => {
     expect(starts(g.calls)[0].body.caps.forceConvert).toBe(true);
   });
 
+  it('a jump the player ignores in the original file switches to a converted stream from the chosen time', async () => {
+    const f = playFetch({ mode: 'direct', url: '/api/play/direct/movie/5', reason: 'ok', streamToken: 'st1' });
+    const p = new FakePlayer();
+    p.ignoreSeeks = true;
+    await mount(f.fetchFn, p);
+    p.t = 100;
+    await wait(400);
+    press(39);
+    await wait(2600);
+    await settle();
+    const s = starts(f.calls);
+    expect(s.length).toBe(2);
+    expect(s[1].body).toMatchObject({ startAt: 110 });
+    expect(s[1].body.caps.forceConvert).toBe(true);
+  });
+
+  it('a player that claims it reached the start point but plays from 0:00 switches to a converted stream from there', async () => {
+    const f = playFetch({ mode: 'direct', url: '/api/play/direct/movie/5', reason: 'ok', streamToken: 'st1' }, { info: Object.assign({}, info, { position: 300 }) });
+    const p = new FakePlayer();
+    const open = p.open.bind(p);
+    p.open = (url: string, at: number) => open(url, at).then((x) => { p.t = 0; return x; });
+    await mount(f.fetchFn, p);
+    await wait(1800);
+    await settle();
+    const s = starts(f.calls);
+    expect(s.length).toBe(2);
+    expect(s[1].body).toMatchObject({ startAt: 300 });
+    expect(s[1].body.caps.forceConvert).toBe(true);
+  });
+
   it('when the start point can’t be reached in the original file, it starts converted from there instead of 0:00', async () => {
     const f = playFetch({ mode: 'direct', url: '/api/play/direct/movie/5', reason: 'ok', streamToken: 'st1' }, { info: Object.assign({}, info, { position: 300 }) });
     const p = new FakePlayer();

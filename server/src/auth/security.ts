@@ -31,6 +31,7 @@ export const GUEST_ALLOWED = new Set([
   'GET /api/play/:kind/:id/info',
   'POST /api/play/:kind/:id/start',
   'GET /api/play/direct/:kind/:id',
+  'GET /api/play/direct/:kind/:id/:name',
   'GET /api/play/hls/:session/:file',
   'DELETE /api/play/hls/:session',
   'GET /api/play/:kind/:id/subtitle/:track',
@@ -113,6 +114,7 @@ export const USER_ALLOWED = new Set([
   'GET /api/play/:kind/:id/info',
   'POST /api/play/:kind/:id/start',
   'GET /api/play/direct/:kind/:id',
+  'GET /api/play/direct/:kind/:id/:name',
   'GET /api/play/hls/:session/:file',
   'DELETE /api/play/hls/:session',
   'GET /api/play/:kind/:id/subtitle/:track',
@@ -251,7 +253,7 @@ export function registerSecurity(app: FastifyInstance) {
       const r = req.routeOptions.url;
       let title: string | null = null;
       if (typeof st === 'string') {
-        if (r === '/api/play/direct/:kind/:id' || r === '/api/play/:kind/:id/subtitle/:track' || r === '/api/play/:kind/:id/trickplay/:sheet')
+        if (r === '/api/play/direct/:kind/:id' || r === '/api/play/direct/:kind/:id/:name' || r === '/api/play/:kind/:id/subtitle/:track' || r === '/api/play/:kind/:id/trickplay/:sheet')
           title = `${params.kind}:${params.id}`;
         else if (r === '/api/play/hls/:session/:file') title = params.session ? sessionTitle(params.session) : null;
       }

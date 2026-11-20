@@ -238,7 +238,8 @@ export async function playRoutes(app: FastifyInstance) {
       }
       // The TV can't send a header on video/subtitle loads, so it gets a token for this title to put in the URL (?st=).
       const streamToken = req.authVia === 'bearer' && req.user ? { streamToken: issueStreamToken(req.user.id, `${p.kind}:${p.id}`, req.sessionToken!) } : {};
-      if (decision.mode === 'direct') return { mode: 'direct', url: `/api/play/direct/${p.kind}/${p.id}`, reason: decision.reason, ...streamToken };
+      // The address ends in the file's type (stream.mkv) like Jellyfin's: Samsung's players won't jump in a file whose address has none.
+      if (decision.mode === 'direct') return { mode: 'direct', url: `/api/play/direct/${p.kind}/${p.id}/stream${path.extname(p.file).toLowerCase()}`, reason: decision.reason, ...streamToken };
       const info = await ffmpegInfo();
       const startAt = Math.min(Math.max(0, Number(req.body?.startAt) || 0), Math.max(0, probe.duration - 1));
       const owner = viewer(req);
@@ -269,8 +270,10 @@ export async function playRoutes(app: FastifyInstance) {
     },
   );
 
-  app.get<{ Params: { kind: string; id: string } }>('/api/play/direct/:kind/:id', async (req, reply) => {
+  const direct = async (req: FastifyRequest<{ Params: { kind: string; id: string; name?: string } }>, reply: FastifyReply) => {
     const p = playable(req.params.kind, req.params.id);
+    // .../stream.mkv: the same file, at an address that names its type. Only that one name.
+    if (req.params.name !== undefined && req.params.name !== 'stream' + path.extname(p.file).toLowerCase()) return reply.code(404).send({ error: 'Not found' });
     if (req.guest) {
       const guestId = req.guest.guestId;
       let open = guestDirect.get(guestId);
@@ -284,7 +287,9 @@ export async function playRoutes(app: FastifyInstance) {
     }
     const viewer = statsUser(req.user?.id ?? -(req.guest?.guestId ?? 0));
     return sendRange(req, reply, p.file, (bytes) => addWatch(viewer, p.media.id, p.episode?.id ?? 0, 0, bytes));
-  });
+  };
+  app.get<{ Params: { kind: string; id: string } }>('/api/play/direct/:kind/:id', direct);
+  app.get<{ Params: { kind: string; id: string; name: string } }>('/api/play/direct/:kind/:id/:name', direct);
 
   app.get<{ Params: { session: string; file: string } }>('/api/play/hls/:session/:file', async (req, reply) => {
     const s = ownSession(req, req.params.session);

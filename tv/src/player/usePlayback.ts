@@ -5,6 +5,7 @@ import type { PlayInfo, StartResult } from '../types';
 import { detectCaps } from './caps';
 import { pickAudio } from './tracks';
 import { savedQuality, setPref, type Quality } from '../prefs';
+import { dlog } from '../debuglog';
 import type { TvPlayer } from './types';
 
 export const CANT_PLAY = 'This video can’t play on this TV.';
@@ -29,6 +30,8 @@ export interface Playback {
   duration: number;
   audio: number | null;
   quality: Quality;
+  /** When the player last refused a jump (Date.now()), 0 if never: the screen says so. */
+  seekRefused: number;
   /** The current stream token, for subtitle URLs. */
   streamToken: string | null;
   play(): void;
@@ -69,6 +72,7 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
   });
   const [time, setTime] = useState(() => startPoint(info));
   const [token, setToken] = useState<string | null>(null);
+  const [seekRefused, setSeekRefused] = useState(0);
   const r = useRef({
     live: true,
     gen: 0,
@@ -155,6 +159,7 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
         if (r.hls) endHls(r.hls);
         r.hls = res.sessionId || null;
         r.mode = res.mode;
+        dlog('stream ' + res.mode + ' (' + res.reason + ') from ' + at + 's');
         r.url = session.streamUrl(res.url, res.streamToken);
         setToken(res.streamToken || null);
         p.open(r.url, at).then(
@@ -247,6 +252,7 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
     duration: duration,
     audio: audio,
     quality: quality,
+    seekRefused: seekRefused,
     streamToken: token,
     play: play,
     pause: pause,
@@ -267,6 +273,7 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
         checked = true;
         r.seekTarget = null;
         const at = r.started && !r.broken ? p.time() : 0;
+        dlog('check: video at ' + at.toFixed(1) + 's, wanted ' + to + 's' + (Math.abs(at - to) <= SEEK_SLACK ? ' (ok)' : ' -> restarting there'));
         if (Math.abs(at - to) <= SEEK_SLACK) {
           r.lastTime = at;
           return;
@@ -274,7 +281,16 @@ export function usePlayback(session: Session, info: PlayInfo, makePlayer: () => 
         r.lastTime = to;
         start(to, a, r.playing);
       };
-      p.seek(to).then(() => window.setTimeout(check, SEEK_CHECK_MS));
+      p.seek(to).then((ok) => {
+        if (ok) return void window.setTimeout(check, SEEK_CHECK_MS);
+        // Refused outright: starting the stream again needs the same jump, so it would play from 0:00. Stay put.
+        if (checked || gen !== r.seekGen || !r.live) return;
+        checked = true;
+        r.seekTarget = null;
+        r.lastTime = r.started && !r.broken ? p.time() || r.lastTime : r.lastTime;
+        setTime(r.lastTime);
+        setSeekRefused(Date.now());
+      });
       window.setTimeout(check, SEEK_CHECK_MS * 3); // in case the TV never answers the seek at all
     },
     chooseAudio(order: number) {

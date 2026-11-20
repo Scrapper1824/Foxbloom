@@ -1,4 +1,5 @@
 import type { TvPlayer } from './types';
+import { dlog, errText, setDstatus } from '../debuglog';
 
 // Samsung's player API; only on the TV (loaded by $WEBAPIS/webapis/webapis.js in index.html).
 declare const webapis: any;
@@ -31,6 +32,21 @@ export function avPlayer(av: any = webapis.avplay, doc: Document = document, win
   let error = (_m: string) => {};
   let buffering = (_on: boolean) => {};
   let obj: HTMLElement | null = null;
+  const state = () => {
+    try {
+      return String(av.getState());
+    } catch (_e) {
+      return '?';
+    }
+  };
+  const nowMs = () => {
+    try {
+      return String(av.getCurrentTime());
+    } catch (_e) {
+      return '?';
+    }
+  };
+  setDstatus(() => 'AVPlay ' + state() + ' time ' + nowMs() + ' ms');
 
   function shutdown() {
     call(() => av.stop());
@@ -48,19 +64,32 @@ export function avPlayer(av: any = webapis.avplay, doc: Document = document, win
             obj.className = 'avplayer';
             doc.body.appendChild(obj);
           }
+          dlog('open ' + url.replace(/st=[^&]+/, 'st=…').replace(/^https?:\/\/[^/]+/, '') + ' at ' + startAt + 's');
           av.open(url);
           const r = displayRect(0, 0, win.innerWidth || 1920, win.innerHeight || 1080, win);
           av.setDisplayRect(r[0], r[1], r[2], r[3]);
           av.setListener({
-            onbufferingstart: () => buffering(true),
+            onbufferingstart: () => {
+              dlog('buffering start');
+              buffering(true);
+            },
             onbufferingprogress: () => {},
-            onbufferingcomplete: () => buffering(false),
-            onstreamcompleted: () => ended(),
+            onbufferingcomplete: () => {
+              dlog('buffering done, time ' + nowMs());
+              buffering(false);
+            },
+            onstreamcompleted: () => {
+              dlog('stream completed');
+              ended();
+            },
             oncurrentplaytime: () => {},
             onevent: () => {},
             onsubtitlechange: () => {},
             ondrmevent: () => {},
-            onerror: (e: unknown) => error(String(e)),
+            onerror: (e: unknown) => {
+              dlog('onerror ' + errText(e));
+              error(String(e));
+            },
           });
         } catch (e) {
           reject(e instanceof Error ? e : new Error(String(e)));
@@ -68,25 +97,55 @@ export function avPlayer(av: any = webapis.avplay, doc: Document = document, win
         }
         av.prepareAsync(
           () => {
+            dlog('prepared, state ' + state() + ', length ' + (function () { try { return av.getDuration(); } catch (_e) { return '?'; } })() + ' ms');
             if (!(startAt > 0)) return resolve();
             try {
-              av.seekTo(Math.floor(startAt * 1000), () => resolve(), () => resolve());
-            } catch (_e) {
+              const ms = Math.floor(startAt * 1000);
+              dlog('seekTo ' + ms + ' (opening), state ' + state());
+              av.seekTo(
+                ms,
+                () => {
+                  dlog('seekTo ok (opening), time ' + nowMs());
+                  resolve();
+                },
+                (e: unknown) => {
+                  dlog('seekTo FAILED (opening): ' + errText(e));
+                  resolve();
+                },
+              );
+            } catch (e) {
+              dlog('seekTo THREW (opening): ' + errText(e));
               resolve(); // play from the start rather than never opening
             }
           },
-          (e: unknown) => reject(new Error(String(e))),
+          (e: unknown) => {
+            dlog('prepare FAILED: ' + errText(e));
+            reject(new Error(String(e)));
+          },
         );
       });
     },
     play: () => call(() => av.play()),
     pause: () => call(() => av.pause()),
     seek(seconds) {
-      return new Promise<void>((resolve) => {
+      return new Promise<boolean>((resolve) => {
+        const ms = Math.max(0, Math.floor(seconds * 1000));
+        dlog('seekTo ' + ms + ', state ' + state() + ', time ' + nowMs());
         try {
-          av.seekTo(Math.max(0, Math.floor(seconds * 1000)), () => resolve(), () => resolve());
-        } catch (_e) {
-          resolve();
+          av.seekTo(
+            ms,
+            () => {
+              dlog('seekTo ok, time ' + nowMs());
+              resolve(true);
+            },
+            (e: unknown) => {
+              dlog('seekTo FAILED: ' + errText(e));
+              resolve(false);
+            },
+          );
+        } catch (e) {
+          dlog('seekTo THREW: ' + errText(e));
+          resolve(false);
         }
       });
     },

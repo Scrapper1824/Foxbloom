@@ -56,7 +56,7 @@ export function html5Player(doc: Document = document): TvPlayer {
     pause: () => v && v.pause(),
     seek(seconds) {
       if (v) v.currentTime = Math.max(0, seconds);
-      return Promise.resolve();
+      return Promise.resolve(!!v);
     },
     time: () => (v ? v.currentTime : 0),
     duration: () => (v && isFinite(v.duration) ? v.duration : 0),

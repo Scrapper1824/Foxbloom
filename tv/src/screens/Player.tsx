@@ -6,6 +6,7 @@ import { keyFromEvent, type Key } from '../remote';
 import type { Session } from '../session';
 import type { PlayExtras, PlayInfo, PlayItem, Segment, Trickplay } from '../types';
 import { getPref, QUALITIES, setPref, type Quality } from '../prefs';
+import { dlines, dstatus, onDlog } from '../debuglog';
 import { avPlayer, hasAvPlay } from '../player/avplay';
 import { html5Player } from '../player/html5';
 import { cueAt, parseSrt, type Cue } from '../player/srt';
@@ -95,6 +96,27 @@ function SegmentMark({ seg, duration, kind }: { seg: Segment | undefined; durati
   return <div class={'player-seg ' + kind} style={{ left: pct(seg.start, duration), width: pct(seg.end - seg.start, duration) }} />;
 }
 
+/** The diagnostics panel (0 on the remote): the player's live state and the last things it was told and answered. */
+function Diagnostics() {
+  const [, redraw] = useState(0);
+  useEffect(() => {
+    const off = onDlog(() => redraw((n) => n + 1));
+    const id = window.setInterval(() => redraw((n) => n + 1), 500);
+    return () => {
+      off();
+      window.clearInterval(id);
+    };
+  }, []);
+  return (
+    <div class="player-diag">
+      <div class="player-diag-status">{dstatus()}</div>
+      {dlines().map((l, i) => (
+        <div key={i}>{l}</div>
+      ))}
+    </div>
+  );
+}
+
 /** The thumbnail of moment `t`, above the bar while you move through the video (cut from its sheet image). */
 function Preview({ tp, t, duration, sheetUrl }: { tp: Trickplay; t: number; duration: number; sheetUrl: (sheet: number) => string }) {
   const perSheet = tp.columns * tp.rows;
@@ -178,6 +200,7 @@ function Playing({ session, item, info, makePlayer }: { session: Session; item: 
   const base = '/api/play/' + info.kind + '/' + info.id;
   const [autoSkip, setAutoSkip] = useState(() => !!getPref(uid, 'autoSkip'));
   const [note, setNote] = useState<string | null>(null);
+  const [diag, setDiag] = useState(false);
   const lastOwnSeek = useRef(0);
   const skipped = useRef<Record<string, boolean>>({});
 
@@ -245,6 +268,9 @@ function Playing({ session, item, info, makePlayer }: { session: Session; item: 
     setNote(inIntro ? 'Skipped the intro' : 'Skipped the credits');
   });
   useEffect(() => {
+    if (pb.seekRefused) setNote('This TV couldn’t jump in this video');
+  }, [pb.seekRefused]);
+  useEffect(() => {
     if (!note) return;
     const id = window.setTimeout(() => setNote(null), NOTE_MS);
     return () => window.clearTimeout(id);
@@ -306,10 +332,14 @@ function Playing({ session, item, info, makePlayer }: { session: Session; item: 
   };
 
   /** The player's own keys; returns false for the ones App should handle (moving the focus ring, OK, Back to leave). */
-  const onKey = (key: Key, e: KeyboardEvent): boolean => {
+  const onKey = (key: Key, e: KeyboardEvent, digit?: number): boolean => {
     const now = Date.now();
     const held = !!e.repeat || (lastKey.current.key === key && now - lastKey.current.at < HELD_MS);
     lastKey.current = { key: key, at: now };
+    if (key === 'digit' && digit === 0) {
+      setDiag((d) => !d);
+      return true;
+    }
     if (pb.phase === 'failed' || pb.phase === 'starting') return false;
     const hidden = !controls;
     poke();
@@ -348,7 +378,7 @@ function Playing({ session, item, info, makePlayer }: { session: Session; item: 
     // Capture phase, so these keys are handled here before App's own listener sees them.
     const listen = (e: KeyboardEvent) => {
       const k = keyFromEvent(e);
-      if (k && handler.current(k.key, e)) {
+      if (k && handler.current(k.key, e, k.digit)) {
         e.preventDefault();
         e.stopPropagation();
       }
@@ -419,6 +449,7 @@ function Playing({ session, item, info, makePlayer }: { session: Session; item: 
       ) : null}
 
       {note && <div class="player-note">{note}</div>}
+      {diag && <Diagnostics />}
       {skip && (
         <button data-focusable data-key="skip" class="btn player-skip" onClick={doSkip}>
           {skip}

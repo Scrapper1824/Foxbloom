@@ -243,7 +243,9 @@ export function registerSecurity(app: FastifyInstance) {
     }
     // The TV's video, subtitle and preview-thumbnail loads carry a stream token (?st=) instead: valid for exactly
     // these GET routes and only for the token's own title. Cookie or bearer sign-in wins when present.
-    if (!req.user && req.method === 'GET') {
+    // HEAD too: players (Samsung's AVPlay) ask HEAD first for the size and byte-range support, and treat a refusal as
+    // 'this file can't be jumped in' (every seek then fails with PLAYER_ERROR_INVALID_STATE).
+    if (!req.user && (req.method === 'GET' || req.method === 'HEAD')) {
       const st = (req.query as Record<string, unknown> | undefined)?.st;
       const params = (req.params ?? {}) as Record<string, string | undefined>;
       const r = req.routeOptions.url;

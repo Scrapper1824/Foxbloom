@@ -4,7 +4,8 @@ export interface TvPlayer {
   open(url: string, startAt: number): Promise<void>;
   play(): void;
   pause(): void;
-  seek(seconds: number): Promise<void>;
+  /** Resolves true when the player took the jump, false when it refused it (AVPlay's seekTo error callback). */
+  seek(seconds: number): Promise<boolean>;
   time(): number;
   duration(): number;
   /** The file's audio tracks, in file order; `index` is what setAudio takes. */

@@ -65,7 +65,14 @@ class FakePlayer implements TvPlayer {
   /** Like some TVs: seekTo "succeeds" but the video stays where it was. */
   ignoreSeeks = false;
   seeks: number[] = [];
-  seek(s: number) { this.seeks.push(s); if (!this.ignoreSeeks) this.t = s; return Promise.resolve(); }
+  /** Like AVPlay on a file it thinks can't be jumped in: every seekTo reports PLAYER_ERROR_INVALID_STATE. */
+  refuseSeeks = false;
+  seek(s: number) {
+    this.seeks.push(s);
+    if (this.refuseSeeks) return Promise.resolve(false);
+    if (!this.ignoreSeeks) this.t = s;
+    return Promise.resolve(true);
+  }
   time() { return this.t; }
   duration() { return 1200; }
   audioTracks() { return [{ index: 1, language: 'eng' }]; }
@@ -224,6 +231,22 @@ describe('Player', () => {
     await act(async () => sw.click());
     expect((host.querySelector('[data-key="autoskip"]') as HTMLElement).textContent).toContain('On');
     expect(localStorage.getItem('foxbloom.tv.prefs.1')).toContain('"autoSkip":true');
+  });
+
+  it('a jump the TV refuses (reports an error) stays where the video is, without restarting, and says so', async () => {
+    const f = playFetch({ mode: 'direct', url: '/api/play/direct/movie/5', reason: 'ok', streamToken: 'st1' });
+    const p = new FakePlayer();
+    p.refuseSeeks = true;
+    await mount(f.fetchFn, p);
+    p.t = 100;
+    await wait(400);
+    press(39);
+    await wait(2400);
+    await settle();
+    expect(p.seeks).toEqual([110]);
+    expect(starts(f.calls).length).toBe(1); // a restart would need the same jump, and would start from 0:00
+    expect(clockText()).toMatch(/^1:4[0-9]$/); // back with the video, near 1:40
+    expect(host.textContent).toContain('This TV couldn’t jump in this video');
   });
 
   it('starts the stream with the stream token in the URL', async () => {

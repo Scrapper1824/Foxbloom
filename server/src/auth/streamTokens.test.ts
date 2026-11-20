@@ -97,6 +97,16 @@ describe('stream tokens', () => {
     expect(res.headers['cross-origin-resource-policy']).toBe('cross-origin');
   });
 
+  it('a HEAD request with the stream token (players ask it first, to see the size and that jumping works) is answered like GET', async () => {
+    const st = issueStreamToken(userId, `movie:${movieId}`, bearer);
+    const res = await app.inject({ method: 'HEAD', url: `/api/play/direct/movie/${movieId}?st=${st}` });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['accept-ranges']).toBe('bytes');
+    expect(res.headers['content-length']).toBe('16');
+    const other = issueStreamToken(userId, `movie:${otherId}`, bearer);
+    expect((await app.inject({ method: 'HEAD', url: `/api/play/direct/movie/${movieId}?st=${other}` })).statusCode).toBe(401);
+  });
+
   it("stream token opens its own title's subtitle", async () => {
     const st = issueStreamToken(userId, `movie:${movieId}`, bearer);
     const res = await get(`/api/play/movie/${movieId}/subtitle/0?st=${st}`);

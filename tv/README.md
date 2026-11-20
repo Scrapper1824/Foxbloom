@@ -85,8 +85,9 @@ allow this PC. Tick **Always allow from this computer** and choose **Allow**.
 If the TV isn't listed, choose **Enter an address** and type the **IP address & Port** from the Wireless debugging
 screen (like `192.168.1.50:37000`), or just the TV's address (like `192.168.1.50`) for Network debugging.
 
-You can turn Wireless debugging off again afterwards; you'll pair once more for the next update. To update, run the
-setup again: it replaces the app and keeps your sign-in.
+You can turn Wireless debugging off again afterwards. Next time, turn Wireless debugging on again and type the new
+connection address (the TV stays paired; only the port changes). To update, run the setup again: it replaces the app
+and keeps your sign-in.
 
 | Message | What to do |
 | --- | --- |

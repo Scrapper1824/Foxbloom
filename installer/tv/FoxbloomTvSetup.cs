@@ -982,7 +982,7 @@ class TvSetupForm : Form
         AcceptButton = null;
         Add(Label("Done — Foxbloom is on your TV", Theme.Bold(14f), Theme.Ok, 28, 20, 580, 34));
         string off = tv.Wireless
-            ? "You can turn Wireless debugging off again; you'll pair once more for the next update."
+            ? "You can turn Wireless debugging off again. Next time, turn Wireless debugging on again and type the new connection address."
             : "You can turn Network debugging off again; turn it back on for the next update.";
         Add(Label("Foxbloom is installed on " + name + " and should open now. Next time, find it in the TV's Apps list.\n\nOpen it, enter your Foxbloom address, and sign in with the code it shows.\n\n" + off, Theme.Body(10.5f), Theme.Muted, 28, 66, 580, 150));
         Add(Button("Install on another TV", false, 28, 230, 220, delegate { StartScan(); }));

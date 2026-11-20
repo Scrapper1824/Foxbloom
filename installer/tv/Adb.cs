@@ -194,6 +194,8 @@ public sealed class Adb
                 return "This TV already has a Foxbloom signed by someone else (for example a test build). Remove Foxbloom from the TV (Settings > Apps), then try again.";
             case "INSTALL_FAILED_OLDER_SDK":
                 return "This TV's Android is too old for Foxbloom (it needs Android 7 or newer).";
+            case "INSTALL_FAILED_VERSION_DOWNGRADE":
+                return "This TV has a newer Foxbloom than this setup. Download the latest FoxbloomTVSetup.exe.";
             case "INSTALL_FAILED_INSUFFICIENT_STORAGE":
                 return "The TV is out of space. Remove an app you don't use, then try again.";
             default:

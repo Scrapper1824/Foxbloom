@@ -24,10 +24,24 @@ class CapsTest {
         assertEquals(false, c["dts"])
     }
 
-    @Test fun alwaysOnFields() {
+    @Test fun containersAlwaysOn() {
         val c = fields(capsJson(emptySet(), emptySet()))
-        for (k in listOf("mp4", "mkv", "webm", "aac", "mp3", "opus", "flac")) assertEquals(k, true, c[k])
+        for (k in listOf("mp4", "mkv", "webm")) assertEquals(k, true, c[k])
         assertEquals(false, c["h264"])
+    }
+
+    // ExoPlayer has no FLAC/Opus/AAC/MP3 decoder of its own (without extensions): each needs the platform's.
+    @Test fun audioCodecsFollowTheDecoders() {
+        val none = fields(capsJson(emptySet(), emptySet()))
+        for (k in listOf("aac", "mp3", "opus", "flac")) assertEquals(k, false, none[k])
+        val all = fields(capsJson(setOf("audio/mp4a-latm", "audio/mpeg", "audio/opus", "audio/flac"), emptySet()))
+        for (k in listOf("aac", "mp3", "opus", "flac")) assertEquals(k, true, all[k])
+    }
+
+    @Test fun noFlacOnOldAndroid() {
+        val c = fields(capsJson(setOf("video/avc", "audio/mp4a-latm", "audio/mpeg", "audio/opus"), emptySet()))
+        assertEquals(false, c["flac"])
+        assertEquals(true, c["opus"])
     }
 
     @Test fun eac3Passthrough() {

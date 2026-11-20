@@ -148,6 +148,7 @@ static partial class Tests
                 { "Performing Streamed Install\r\nadb: failed to install x.apk: Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: Existing package org.foxbloom.tv signatures do not match]", "signed by someone else" },
                 { "Failure [INSTALL_FAILED_OLDER_SDK]", "Android 7 or newer" },
                 { "Failure [INSTALL_FAILED_INSUFFICIENT_STORAGE]", "out of space" },
+                { "Failure [INSTALL_FAILED_VERSION_DOWNGRADE: Downgrade detected: Update version code 907 is older than current 1000]", "newer Foxbloom than this setup" },
                 { "Failure [INSTALL_FAILED_SOMETHING_ELSE: odd]", "INSTALL_FAILED_SOMETHING_ELSE" },
                 { "error: device unauthorized.", "hasn't allowed this PC" },
                 { "", "didn't confirm" },

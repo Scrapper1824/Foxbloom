@@ -4,22 +4,27 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.pm.ApplicationInfo
 import android.graphics.Color
-import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
-import android.webkit.JavascriptInterface
+import android.view.View
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
+import androidx.media3.ui.PlayerView
 import androidx.webkit.WebViewAssetLoader
 
-/** The whole app: a full-screen WebView showing the TV web app (tv/dist, bundled in the APK's assets). */
+/**
+ * The whole app: a full-screen WebView showing the TV web app (tv/dist, bundled in the APK's assets), over the
+ * ExoPlayer video surface it drives through [PlayerBridge].
+ */
 class MainActivity : Activity() {
     private lateinit var root: FrameLayout
     private lateinit var webView: WebView
+    private lateinit var playerView: PlayerView
+    private lateinit var bridge: PlayerBridge
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -43,25 +48,32 @@ class MainActivity : Activity() {
             isHorizontalScrollBarEnabled = false
             // Transparent so a video surface underneath can show through.
             setBackgroundColor(Color.TRANSPARENT)
-            addJavascriptInterface(createBridge(), "FoxbloomAndroid")
             webViewClient = object : WebViewClient() {
                 override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
                     assets.shouldInterceptRequest(request.url)
 
                 // The app never navigates away from its own page; links to anywhere else are dropped.
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
-                    request.url.host != WebViewAssetLoader.DEFAULT_DOMAIN
+                    request.url.scheme != "https" || request.url.host != WebViewAssetLoader.DEFAULT_DOMAIN
             }
         }
 
+        // The video, drawn under the page; the page shows its own controls, and the view is hidden while nothing plays.
+        playerView = PlayerView(this).apply {
+            useController = false
+            isFocusable = false
+            visibility = View.GONE
+        }
+        bridge = PlayerBridge(this, webView, playerView)
+        webView.addJavascriptInterface(bridge, "FoxbloomAndroid")
+
         root = FrameLayout(this)
-        root.addView(webView, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        val full = { FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT) }
+        root.addView(playerView, full())
+        root.addView(webView, full())
         setContentView(root)
         webView.loadUrl(START_URL)
     }
-
-    /** The object the page sees as `window.FoxbloomAndroid` (see AndroidBridge in tv/src/platform.ts). */
-    private fun createBridge(): Any = AppBridge(this)
 
     /**
      * Back and the media keys become the Samsung key codes the page already handles (it decides what Back does,
@@ -86,7 +98,13 @@ class MainActivity : Activity() {
         super.onPause()
     }
 
+    override fun onStop() {
+        bridge.onStop()
+        super.onStop()
+    }
+
     override fun onDestroy() {
+        bridge.destroy()
         root.removeView(webView)
         webView.destroy()
         super.onDestroy()
@@ -106,13 +124,4 @@ class MainActivity : Activity() {
                 "Object.defineProperty(e,'which',{get:function(){return c}});" +
                 "(document.activeElement||document.body||document).dispatchEvent(e)})($keyCode)"
     }
-}
-
-/** The app-level part of the bridge: the device's name and leaving the app. */
-class AppBridge(private val activity: Activity) {
-    @JavascriptInterface
-    fun model(): String = Build.MANUFACTURER + " " + Build.MODEL
-
-    @JavascriptInterface
-    fun exit() = activity.runOnUiThread { activity.finish() }
 }

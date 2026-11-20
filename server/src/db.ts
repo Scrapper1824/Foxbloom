@@ -201,6 +201,14 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TEXT NOT NULL,
   password_changed_at TEXT NOT NULL
 );
+-- Each user's profile picture (at most one). The key is random and changes with each new picture: it is the address.
+CREATE TABLE IF NOT EXISTS user_avatars (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  key TEXT NOT NULL UNIQUE,
+  mime TEXT NOT NULL,
+  data BLOB NOT NULL,
+  updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS user_links (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   service TEXT NOT NULL,

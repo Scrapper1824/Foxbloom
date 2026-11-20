@@ -4,7 +4,7 @@ import { Logo } from '../logo';
 import type { Session, SessionInfo } from '../session';
 import { isNewer } from '../version';
 import { NAV_PREFIX, setPendingFocus } from '../restore';
-import { profilesScreen } from '../screens/Profiles';
+import { ProfileAvatar, profilesScreen } from '../screens/Profiles';
 import { homeScreen } from '../screens/Home';
 import { libraryScreen } from '../screens/Library';
 import { searchScreen } from '../screens/Search';
@@ -48,8 +48,9 @@ export function TopBar({ session, active }: { session: Session; active: Section 
         {tab('home', 'Home')}
         {tab('library', 'Library')}
         {tab('search', 'Search')}
-        <button data-focusable class="nav-btn" onClick={() => nav.reset([profilesScreen(f)])}>
-          {session.profile.username} · Switch
+        <button data-focusable class="nav-btn nav-person" onClick={() => nav.reset([profilesScreen(f)])}>
+          {info && <ProfileAvatar profile={session.profile} base={info.base} small />}
+          <span>{session.profile.username} · Switch</span>
         </button>
         <span class="topbar-gap" />
         {info && info.where && <span class="where-label">{info.where === 'home' ? 'Home' : 'Away'}</span>}

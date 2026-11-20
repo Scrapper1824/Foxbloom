@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, formatDate } from '../api';
 import { useAuth } from './AuthGate';
 import Spinner from './Spinner';
+import { Avatar } from './ProfilePicture';
 
 interface UserSummary {
   id: number;
@@ -14,6 +15,7 @@ interface UserSummary {
   totpEnabled: boolean;
   sessions: number;
   createdAt: string;
+  avatar: string | null;
 }
 
 function Switch({ checked, disabled, onChange, label, title }: { checked: boolean; disabled: boolean; onChange: (v: boolean) => void; label: string; title: string }) {
@@ -131,7 +133,8 @@ function UserRow({ u, isMe }: { u: UserSummary; isMe: boolean }) {
   return (
     <li className="user-row">
       <div className="user-who">
-        <div>
+        <div className="user-name-line">
+          <Avatar username={u.username} avatar={u.avatar} size={28} />
           <strong>{u.username}</strong> {isMe && <span className="muted small">(you)</span>}
         </div>
         <div className="muted small user-meta">

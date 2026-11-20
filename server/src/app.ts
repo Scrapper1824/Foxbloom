@@ -6,6 +6,7 @@ import fastifyWebsocket from '@fastify/websocket';
 import { authRoutes } from './auth/routes.js';
 import { registerSecurity } from './auth/security.js';
 import { userRoutes } from './auth/users.js';
+import { avatarRoutes } from './auth/avatars.js';
 import { apiRoutes } from './routes/api.js';
 import { notificationRoutes } from './routes/notifications.js';
 import { setPartyActiveCheck } from './core/notifications.js';
@@ -82,6 +83,7 @@ export async function buildApp(opts: {
   registerSecurity(app);
   await app.register(authRoutes, { dataDir: opts.dataDir });
   await app.register(userRoutes);
+  await app.register(avatarRoutes);
   await app.register(apiRoutes);
   await app.register(watchlistRoutes);
   await app.register(notificationRoutes);

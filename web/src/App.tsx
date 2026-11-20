@@ -1,4 +1,5 @@
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigationType } from 'react-router-dom';
+import { Avatar } from './components/ProfilePicture';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type Download } from './api';
@@ -196,9 +197,7 @@ function Shell() {
           {isAdmin && <StorageBars />}
         </div>
         <div className="sidebar-user">
-          <span className="avatar" aria-hidden>
-            {(auth.data?.user?.username ?? '?').slice(0, 1).toUpperCase()}
-          </span>
+          <Avatar username={auth.data?.user?.username} avatar={auth.data?.user?.avatar} />
           <span className="sidebar-who" title="Signed in">
             <strong>{auth.data?.user?.username}</strong>
             <span>{isAdmin ? 'Admin' : 'Viewer'}</span>

@@ -4,7 +4,8 @@ import { Api } from '../api';
 import { defaultFetch, pickBase, trimSlash, type FetchFn } from '../connection';
 import { Logo } from '../logo';
 import { clearPin } from '../pin';
-import { loadState, removeProfile, upsertProfile, type Profile } from '../profiles';
+import { loadState, removeProfile, setAvatar, upsertProfile, type Profile } from '../profiles';
+import type { AuthStatus } from '../types';
 import { AddPerson } from './AddPerson';
 import { Connect } from './Connect';
 import { homeScreen } from './Home';
@@ -13,6 +14,21 @@ import { useFocusFirst } from './useFocus';
 
 const COLORS = ['#f2a7c3', '#8fd3c7', '#f4c97a', '#9db7f5', '#c6a3f0', '#f09a8a'];
 const colorFor = (id: number) => COLORS[Math.abs(id) % COLORS.length];
+
+/** A person's picture, or the first letter of their name on their colour (also when the picture won't load). */
+export function ProfileAvatar({ profile, base, small }: { profile: Profile; base: string; small?: boolean }) {
+  const [broken, setBroken] = useState<string | null>(null);
+  const cls = 'avatar' + (small ? ' small' : '');
+  if (profile.avatar && base && broken !== profile.avatar) {
+    const src = trimSlash(base) + profile.avatar;
+    return <img class={cls + ' avatar-img'} src={src} alt="" onError={() => setBroken(profile.avatar || null)} />;
+  }
+  return (
+    <span class={cls} style={{ background: colorFor(profile.userId) }}>
+      {profile.username.charAt(0).toUpperCase()}
+    </span>
+  );
+}
 
 /** Who's watching, as a screen (also where signed-out people are sent). */
 export const profilesScreen = (fetchFn?: FetchFn): Screen => ({ name: 'profiles', render: () => <Profiles fetchFn={fetchFn} /> });
@@ -29,7 +45,7 @@ function LockIcon() {
 export function Profiles({ fetchFn }: { fetchFn?: FetchFn }) {
   const nav = useNav();
   const f = fetchFn || defaultFetch;
-  const [state] = useState(() => loadState());
+  const [state, setState] = useState(() => loadState());
   const servers = state.servers;
   const publicUrl = servers ? trimSlash(servers.publicUrl) : '';
   const [where, setWhere] = useState<{ base: string; where: 'home' | 'away' } | null>(null);
@@ -45,6 +61,25 @@ export function Profiles({ fetchFn }: { fetchFn?: FetchFn }) {
   }, []);
 
   const base = where ? where.base : publicUrl;
+
+  // Each person's current picture, asked with their own sign-in (best effort: offline keeps the saved one).
+  useEffect(() => {
+    if (!where) return;
+    let live = true;
+    state.profiles.forEach((p) => {
+      if (!p.token) return;
+      new Api(where.base, p.token, f).send<AuthStatus>('GET', '/api/auth/status').then(
+        (st) => {
+          if (!live || !st || !st.user || st.user.avatar === undefined) return;
+          if (setAvatar(p.userId, st.user.avatar || null)) setState(loadState());
+        },
+        () => {},
+      );
+    });
+    return () => {
+      live = false;
+    };
+  }, [where]);
   const addPerson = (heading?: string, existing?: Profile) =>
     nav.push({ name: 'add-person', render: () => <AddPerson base={base} publicUrl={publicUrl} fetchFn={f} heading={heading} existing={existing} /> });
 
@@ -64,9 +99,7 @@ export function Profiles({ fetchFn }: { fetchFn?: FetchFn }) {
         {state.profiles.map((p) => (
           <div class="tile-wrap" key={p.userId}>
             <button data-focusable class="profile-tile" onClick={() => open(p)}>
-              <span class="avatar" style={{ background: colorFor(p.userId) }}>
-                {p.username.charAt(0).toUpperCase()}
-              </span>
+              <ProfileAvatar profile={p} base={base} />
               <span class="profile-name">
                 {p.username}
                 {p.pin && <LockIcon />}

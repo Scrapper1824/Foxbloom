@@ -21,7 +21,7 @@ declare module 'fastify' {
 /** All an account on the temporary password may do. */
 const MUST_CHANGE_ALLOWED = new Set(['GET /api/auth/status', 'POST /api/auth/logout', 'POST /api/auth/password']);
 
-export const PUBLIC_API = new Set(['GET /api/auth/status', 'POST /api/auth/login', 'POST /api/auth/setup', 'POST /api/party/:id/guest-join', 'POST /api/tv/pair', 'POST /api/tv/pair/poll']);
+export const PUBLIC_API = new Set(['GET /api/auth/status', 'POST /api/auth/login', 'POST /api/auth/setup', 'POST /api/party/:id/guest-join', 'POST /api/tv/pair', 'POST /api/tv/pair/poll', 'GET /api/avatars/:key']);
 
 /**
  * All a watch-party guest (no account, guest cookie) may reach: their party and its current title's stream.
@@ -55,6 +55,8 @@ export const USER_ALLOWED = new Set([
   'POST /api/tv/link',
   'POST /api/tv/link/check',
   'POST /api/auth/password',
+  'PUT /api/auth/avatar',
+  'DELETE /api/auth/avatar',
   'POST /api/auth/totp/setup',
   'POST /api/auth/totp/enable',
   'POST /api/auth/totp/disable',
@@ -326,7 +328,8 @@ export function registerSecurity(app: FastifyInstance) {
     // Bearer/stream requests come from the TV app (another origin; <video>/<img> loads send no Origin at all).
     // A bearer header that did not resolve (expired/revoked) still gets CORS, so the TV can read the 401.
     // Requests with no cookie at all (the TV's status, pair, poll and login calls) get the same treatment.
-    const tv = req.authVia === 'bearer' || req.authVia === 'stream' || (!req.headers.cookie && req.url.startsWith('/api/'));
+    // Profile pictures are plain images any page of ours (the TV app included) may show.
+    const tv = req.authVia === 'bearer' || req.authVia === 'stream' || (!req.headers.cookie && req.url.startsWith('/api/')) || req.routeOptions.url === '/api/avatars/:key';
     const bearerAttempt = !req.authVia && /^Bearer /.test(String(req.headers.authorization ?? ''));
     if ((tv || bearerAttempt) && req.headers.origin) {
       reply.header('Access-Control-Allow-Origin', String(req.headers.origin)).header('Vary', 'Origin');
@@ -335,7 +338,8 @@ export function registerSecurity(app: FastifyInstance) {
     reply.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), interest-cohort=()');
     if (isHttps(req)) reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     // Never cache API responses (they may hold private data) in the browser or a proxy.
-    if (req.url.startsWith('/api/')) reply.header('Cache-Control', 'no-store');
+    // A found profile picture keeps its own long cache: its address changes whenever the picture does.
+    if (req.url.startsWith('/api/') && !(req.routeOptions.url === '/api/avatars/:key' && reply.statusCode === 200)) reply.header('Cache-Control', 'no-store');
     return payload;
   });
 }

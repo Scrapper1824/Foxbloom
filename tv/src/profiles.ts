@@ -10,6 +10,8 @@ export interface Profile {
   pin: { salt: string; hash: string } | null;
   failedPins: number;
   lockedUntil: number;
+  /** The person's profile picture on the server ("/api/avatars/..."), as last seen; missing or null = none. */
+  avatar?: string | null;
 }
 export interface State {
   servers: Servers | null;
@@ -57,6 +59,19 @@ export function upsertProfile(p: Profile): Profile[] {
   if (!found) s.profiles.push(p);
   saveState(s);
   return s.profiles;
+}
+
+/** Saves a person's picture address when it changed. Returns true when it did. */
+export function setAvatar(userId: number, avatar: string | null): boolean {
+  const s = loadState();
+  let changed = false;
+  s.profiles = s.profiles.map(function (x) {
+    if (x.userId !== userId || (x.avatar || null) === avatar) return x;
+    changed = true;
+    return { ...x, avatar: avatar };
+  });
+  if (changed) saveState(s);
+  return changed;
 }
 
 export function removeProfile(userId: number): Profile[] {

@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, type Settings } from '../api';
 import SecurityPanel from '../components/SecurityPanel';
+import ProfilePicturePanel from '../components/ProfilePicture';
 import WatchlistLinksPanel from '../components/WatchlistLinksPanel';
 import UsersPanel from '../components/UsersPanel';
 import SystemPanel from '../components/SystemPanel';
@@ -57,6 +58,7 @@ export default function SettingsPage() {
         <header className="page-header">
           <h1>Account</h1>
         </header>
+        <ProfilePicturePanel />
         <WatchlistLinksPanel />
         <SecurityPanel />
       </div>
@@ -76,7 +78,7 @@ const SECTIONS: { id: SectionId; label: string; icon: IconName; blurb: string }[
   { id: 'watchlists', label: 'Watchlists', icon: 'watchlist', blurb: 'Simkl and AniList lists.' },
   { id: 'users', label: 'Users', icon: 'account', blurb: 'Who can sign in, and what they can do.' },
   { id: 'system', label: 'System', icon: 'settings', blurb: 'How Foxbloom runs on this PC.' },
-  { id: 'account', label: 'My account', icon: 'account', blurb: 'Your password, two-factor sign-in and sessions.' },
+  { id: 'account', label: 'My account', icon: 'account', blurb: 'Your picture, password, two-factor sign-in and sessions.' },
 ];
 
 /** Sections whose fields are part of the settings form (they get the Save bar). */
@@ -486,7 +488,12 @@ function AdminSettings() {
           (dirty ? <p className="muted small">Save your changes to connect your own accounts.</p> : <WatchlistLinksPanel />)}
         {section === 'users' && <UsersPanel />}
         {section === 'system' && <SystemPanel />}
-        {section === 'account' && <SecurityPanel />}
+        {section === 'account' && (
+          <>
+            <ProfilePicturePanel />
+            <SecurityPanel />
+          </>
+        )}
         </div>
       </div>
     </div>

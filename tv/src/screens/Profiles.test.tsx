@@ -113,6 +113,37 @@ describe('Profiles', () => {
     expect(loadState().servers).toEqual({ publicUrl: 'https://pub.tv', localUrls: [] });
   });
 
+  it('shows each person’s profile picture, fetched with their own token, and remembers it', async () => {
+    const pics: Record<string, string | null> = { 'Bearer tok1': '/api/avatars/abc', 'Bearer tok2': null };
+    const withPics: FetchFn = (url, init) => {
+      const auth = init && init.headers ? init.headers.Authorization : undefined;
+      if (url.endsWith('/api/auth/status') && auth) return resp({ setupRequired: false, authenticated: true, user: { avatar: pics[auth] } });
+      return fetchFn(url, init);
+    };
+    saveState({ servers: { publicUrl: 'https://pub.test', localUrls: [] }, profiles: [p(1), p(2)] });
+    await act(async () => {
+      render(<App initial={{ name: 'profiles', render: () => <Profiles fetchFn={withPics} /> }} />, host);
+    });
+    await settle();
+    const tiles = host.querySelectorAll('.profile-tile:not(.add)');
+    const img = tiles[0].querySelector('img.avatar') as HTMLImageElement;
+    expect(img.getAttribute('src')).toBe('https://pub.test/api/avatars/abc');
+    expect(tiles[1].querySelector('img')).toBeNull();
+    expect(tiles[1].querySelector('.avatar')!.textContent).toBe('U');
+    expect(loadState().profiles.map((x) => x.avatar || null)).toEqual(['/api/avatars/abc', null]);
+  });
+
+  it('a picture that fails to load falls back to the letter', async () => {
+    await mount([p(1, { avatar: '/api/avatars/gone' })]);
+    const img = host.querySelector('img.avatar') as HTMLImageElement;
+    expect(img).not.toBeNull();
+    await act(async () => {
+      img.dispatchEvent(new Event('error'));
+    });
+    expect(host.querySelector('img.avatar')).toBeNull();
+    expect(host.querySelector('.profile-tile .avatar')!.textContent).toBe('U');
+  });
+
   it('Connect gives a public HTTPS address as its example', async () => {
     await mount([p(1)]);
     await act(async () => button('Change server').click());

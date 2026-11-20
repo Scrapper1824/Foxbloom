@@ -6,6 +6,7 @@ import path from 'node:path';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import QRCode from 'qrcode';
 import { db, now } from '../db.js';
+import { avatarUrl } from './avatars.js';
 import { dummyVerify, hashPassword, passwordProblem, TEMP_PASSWORD, TEMP_PASSWORD_DAYS, verifyPassword } from './password.js';
 import { checkPairing, linkLockedFor, linkPairing, pairStartLimited, pollPairing, recordWrongCode, startPairing } from './pairing.js';
 import { lockedFor, recordFailure, recordSuccess } from './rateLimit.js';
@@ -56,6 +57,7 @@ function publicUser(u: UserRow) {
     mustChangePassword: !!u.must_change_password,
     totpEnabled: !!u.totp_enabled,
     sessions: countSessions(u.id),
+    avatar: avatarUrl(u.id),
   };
 }
 

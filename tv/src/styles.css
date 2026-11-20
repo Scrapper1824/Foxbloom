@@ -49,6 +49,10 @@ p { color: var(--muted); font-size: 28px; }
 .profile-tile > * + * { margin-top: 14px; }
 .profile-tile.focused { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(242, 167, 195, 0.4); }
 .avatar { display: flex; align-items: center; justify-content: center; width: 150px; height: 150px; border-radius: 50%; font-size: 72px; font-weight: 700; color: #1d2440; }
+.avatar-img { display: block; object-fit: cover; background: var(--bg-2); }
+.avatar.small { width: 44px; height: 44px; font-size: 22px; }
+.nav-person { display: flex; align-items: center; padding-top: 4px; padding-bottom: 4px; }
+.nav-person > * + * { margin-left: 12px; }
 .avatar.plus { background: transparent; border: 4px dashed var(--muted); color: var(--muted); }
 .profile-name { display: flex; align-items: center; font-size: 30px; }
 .profile-name > * + * { margin-left: 10px; }
@@ -141,7 +145,8 @@ p { color: var(--muted); font-size: 28px; }
 .ep-status { color: var(--muted); font-size: 24px; }
 .episode.watched .ep-status { color: var(--accent); }
 
-.search-body { display: flex; }
+/* 8px of room each side for the focus ring (the page clips anything outside it); the negative margin keeps it lined up. */
+.search-body { display: flex; padding: 0 8px; margin: 0 -8px; }
 .search-body > * + * { margin-left: 24px; }
 .search-left { width: 1010px; flex: none; }
 .search-left .field { width: 100%; }

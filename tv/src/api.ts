@@ -25,7 +25,7 @@ export class ApiError extends Error {
 }
 
 export class Api {
-  private base: string;
+  readonly base: string;
   constructor(base: string, private token: string | null, private fetchFn: FetchFn = defaultFetch, private timeoutMs = 20000) {
     this.base = trimSlash(base);
   }

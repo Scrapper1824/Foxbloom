@@ -120,6 +120,13 @@ describe('Home', () => {
     expect(host.textContent).not.toContain(notice);
   });
 
+  it('the top menu shows the person’s picture from the server and keeps it with the profile', async () => {
+    await mount(routeFetch({ '/api/home': home(), '/api/auth/status': { user: { avatar: '/api/avatars/xyz' } } }).fetchFn);
+    const img = host.querySelector('.nav-person img.avatar') as HTMLImageElement;
+    expect(img.getAttribute('src')).toBe('https://pub.test/api/avatars/xyz');
+    expect(loadState().profiles[0].avatar).toBe('/api/avatars/xyz');
+  });
+
   it('signed out: marks the profile signed out and goes to Who is watching', async () => {
     const { fetchFn } = routeFetch({ '/api/home': 401, '/api/auth/status': {} });
     await mount(fetchFn);

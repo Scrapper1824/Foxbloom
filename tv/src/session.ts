@@ -1,11 +1,13 @@
 import { Api, OfflineError } from './api';
 import { defaultFetch, pickBase, type FetchFn } from './connection';
-import { loadState, saveState, type Profile } from './profiles';
+import { loadState, saveState, setAvatar, type Profile } from './profiles';
 import type { AuthStatus } from './types';
 
 export interface SessionInfo {
   where: 'home' | 'away' | null;
   version: string | null;
+  /** The address in use (for the person's picture); '' when the server could not be reached. */
+  base: string;
 }
 
 /**
@@ -70,9 +72,15 @@ export class Session {
             const s = loadState();
             if (s.servers) saveState({ servers: { publicUrl: s.servers.publicUrl, localUrls: st.localUrls }, profiles: s.profiles });
           }
-          return { where: self.where, version: st && st.version ? st.version : null };
+          // The person's picture may have changed on the website: keep it with the profile.
+          if (st && st.user && st.user.avatar !== undefined) {
+            const avatar = st.user.avatar || null;
+            setAvatar(self.profile.userId, avatar);
+            self.profile = { ...self.profile, avatar: avatar };
+          }
+          return { where: self.where, version: st && st.version ? st.version : null, base: self.api ? self.api.base : '' };
         },
-        function () { self.infoP = null; return { where: self.where, version: null }; },
+        function () { self.infoP = null; return { where: self.where, version: null, base: '' }; },
       );
     }
     return this.infoP;

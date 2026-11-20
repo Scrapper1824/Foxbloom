@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { db, logHistory, now } from '../db.js';
 import { hashPassword, passwordProblem, TEMP_PASSWORD } from './password.js';
 import { USERNAME } from './routes.js';
+import { avatarUrl } from './avatars.js';
 import { adminCount, countSessions, deleteUserSessions, type Role, type UserRow } from './sessions.js';
 
 const ROLES: Role[] = ['admin', 'user'];
@@ -19,6 +20,7 @@ function summary(u: UserRow) {
     totpEnabled: !!u.totp_enabled,
     sessions: countSessions(u.id),
     createdAt: u.created_at,
+    avatar: avatarUrl(u.id),
   };
 }
 

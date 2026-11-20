@@ -83,6 +83,8 @@ export type Progress = Record<string, { position: number; duration: number; watc
 
 /** /api/auth/status: `version` is only there when signed in. */
 export interface AuthStatus {
+  /** The signed-in person (only when signed in); avatar is their picture's address on the server, or null. */
+  user?: { avatar?: string | null } | null;
   version?: string;
   /** The server's home (LAN) addresses, also only when signed in. */
   localUrls?: string[];

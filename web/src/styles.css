@@ -1589,3 +1589,9 @@ a.home-card-title:hover { text-decoration: underline; text-underline-offset: 3px
 
 /* Wordmark: "Fox" in soft white, "bloom" in the accent. */
 .brand-word em { font-style: normal; color: var(--accent); }
+
+/* Profile pictures */
+.avatar-img { object-fit: cover; padding: 0; background: var(--line); }
+.profile-picture-row { align-items: center; gap: 20px; }
+.profile-picture-row .stack { flex: 1; min-width: 0; }
+.user-name-line { display: flex; align-items: center; gap: 8px; }

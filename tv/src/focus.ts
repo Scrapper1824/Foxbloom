@@ -43,24 +43,34 @@ export function moveFocus(dir: Dir, root: HTMLElement): HTMLElement | null {
     const y = (r.top + r.bottom) / 2;
     let primary: number;
     let cross: number;
+    // How far apart the two boxes are across the move: 0 when they overlap at all. A key half under the current one
+    // (the staggered keyboard rows) counts as straight ahead; otherwise the aligned key two rows down would win.
+    const gapX = Math.max(0, Math.max(r.left, c.left) - Math.min(r.right, c.right));
+    const gapY = Math.max(0, Math.max(r.top, c.top) - Math.min(r.bottom, c.bottom));
+    let centre: number;
     if (dir === 'right') {
       if (x <= cx) continue;
       primary = r.left - c.right;
-      cross = Math.abs(y - cy);
+      cross = gapY;
+      centre = Math.abs(y - cy);
     } else if (dir === 'left') {
       if (x >= cx) continue;
       primary = c.left - r.right;
-      cross = Math.abs(y - cy);
+      cross = gapY;
+      centre = Math.abs(y - cy);
     } else if (dir === 'down') {
       if (y <= cy) continue;
       primary = r.top - c.bottom;
-      cross = Math.abs(x - cx);
+      cross = gapX;
+      centre = Math.abs(x - cx);
     } else {
       if (y >= cy) continue;
       primary = c.top - r.bottom;
-      cross = Math.abs(x - cx);
+      cross = gapX;
+      centre = Math.abs(x - cx);
     }
-    const score = Math.max(primary, 0) + 2 * cross;
+    // Centre offset only breaks ties between boxes that are equally near (e.g. two keys each half under this one).
+    const score = Math.max(primary, 0) + 2 * cross + centre / 1000;
     if (score < bestScore) {
       bestScore = score;
       best = el;

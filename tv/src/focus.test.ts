@@ -64,6 +64,28 @@ describe('focus', () => {
     expect(root.querySelector('#b11')!.classList.contains('focused')).toBe(true);
   });
 
+  it('down on a keyboard with a half-key offset row goes to the next row, not the aligned one after it', () => {
+    // Like the on-screen keyboard: rows 0 and 2 have keys at x = 0, 84, 168…; row 1 is offset by half a key (42).
+    const kb = document.createElement('div');
+    const add = (id: string, left: number, top: number) => {
+      const el = document.createElement('div');
+      el.id = id;
+      el.setAttribute('data-focusable', '');
+      el.getBoundingClientRect = () => ({ left, top, right: left + 76, bottom: top + 64, width: 76, height: 64, x: left, y: top, toJSON() {} }) as DOMRect;
+      kb.appendChild(el);
+    };
+    for (let c = 0; c < 4; c++) add('q' + c, c * 84, 0);
+    for (let c = 0; c < 3; c++) add('a' + c, 42 + c * 84, 80);
+    for (let c = 0; c < 4; c++) add('z' + c, c * 84, 160);
+    document.body.innerHTML = '';
+    document.body.appendChild(kb);
+    focusElement(kb.querySelector('#q1') as HTMLElement, kb);
+    expect(moveFocus('down', kb)!.id).toBe('a0');
+    expect(moveFocus('down', kb)!.id).toMatch(/^z[01]$/);
+    expect(moveFocus('up', kb)!.id).toMatch(/^a/);
+    expect(moveFocus('up', kb)!.id).toMatch(/^q/);
+  });
+
   it('returns null from the last column going right and keeps the focus', () => {
     focusFirst(root);
     moveFocus('right', root);

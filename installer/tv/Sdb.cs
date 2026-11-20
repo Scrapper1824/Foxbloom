@@ -187,7 +187,9 @@ public sealed class Sdb
         var inst = runner.Run(new[] { "-s", target, "shell", "0", "vd_appinstall", appId, RemotePath });
         var m = InstallFailed.Match(inst.Output);
         if (m.Success) throw new TvInstallException(InstallFailure(m.Groups["code"].Value.Trim(), m.Groups["reason"].Value.Trim()));
-        if (inst.Output.IndexOf("install success", StringComparison.OrdinalIgnoreCase) < 0)
+        // Older TVs print "install success[0]"; newer ones (seen on a 2020s 7 Series) print "install completed".
+        if (inst.Output.IndexOf("install success", StringComparison.OrdinalIgnoreCase) < 0 &&
+            inst.Output.IndexOf("install completed", StringComparison.OrdinalIgnoreCase) < 0)
             throw new TvInstallException("The TV didn't confirm the install. " + Tail(inst.Output));
 
         var run = runner.Run(new[] { "-s", target, "shell", "0", "was_execute", appId });

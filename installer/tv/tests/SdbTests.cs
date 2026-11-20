@@ -127,6 +127,17 @@ static partial class Tests
             Throws<TvInstallException>(delegate { new Sdb(f).InstallTo("192.168.1.50", new byte[] { 1 }, Sdb.DefaultAppId); }, "didn't confirm", "silent install");
         });
 
+        Test("an install that ends with 'install completed' (newer TVs) succeeds and launches", delegate
+        {
+            var f = HappySdb();
+            var inner = f.Reply;
+            f.Reply = a => a.Contains("vd_appinstall")
+                ? new SdbResult(0, "app_id[FoxbloomTV.foxbloom] installing[89]\napp_id[FoxbloomTV.foxbloom] installing[100]\napp_id[FoxbloomTV.foxbloom] install completed\nspend time for wascmd is [2058]ms")
+                : inner(a);
+            new Sdb(f).InstallTo("192.168.1.50", new byte[] { 1 }, Sdb.DefaultAppId);
+            if (!f.Calls.Exists(c => c.Contains("was_execute"))) throw new Exception("app was not launched");
+        });
+
         Test("a launch failure is reported, though the app is installed", delegate
         {
             var f = HappySdb();

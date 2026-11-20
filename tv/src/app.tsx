@@ -2,7 +2,7 @@ import { createContext } from 'preact';
 import type { ComponentChild } from 'preact';
 import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { focusElement, focusFirst, moveFocus } from './focus';
-import { peekPendingFocus, setPendingFocus, takePendingFocus } from './restore';
+import { holdingMenuFocus, peekPendingFocus, setPendingFocus, takePendingFocus } from './restore';
 import { keyFromEvent } from './remote';
 
 declare const tizen: any;
@@ -77,7 +77,7 @@ export function App({ initial }: { initial: Screen }) {
     const key = peekPendingFocus();
     const el = key ? root.querySelector<HTMLElement>('[data-key="' + key + '"]') : null;
     if (el) {
-      takePendingFocus();
+      if (!holdingMenuFocus()) takePendingFocus(); // a menu button stays pending so the page's own loading leaves it be
       focusElement(el, root);
     } else focusFirst(root);
   }, [top, confirmExit]);

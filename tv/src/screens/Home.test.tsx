@@ -3,6 +3,7 @@ import { render } from 'preact';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { App } from '../app';
 import { focusElement } from '../focus';
+import { holdingMenuFocus } from '../restore';
 import { loadState, saveState, type Profile } from '../profiles';
 import { routeFetch, settle } from '../testing';
 import type { FetchFn } from '../connection';
@@ -131,6 +132,29 @@ describe('Home', () => {
     await mount(fetchFn);
     expect(host.textContent).toContain("Can't reach Foxbloom");
     expect(Array.prototype.some.call(host.querySelectorAll('button'), (b: HTMLElement) => b.textContent === 'Retry')).toBe(true);
+  });
+
+  it('choosing a menu button keeps the focus on it after the new page loads; Down then goes into the page', async () => {
+    const { fetchFn } = routeFetch({ '/api/home': home(), '/api/auth/status': {}, '/api/library': [] });
+    await mount(fetchFn);
+    const navBtn = (t: string) => (Array.prototype.slice.call(host.querySelectorAll('.nav-btn')) as HTMLElement[]).filter((b) => b.textContent === t)[0];
+    await act(async () => {
+      focusElement(navBtn('Search'), host);
+    });
+    await press(13);
+    await settle();
+    expect(host.querySelector('.search-body')).not.toBeNull();
+    expect(host.querySelector('.focused')).toBe(navBtn('Search'));
+    await act(async () => {
+      focusElement(navBtn('Home'), host);
+    });
+    await press(13);
+    await settle();
+    expect(host.querySelector('.hero')).not.toBeNull();
+    expect(host.querySelector('.focused')).toBe(navBtn('Home'));
+    // jsdom has no layout, so the move itself is checked on screen; here: the first arrow press lets go of the menu.
+    await press(40);
+    expect(holdingMenuFocus()).toBe(false);
   });
 
   it('Back from a title page returns focus to the tile that was focused', async () => {

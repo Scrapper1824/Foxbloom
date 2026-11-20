@@ -1,12 +1,12 @@
 import { useLayoutEffect } from 'preact/hooks';
 import type { RefObject } from 'preact';
 import { focusElement, focusFirst } from '../focus';
-import { takePendingFocus } from '../restore';
+import { holdingMenuFocus, takePendingFocus } from '../restore';
 
 /** Puts the focus ring on the first focusable inside `ref` whenever `dep` changes (App only does so when the screen changes). */
 export function useFocusFirst(ref: RefObject<HTMLElement>, dep: unknown) {
   useLayoutEffect(() => {
-    if (ref.current) focusFirst(ref.current);
+    if (ref.current && !holdingMenuFocus()) focusFirst(ref.current);
   }, [dep]);
 }
 
@@ -16,7 +16,7 @@ export function useFocusFirst(ref: RefObject<HTMLElement>, dep: unknown) {
  */
 export function useFocusWhenReady(ref: RefObject<HTMLElement>, ready: boolean) {
   useLayoutEffect(() => {
-    if (!ready || !ref.current) return;
+    if (!ready || !ref.current || holdingMenuFocus()) return;
     const root = (ref.current.closest('.screen-root') as HTMLElement | null) || ref.current;
     const key = takePendingFocus();
     const el = (key ? ref.current.querySelector<HTMLElement>('[data-key="' + key + '"]') : null) || ref.current.querySelector<HTMLElement>('[data-focusable]');

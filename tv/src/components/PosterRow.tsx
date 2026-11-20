@@ -85,7 +85,7 @@ export function PosterRow({ rowId, title, tiles, wide }: { rowId: string; title:
   const from = Math.max(0, start - EXTRA);
   const to = Math.min(tiles.length, start + visible + EXTRA);
   const out = [];
-  for (let i = from; i < to; i++) out.push(<PosterTile key={tiles[i].key} tile={tiles[i]} rowId={rowId} index={i} wide={wide} x={RING + i * step} y={0} />);
+  for (let i = from; i < to; i++) out.push(<PosterTile key={tiles[i].key} tile={tiles[i]} rowId={rowId} index={i} wide={wide} x={RING + i * step} y={RING} />);
   return (
     <section class="row-section">
       <h2 class="row-title">{title}</h2>

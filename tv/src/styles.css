@@ -98,8 +98,9 @@ p { color: var(--muted); font-size: 28px; }
 
 .row-section { margin: 8px 0 4px; }
 .row-title { font-size: 34px; margin: 0 0 4px; }
-.poster-row { overflow: hidden; height: 420px; }
-.poster-row.wide { height: 330px; }
+/* 12px taller than the tiles: they start 12px down (RING in PosterRow), leaving room for the focus ring. */
+.poster-row { overflow: hidden; height: 432px; }
+.poster-row.wide { height: 342px; }
 .row-track, .grid-track { position: relative; }
 .row-track { height: 100%; }
 .tile { position: absolute; display: block; width: 200px; padding: 0; font: inherit; text-align: left; color: var(--text); background: transparent; border: 0; }

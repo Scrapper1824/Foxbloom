@@ -23,12 +23,21 @@ function areaOf(el: Element): HTMLElement | null {
   return el.closest ? (el.closest(AREA) as HTMLElement | null) : null;
 }
 
-/** Near the top of a scrolling area, show it from its very top (so a banner above the first buttons isn't cut off). */
-function scrollAreaToTopIfNear(el: HTMLElement) {
-  const area = areaOf(el);
-  if (!area || !area.scrollTop) return;
-  const intoContent = el.getBoundingClientRect().top - area.getBoundingClientRect().top + area.scrollTop;
-  if (intoContent < area.clientHeight / 2) area.scrollTop = 0;
+/**
+ * Scrolls a scrolling area (the Home and Library pages) by whole rows: near its top it shows the very top (so the banner
+ * above the first buttons isn't cut off); otherwise a row that isn't fully in view is lined up with the area's top, so
+ * no half-cut row is left showing above it.
+ */
+function scrollArea(el: HTMLElement, area: HTMLElement) {
+  const a = area.getBoundingClientRect();
+  const intoContent = el.getBoundingClientRect().top - a.top + area.scrollTop;
+  if (intoContent < area.clientHeight / 2) {
+    if (area.scrollTop) area.scrollTop = 0;
+    return;
+  }
+  const part = (el.closest && (el.closest('.row-section') as HTMLElement | null)) || el;
+  const r = part.getBoundingClientRect();
+  if (r.top < a.top || r.bottom > a.bottom) area.scrollTop += r.top - a.top;
 }
 
 /** Puts the focus ring on el. Tells listeners (the tile rows) with a bubbling 'foxfocus' event so they can slide their window. */
@@ -41,8 +50,9 @@ export function focusElement(el: HTMLElement, root: HTMLElement) {
   // Not scrollIntoView({ block: 'nearest' }): Chromium before 61 reads the options object as `true` (align to top), so
   // every move would jump. scrollIntoViewIfNeeded(false) scrolls only when el is out of view, and as little as needed.
   const s = el as HTMLElement & { scrollIntoViewIfNeeded?: (center?: boolean) => void };
-  if (typeof s.scrollIntoViewIfNeeded === 'function') s.scrollIntoViewIfNeeded(false);
-  scrollAreaToTopIfNear(el);
+  const area = areaOf(el);
+  if (area) scrollArea(el, area);
+  else if (typeof s.scrollIntoViewIfNeeded === 'function') s.scrollIntoViewIfNeeded(false);
   el.dispatchEvent(new Event('foxfocus', { bubbles: true }));
 }
 const setFocused = focusElement;

@@ -146,6 +146,27 @@ describe('focus', () => {
     expect(area.scrollTop).toBe(0);
   });
 
+  it('a row that is not fully in view scrolls to the top of the area, leaving no half-cut row above it', () => {
+    const area = document.createElement('div');
+    area.setAttribute('data-scroll-area', '');
+    Object.defineProperty(area, 'clientHeight', { value: 800 });
+    area.getBoundingClientRect = () => ({ left: 0, top: 100, right: 1000, bottom: 900, width: 1000, height: 800, x: 0, y: 100, toJSON() {} }) as DOMRect;
+    const section = document.createElement('section');
+    section.className = 'row-section';
+    // 1200px into the content while scrolled 600: its top is at 700 on screen, its bottom (1150) below the area.
+    section.getBoundingClientRect = () => ({ left: 0, top: 700, right: 1000, bottom: 1150, width: 1000, height: 450, x: 0, y: 700, toJSON() {} }) as DOMRect;
+    const el = document.createElement('div');
+    el.setAttribute('data-focusable', '');
+    el.getBoundingClientRect = () => ({ left: 0, top: 750, right: 200, bottom: 1100, width: 200, height: 350, x: 0, y: 750, toJSON() {} }) as DOMRect;
+    section.appendChild(el);
+    area.appendChild(section);
+    document.body.innerHTML = '';
+    document.body.appendChild(area);
+    area.scrollTop = 600;
+    focusElement(el, area);
+    expect(area.scrollTop).toBe(1200);
+  });
+
   it('returns null from the last column going right and keeps the focus', () => {
     focusFirst(root);
     moveFocus('right', root);

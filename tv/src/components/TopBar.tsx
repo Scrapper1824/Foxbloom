@@ -3,6 +3,7 @@ import { useNav } from '../app';
 import { Logo } from '../logo';
 import type { Session, SessionInfo } from '../session';
 import { isNewer } from '../version';
+import { NAV_PREFIX, setPendingFocus } from '../restore';
 import { profilesScreen } from '../screens/Profiles';
 import { homeScreen } from '../screens/Home';
 import { libraryScreen } from '../screens/Library';
@@ -31,9 +32,11 @@ export function TopBar({ session, active }: { session: Session; active: Section 
     if (to === 'home') nav.reset([profilesScreen(f), homeScreen(session.profile, f, session)]);
     else if (active === 'home') nav.push(to === 'library' ? libraryScreen(session) : searchScreen(session));
     else nav.replace(to === 'library' ? libraryScreen(session) : searchScreen(session));
+    // Keep the focus on this menu button on the new page (set after the nav call, which clears the pending key).
+    setPendingFocus(NAV_PREFIX + to);
   };
   const tab = (s: Section, label: string) => (
-    <button data-focusable class={'nav-btn' + (active === s ? ' current' : '')} onClick={() => go(s)}>
+    <button data-focusable data-key={NAV_PREFIX + s} class={'nav-btn' + (active === s ? ' current' : '')} onClick={() => go(s)}>
       {label}
     </button>
   );

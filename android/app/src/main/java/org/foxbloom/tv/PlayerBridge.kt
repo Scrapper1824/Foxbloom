@@ -26,7 +26,6 @@ import androidx.media3.ui.PlayerView
 import java.util.Locale
 import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
-import kotlin.math.abs
 
 /**
  * The object the page sees as `window.FoxbloomAndroid` (AndroidBridge in tv/src/platform.ts): ExoPlayer drawn in
@@ -47,8 +46,10 @@ class PlayerBridge(
     private var player: ExoPlayer? = null
     /** Bumped on every open and close, so events from an older stream never reach the page. */
     private var generation = 0
-    /** Where the page's last seek was aimed, until its discontinuity arrives. */
-    private var seekTarget: Long? = null
+    /** The current stream has been READY once, so its real timeline (and whether it can seek) is known. */
+    private var prepared = false
+    /** The page's jump still waiting for where playback really lands. */
+    private val seekCheck = SeekCheck()
 
     @JavascriptInterface
     fun open(url: String, startMs: Long) = onMain {
@@ -82,7 +83,11 @@ class PlayerBridge(
     fun seek(ms: Long) = onMain {
         val p = player ?: return@onMain
         val target = maxOf(0L, ms)
-        seekTarget = target
+        // A stream without an index (e.g. an MKV without Cues) can't jump: ExoPlayer would restart it at 0.
+        if (seekCheck.start(target, seekable = !prepared || p.isCurrentMediaItemSeekable) == false) {
+            emit("seeked", "0")
+            return@onMain
+        }
         p.seekTo(target)
     }
 
@@ -161,7 +166,8 @@ class PlayerBridge(
     }
 
     private fun release() {
-        seekTarget = null
+        prepared = false
+        seekCheck.clear()
         player?.release()
         player = null
         playerView.player = null
@@ -184,24 +190,35 @@ class PlayerBridge(
                 Player.STATE_BUFFERING -> if (ready) emit("buffering", "1")
                 Player.STATE_READY -> if (!ready) {
                     ready = true
+                    prepared = true
                     emit("ready", "")
                 } else {
+                    settleSeek()
                     emit("buffering", "0")
                 }
-                Player.STATE_ENDED -> emit("ended", "")
+                Player.STATE_ENDED -> {
+                    settleSeek()
+                    emit("ended", "")
+                }
             }
         }
 
         override fun onPlayerError(error: PlaybackException) {
             if (!current) return
+            seekCheck.clear()
             emit("error", error.errorCodeName)
         }
 
+        // The SEEK discontinuity itself carries the requested position (ExoPlayer masks seeks), so it proves nothing;
+        // a SEEK_ADJUSTMENT is the player moving somewhere else (e.g. to 0 in a stream it can't seek).
         override fun onPositionDiscontinuity(old: Player.PositionInfo, new: Player.PositionInfo, reason: Int) {
-            if (!current || reason != Player.DISCONTINUITY_REASON_SEEK) return
-            val target = seekTarget ?: return
-            seekTarget = null
-            emit("seeked", if (abs(new.positionMs - target) <= SEEK_TOLERANCE_MS) "1" else "0")
+            if (!current || reason != Player.DISCONTINUITY_REASON_SEEK_ADJUSTMENT) return
+            seekCheck.landed(new.positionMs)?.let { emit("seeked", if (it) "1" else "0") }
+        }
+
+        private fun settleSeek() {
+            val p = player ?: return
+            seekCheck.landed(p.currentPosition)?.let { emit("seeked", if (it) "1" else "0") }
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -228,9 +245,6 @@ class PlayerBridge(
     }
 
     companion object {
-        /** A seek counts as landed when the player ends up this close to where it was asked to go. */
-        const val SEEK_TOLERANCE_MS = 5000L
-
         /** [s] escaped for a JSON string (also safe inside a JavaScript string). */
         fun jsonEscape(s: String): String = buildString {
             for (c in s) when {

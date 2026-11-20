@@ -99,14 +99,9 @@ See installer/tv/vendor/README.md for where each comes from.`);
   if (process.platform === 'win32') {
     run('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(root, 'installer', 'build.ps1')]);
     const setup = path.join(root, 'installer', 'dist', 'FoxbloomSetup.exe');
-    // The same installer under its old name too, so links to ".../latest/download/MediarrSetup.exe" (from before
-    // the rename) keep working.
-    const oldName = path.join(root, 'installer', 'dist', 'MediarrSetup.exe');
-    fs.copyFileSync(setup, oldName);
-    run('gh', ['release', 'upload', tag, setup, oldName, '--clobber']);
-    // The Samsung TV installer (built above, before the push) goes on every release too, with its third-party notice
-    // next to it (sdb.exe inside it is Apache-2.0).
-    run('gh', ['release', 'upload', tag, tvSetup, path.join(root, 'installer', 'tv', 'THIRD-PARTY.txt'), '--clobber']);
+    // Only the two installers go on a release. The TV installer (built above, before the push) carries sdb's
+    // Apache-2.0 notice inside it (its "Licences" link), so no separate notice file is uploaded.
+    run('gh', ['release', 'upload', tag, setup, tvSetup, '--clobber']);
   }
   console.log(`\nReleased ${tag}. Foxbloom installs will offer it as an update.`);
 }

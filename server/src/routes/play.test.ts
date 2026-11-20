@@ -303,6 +303,52 @@ describe('the Home page', () => {
   });
 });
 
+describe('the Home page in random order', () => {
+  /** `n` downloaded movies, added in order (so newest first is Movie n ... Movie 1). */
+  function addMovies(n: number) {
+    for (let i = 1; i <= n; i++) {
+      db.prepare(`INSERT INTO media (type, tmdb_id, title, year, root_folder, folder_name, has_file, file_path, added_at) VALUES ('movie', ?, ?, 2020, ?, ?, 1, ?, ?)`).run(
+        1000 + i, `Movie ${i}`, lib, `Movie ${i}`, path.join(lib, `Movie ${i}.mkv`), `2026-01-${String(i).padStart(2, '0')}T00:00:00.000Z`,
+      );
+    }
+  }
+  const titles = (list: { title: string }[]) => list.map((t) => t.title);
+  const newest = (from: number, n: number) => Array.from({ length: n }, (_, i) => `Movie ${from - i}`);
+
+  it('keeps newest first without a seed (the TV app)', async () => {
+    const { viewer } = await users();
+    addMovies(25);
+    const home = (await call(viewer, 'GET', '/api/home')).json();
+    expect(titles(home.libraries.movie)).toEqual(newest(25, 25));
+  });
+
+  it('picks the rows at random from the whole library, the same way for the same seed', async () => {
+    const { viewer } = await users();
+    addMovies(40);
+    const get = async (seed: number) => (await call(viewer, 'GET', `/api/home?seed=${seed}`)).json();
+    const a = await get(1);
+    // 30 different titles, not in newest-first order.
+    expect(a.libraries.movie).toHaveLength(30);
+    expect(new Set(titles(a.libraries.movie)).size).toBe(30);
+    expect(titles(a.libraries.movie)).not.toEqual(newest(40, 30));
+    // Recently added keeps its 20 newest titles, shuffled.
+    expect(new Set(titles(a.recent))).toEqual(new Set(newest(40, 20)));
+    expect(titles(a.recent)).not.toEqual(newest(40, 20));
+    // The page's background refresh (same seed) keeps the order; the next visit (new seed) changes it.
+    expect(titles((await get(1)).libraries.movie)).toEqual(titles(a.libraries.movie));
+    expect(titles((await get(2)).libraries.movie)).not.toEqual(titles(a.libraries.movie));
+    // Each poster still plays.
+    expect(a.libraries.movie[0].play).toMatchObject({ kind: 'movie' });
+  });
+
+  it('ignores a seed that is not a whole number', async () => {
+    const { viewer } = await users();
+    addMovies(3);
+    const home = (await call(viewer, 'GET', '/api/home?seed=abc')).json();
+    expect(titles(home.libraries.movie)).toEqual(newest(3, 3));
+  });
+});
+
 describe('home or away', () => {
   it('treats private addresses as home', () => {
     for (const ip of ['127.0.0.1', '::1', '192.168.1.20', '10.0.0.5', '172.20.1.1', '::ffff:192.168.0.9', 'fd12::1']) expect(isLocalAddress(ip), ip).toBe(true);

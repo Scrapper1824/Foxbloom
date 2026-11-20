@@ -1,10 +1,11 @@
 import fs from 'node:fs';
 import type { FastifyInstance } from 'fastify';
-import { browseAnime, featuredAnime, getAnimeSeries, searchAnime } from '../clients/anilist.js';
+import { browseAnime, browseAnimeRow, featuredAnime, getAnimeSeries, searchAnime } from '../clients/anilist.js';
 import { testProwlarr } from '../clients/prowlarr.js';
 import { deleteTorrent, testQbit } from '../clients/qbittorrent.js';
 import {
   browseTmdb,
+  browseTmdbRow,
   featuredTmdb,
   getShow,
   searchMovies,
@@ -106,6 +107,7 @@ export async function apiRoutes(app: FastifyInstance) {
     // New keys (TMDB, OMDb) should show up right away, not after cached details expire.
     infoCache.clear();
     browseCache.clear();
+    rowCache.clear();
     return publicSettings();
   });
 
@@ -234,6 +236,26 @@ export async function apiRoutes(app: FastifyInstance) {
       featured: withLibraryIds(type, cached.featured),
       rows: cached.rows.map((r) => ({ ...r, items: withLibraryIds(type, r.items) })),
     };
+  });
+
+  // One Discover row in full ("See all" under Trending, Popular, ...), a page at a time, from the row's own source.
+  const rowCache = new Map<string, { at: number; value: NonNullable<Awaited<ReturnType<typeof browseTmdbRow>>> }>();
+  app.get<{ Querystring: { type: MediaType; row: string; page?: string } }>('/api/discover/row', async (req, reply) => {
+    const { type, row } = req.query;
+    if (!['movie', 'show', 'anime'].includes(type)) return reply.code(400).send({ error: 'Unknown type' });
+    const page = Math.min(500, Math.max(1, Math.floor(Number(req.query.page) || 1)));
+    const adult = !!req.user!.allow_adult;
+    const key = JSON.stringify([type, row, page, adult]);
+    let hit = rowCache.get(key);
+    if (!hit || Date.now() - hit.at > BROWSE_TTL_MS) {
+      const value = await (type === 'anime' ? browseAnimeRow(String(row), page, new Date(), adult) : browseTmdbRow(type, String(row), page, adult));
+      if (!value) return reply.code(404).send({ error: 'No such row' });
+      hit = { at: Date.now(), value };
+      rowCache.set(key, hit);
+      if (rowCache.size > 400) rowCache.delete(rowCache.keys().next().value!);
+    }
+    // Library flags are added fresh each time so "In library" is always current.
+    return { ...hit.value, items: withLibraryIds(type, hit.value.items) };
   });
 
   // Discover filters: genre, years, rating, status, format, dub/sub... (one page at a time, cached a while

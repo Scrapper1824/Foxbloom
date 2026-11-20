@@ -65,6 +65,7 @@ export const USER_ALLOWED = new Set([
   'GET /api/settings', // non-admins only get the request defaults, never keys/URLs/folders
   'GET /api/discover/search',
   'GET /api/discover/browse',
+  'GET /api/discover/row',
   'GET /api/discover/info',
   'GET /api/discover/details',
   'GET /api/discover/availability',

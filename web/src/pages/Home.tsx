@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, watchId, type SearchResult } from '../api';
-import { cardStill, shortEp, type ContinueItem, type HomeData, type HomeTitle, type PlayableTitle } from '../home';
+import { cardStill, newHomeSeed, shortEp, type ContinueItem, type HomeData, type HomeTitle, type PlayableTitle } from '../home';
 import HomeHero from '../components/HomeHero';
 import MediaDetails from '../components/MediaDetails';
 import Rail, { RailSkeleton } from '../components/Rail';
@@ -108,7 +108,10 @@ function PosterCard({ item, watch }: { item: PlayableTitle; watch?: WatchTag }) 
 
 /** Home: everything you can watch, Jellyfin-style. */
 export default function Home() {
-  const q = useQuery({ queryKey: ['home'], queryFn: () => api.get<HomeData>('/api/home'), refetchInterval: 60_000, staleTime: 0 });
+  // A new random order each time Home is opened; the minute-by-minute refreshes keep it (same seed).
+  const [seed] = useState(newHomeSeed);
+  const key = ['home', seed];
+  const q = useQuery({ queryKey: key, queryFn: () => api.get<HomeData>(`/api/home?seed=${seed}`), refetchInterval: 60_000, staleTime: 0 });
   const [info, setInfo] = useState<SearchResult | null>(null);
   const watchTag = useWatchTags();
   const d = q.data;
@@ -118,11 +121,11 @@ export default function Home() {
     mutationFn: (mediaId: number) => api.del(`/api/continue/${mediaId}`),
     onMutate: async (mediaId) => {
       await qc.cancelQueries({ queryKey: ['home'] });
-      const before = qc.getQueryData<HomeData>(['home']);
-      if (before) qc.setQueryData<HomeData>(['home'], { ...before, continue: before.continue.filter((c) => c.mediaId !== mediaId) });
+      const before = qc.getQueryData<HomeData>(key);
+      if (before) qc.setQueryData<HomeData>(key, { ...before, continue: before.continue.filter((c) => c.mediaId !== mediaId) });
       return { before };
     },
-    onError: (_err, _id, ctx) => ctx?.before && qc.setQueryData(['home'], ctx.before),
+    onError: (_err, _id, ctx) => ctx?.before && qc.setQueryData(key, ctx.before),
     onSettled: () => qc.invalidateQueries({ queryKey: ['home'] }),
   });
 

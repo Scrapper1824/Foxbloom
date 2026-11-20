@@ -55,3 +55,6 @@ export const cardStill = (url: string) => url.replace('image.tmdb.org/t/p/w300/'
 
 /** "S1 E5" from "S01E05". */
 export const shortEp = (label: string) => label.replace(/^S0?(\d+)E0?(\d+)$/, 'S$1 E$2');
+
+/** The random order for one visit to Home (the server shuffles the rows by it). */
+export const newHomeSeed = () => Math.floor(Math.random() * 0x100000000);

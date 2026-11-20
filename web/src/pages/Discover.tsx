@@ -1,13 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, typeLabel, watchId, type MediaType, type SearchResult } from '../api';
+import { api, typeLabel, type MediaType, type SearchResult } from '../api';
 import AddDialog from '../components/AddDialog';
 import Hero, { type FeaturedItem } from '../components/Hero';
 import MediaDetails from '../components/MediaDetails';
 import Rail, { RailSkeleton } from '../components/Rail';
 import { activeCount, emptyFilters, FilterPanel, filterQuery, type Filters } from '../components/DiscoverFilters';
-import WatchlistMenu from '../components/WatchlistMenu';
-import { useWatchTags } from '../watchTags';
+import ResultCard from '../components/ResultCard';
+import { discoverRowPath, discoverTabOf, mergePages } from '../discoverRows';
+import { useLoadMoreOnScroll } from '../components/useLoadMoreOnScroll';
 
 interface BrowseRowData {
   id: string;
@@ -15,68 +17,21 @@ interface BrowseRowData {
   items: SearchResult[];
 }
 
-/** A Discover card, like Home's: the art (and the name) opens the details; + requests it straight away. */
-function ResultCard({
-  r,
-  onRequest,
-  onOpen,
-}: {
-  r: SearchResult;
-  onRequest: (r: SearchResult) => void;
-  onOpen: (r: SearchResult) => void;
-}) {
-  const sub = [r.year, r.extra, r.dubbed ? 'Dub' : null].filter(Boolean).join(' · ');
-  // Your watchlist status (every card shares one fetch of your lists).
-  const watch = useWatchTags()(r);
-  const wid = watchId(r);
-  return (
-    <div className="home-poster-card discover-card">
-      <div className="discover-art">
-        <button type="button" className="home-poster-link" onClick={() => onOpen(r)} aria-label={`${r.title} details`}>
-          <div className="home-poster">
-            {r.poster ? <img src={r.poster} alt="" loading="lazy" decoding="async" /> : <div className="home-thumb-fallback">{r.title.slice(0, 1)}</div>}
-            {r.libraryId ? <span className="discover-owned">In library</span> : r.requested ? <span className="discover-owned discover-requested">Requested</span> : null}
-          </div>
-        </button>
-        {watch && wid && (
-          <WatchlistMenu
-            variant="tag"
-            className={`discover-tag ${watch.status ? 'on' : 'off'}`}
-            type={r.type}
-            id={wid}
-            status={watch.status}
-            info={{ title: r.title, year: r.year, poster: r.poster }}
-          />
-        )}
-        {!r.libraryId && !r.requested && (
-          <button type="button" className="discover-add" onClick={() => onRequest(r)} aria-label={`Request ${r.title}`} title="Request">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden>
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-          </button>
-        )}
-      </div>
-      <button type="button" className="home-card-title discover-name" onClick={() => onOpen(r)} title={r.title}>
-        {r.title}
-      </button>
-      {sub && <span className="home-card-sub">{sub}</span>}
-    </div>
-  );
-}
-
 /** One row ("Trending this week", ...): the same scrolling row as Home. */
 function BrowseRow({
+  type,
   row,
   onRequest,
   onOpen,
 }: {
+  type: MediaType;
   row: BrowseRowData;
   onRequest: (r: SearchResult) => void;
   onOpen: (r: SearchResult) => void;
 }) {
   if (!row.items.length) return null;
   return (
-    <Rail title={row.title}>
+    <Rail title={row.title} seeAll={discoverRowPath(type, row.id)}>
       {row.items.map((r) => (
         <ResultCard key={`${r.type}-${r.tmdbId ?? r.anilistId}`} r={r} onRequest={onRequest} onOpen={onOpen} />
       ))}
@@ -115,23 +70,9 @@ function FilteredResults({
     getNextPageParam: (last) => last.nextPage ?? undefined,
     staleTime: 10 * 60_000,
   });
-  const end = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = end.current;
-    if (!el) return;
-    const io = new IntersectionObserver((e) => {
-      if (e[0].isIntersecting && list.hasNextPage && !list.isFetchingNextPage) list.fetchNextPage();
-    }, { rootMargin: '600px' });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [list.hasNextPage, list.isFetchingNextPage, list.fetchNextPage]); // eslint-disable-line react-hooks/exhaustive-deps
+  const end = useLoadMoreOnScroll(list);
 
-  // The same title can come back on two pages when the list shifts while you scroll.
-  const seen = new Set<string>();
-  const items = (list.data?.pages.flatMap((p) => p.items) ?? []).filter((r) => {
-    const k = `${r.type}-${r.tmdbId ?? r.anilistId}`;
-    return !seen.has(k) && !!seen.add(k);
-  });
+  const items = mergePages(list.data?.pages ?? []);
 
   // A narrow filter (e.g. sub-only among popular action anime, which are nearly all dubbed) can leave
   // the first pages almost empty: keep looking for a few pages before leaving it to "Load more".
@@ -180,7 +121,10 @@ function noFilters(): Record<MediaType, Filters> {
 }
 
 export default function Discover() {
-  const [type, setType] = useState<MediaType>('movie');
+  // The tab is kept in the address, so coming back from a row's "See all" lands on the same tab.
+  const [params, setParams] = useSearchParams();
+  const type = discoverTabOf(`?${params}`);
+  const setType = (t: MediaType) => setParams(t === 'movie' ? {} : { type: t }, { replace: true });
   const [input, setInput] = useState('');
   const [query, setQuery] = useState('');
   const [adding, setAdding] = useState<SearchResult | null>(null);
@@ -347,7 +291,7 @@ export default function Discover() {
               Couldn’t load {typeLabel[type].toLowerCase()} to browse: {(browse.error as Error).message}
             </div>
           )}
-          {browse.data?.rows.map((row) => <BrowseRow key={row.id} row={row} onRequest={setAdding} onOpen={setViewing} />)}
+          {browse.data?.rows.map((row) => <BrowseRow key={row.id} type={type} row={row} onRequest={setAdding} onOpen={setViewing} />)}
         </>
       )}
 

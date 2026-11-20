@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initDb } from '../db.js';
 import { saveSettings } from '../settings.js';
-import { animeSeasonOf, browseExtra } from './anilist.js';
-import { browseTmdb } from './tmdb.js';
+import { animeSeasonOf, browseAnime, browseAnimeRow, browseExtra } from './anilist.js';
+import { browseTmdb, browseTmdbRow } from './tmdb.js';
 
 describe('browseTmdb', () => {
   const calls: string[] = [];
@@ -39,6 +39,84 @@ describe('browseTmdb', () => {
     expect(rows[1].items[0]).toMatchObject({ type: 'show', title: 'Severance', year: 2022, extra: '19 eps' });
     // Each show is looked up once, however many rows it's in.
     expect(calls.filter((c) => c === '/3/tv/1')).toHaveLength(1);
+  });
+});
+
+describe('a Discover row in full (See all)', () => {
+  const asked: URL[] = [];
+  beforeEach(() => {
+    initDb(':memory:');
+    saveSettings({ tmdbApiKey: 'a'.repeat(32) });
+    asked.length = 0;
+    vi.stubGlobal('fetch', async (url: string) => {
+      const u = new URL(url);
+      asked.push(u);
+      if (/^\/3\/tv\/\d+$/.test(u.pathname)) return Response.json({ number_of_episodes: 8 });
+      const page = Number(u.searchParams.get('page'));
+      return Response.json({
+        total_pages: 3,
+        results: [
+          { id: page * 10, title: `Film ${page}`, name: `Show ${page}`, poster_path: '/p.jpg' },
+          { id: 99, title: 'Anime film', name: 'Anime show', poster_path: '/a.jpg', original_language: 'ja', genre_ids: [16] },
+          { id: page * 10 + 1, title: 'No poster', poster_path: null },
+        ],
+      });
+    });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('pages through the row’s own TMDB list, with the row’s filters', async () => {
+    const first = await browseTmdbRow('movie', 'now-playing', 1);
+    expect(asked[0].pathname).toBe('/3/movie/now_playing');
+    expect(asked[0].searchParams.get('page')).toBe('1');
+    expect(first).toMatchObject({ id: 'now-playing', title: 'In theaters now', nextPage: 2 });
+    expect(first!.items.map((i) => i.title)).toEqual(['Film 1']);
+    // The last page says there's no more.
+    expect((await browseTmdbRow('movie', 'now-playing', 3))!.nextPage).toBeNull();
+  });
+
+  it('counts episodes for shows, like the row', async () => {
+    const row = await browseTmdbRow('show', 'popular', 2);
+    expect(asked[0].pathname).toBe('/3/tv/popular');
+    expect(row!.items).toEqual([expect.objectContaining({ title: 'Show 2', extra: '8 eps' })]);
+  });
+
+  it('knows nothing of rows that don’t exist', async () => {
+    expect(await browseTmdbRow('movie', 'airing-today', 1)).toBeNull();
+    expect(asked).toHaveLength(0);
+  });
+});
+
+describe('a Discover anime row in full (See all)', () => {
+  const bodies: { query: string; variables: Record<string, unknown> }[] = [];
+  beforeEach(() => {
+    bodies.length = 0;
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body));
+      bodies.push(body);
+      const media = [
+        { id: 1, title: { romaji: 'Frieren' }, format: 'TV', episodes: 28, coverImage: { large: 'c.jpg' } },
+        { id: 2, title: { romaji: 'No cover' }, coverImage: {} },
+      ];
+      if (/Page\(page/.test(body.query)) return Response.json({ data: { Page: { pageInfo: { hasNextPage: (body.variables.page as number) < 2 }, media } } });
+      return Response.json({ data: Object.fromEntries(['trending', 'thisSeason', 'nextSeason', 'popular', 'topRated'].map((k) => [k, { media }])) });
+    });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('lists the same AniList selection as the row, a page at a time', async () => {
+    const now = new Date('2026-11-20T12:00:00');
+    const rows = await browseAnime(now);
+    expect(rows.map((r) => r.title)).toEqual(['Trending now', 'This season · Fall 2026', 'Next season · Winter 2027', 'All-time popular', 'Top rated']);
+    expect(bodies[0].query).toContain('thisSeason: Page(perPage: 20) { media(type: ANIME, isAdult: false, season: FALL, seasonYear: 2026, sort: POPULARITY_DESC)');
+
+    const page1 = await browseAnimeRow('nextSeason', 1, now);
+    expect(bodies[1].query).toContain('media(type: ANIME, isAdult: false, season: WINTER, seasonYear: 2027, sort: POPULARITY_DESC)');
+    expect(bodies[1].variables).toEqual({ page: 1 });
+    expect(page1).toMatchObject({ id: 'nextSeason', title: 'Next season · Winter 2027', nextPage: 2 });
+    expect(page1!.items).toEqual([expect.objectContaining({ anilistId: 1, title: 'Frieren', extra: '28 eps' })]);
+    expect((await browseAnimeRow('nextSeason', 2, now))!.nextPage).toBeNull();
+    expect(await browseAnimeRow('nope', 1, now)).toBeNull();
   });
 });
 

@@ -1347,6 +1347,8 @@ a.home-card-title:hover { text-decoration: underline; text-underline-offset: 3px
 .filter-note { margin: 0; }
 .filtered-results { margin-top: 8px; }
 .filtered-more { margin: 20px 0 8px; }
+/* Discover "See all": back to the tab, then the row's name. */
+.discover-back { margin-bottom: 10px; }
 @media (max-width: 640px) {
   .filter-panel { padding: 14px; }
   .filter-grid { grid-template-columns: 1fr; }

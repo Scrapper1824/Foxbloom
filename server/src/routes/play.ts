@@ -465,5 +465,9 @@ export async function playRoutes(app: FastifyInstance) {
   });
 
   /** The Home page: banner, continue watching, recently added, and what is downloaded per type (your own progress only). */
-  app.get('/api/home', async (req) => homeFor(req.user!.id, !!req.user!.allow_adult));
+  // ?seed=N: the website's random order for this visit (see homeFor).
+  app.get<{ Querystring: { seed?: string } }>('/api/home', async (req) => {
+    const seed = Number(req.query.seed);
+    return homeFor(req.user!.id, !!req.user!.allow_adult, req.query.seed !== undefined && Number.isInteger(seed) && seed >= 0 && seed <= 0xffffffff ? seed : undefined);
+  });
 }

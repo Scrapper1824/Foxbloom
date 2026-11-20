@@ -385,31 +385,52 @@ export function browseExtra(m: { format?: string | null; episodes?: number | nul
   return [format, eps].filter(Boolean).join(' · ') || undefined;
 }
 
-/** Curated lists for the Discover page: trending, this season, next season, popular, top rated. */
-export async function browseAnime(now = new Date(), adult = false): Promise<BrowseRow[]> {
-  const A = adult ? '' : 'isAdult: false, ';
+const BROWSE_FIELDS = `id title { romaji english } format episodes nextAiringEpisode { episode } seasonYear startDate { year } coverImage { large } description(asHtml: false)`;
+
+/** Discover's anime rows: id, heading, and the AniList filter + sort each one lists. */
+function animeRows(now: Date): { id: string; title: string; args: string }[] {
   const cur = animeSeasonOf(now);
   const nextIdx = (SEASONS.indexOf(cur.season) + 1) % 4;
   const next = { season: SEASONS[nextIdx], year: nextIdx === 0 ? cur.year + 1 : cur.year };
-  const BROWSE_FIELDS = `id title { romaji english } format episodes nextAiringEpisode { episode } seasonYear startDate { year } coverImage { large } description(asHtml: false)`;
-  const data = await gql<Record<string, { media: any[] }>>(
-    `query ($season: MediaSeason, $year: Int, $nextSeason: MediaSeason, $nextYear: Int) {
-      trending: Page(perPage: 20) { media(type: ANIME, ${A}sort: TRENDING_DESC) { ${BROWSE_FIELDS} } }
-      thisSeason: Page(perPage: 20) { media(type: ANIME, ${A}season: $season, seasonYear: $year, sort: POPULARITY_DESC) { ${BROWSE_FIELDS} } }
-      nextSeason: Page(perPage: 20) { media(type: ANIME, ${A}season: $nextSeason, seasonYear: $nextYear, sort: POPULARITY_DESC) { ${BROWSE_FIELDS} } }
-      popular: Page(perPage: 20) { media(type: ANIME, ${A}sort: POPULARITY_DESC) { ${BROWSE_FIELDS} } }
-      topRated: Page(perPage: 20) { media(type: ANIME, ${A}sort: SCORE_DESC) { ${BROWSE_FIELDS} } }
-    }`,
-    { season: cur.season, year: cur.year, nextSeason: next.season, nextYear: next.year },
-  );
-  const row = (id: string, title: string) => ({ id, title, items: (data[id]?.media ?? []).filter((m) => m.coverImage?.large).map(toBrowseResult) });
   return [
-    row('trending', 'Trending now'),
-    row('thisSeason', `This season · ${seasonLabel(cur.season)} ${cur.year}`),
-    row('nextSeason', `Next season · ${seasonLabel(next.season)} ${next.year}`),
-    row('popular', 'All-time popular'),
-    row('topRated', 'Top rated'),
+    { id: 'trending', title: 'Trending now', args: 'sort: TRENDING_DESC' },
+    { id: 'thisSeason', title: `This season · ${seasonLabel(cur.season)} ${cur.year}`, args: `season: ${cur.season}, seasonYear: ${cur.year}, sort: POPULARITY_DESC` },
+    { id: 'nextSeason', title: `Next season · ${seasonLabel(next.season)} ${next.year}`, args: `season: ${next.season}, seasonYear: ${next.year}, sort: POPULARITY_DESC` },
+    { id: 'popular', title: 'All-time popular', args: 'sort: POPULARITY_DESC' },
+    { id: 'topRated', title: 'Top rated', args: 'sort: SCORE_DESC' },
   ];
+}
+
+/** Curated lists for the Discover page: trending, this season, next season, popular, top rated. */
+export async function browseAnime(now = new Date(), adult = false): Promise<BrowseRow[]> {
+  const A = adult ? '' : 'isAdult: false, ';
+  const rows = animeRows(now);
+  const data = await gql<Record<string, { media: any[] }>>(
+    `query { ${rows.map((r) => `${r.id}: Page(perPage: 20) { media(type: ANIME, ${A}${r.args}) { ${BROWSE_FIELDS} } }`).join(' ')} }`,
+    {},
+  );
+  return rows.map((r) => ({ id: r.id, title: r.title, items: (data[r.id]?.media ?? []).filter((m) => m.coverImage?.large).map(toBrowseResult) }));
+}
+
+/** One Discover anime row in full ("See all"), a page at a time. Null for a row that doesn't exist. */
+export async function browseAnimeRow(
+  rowId: string,
+  page: number,
+  now = new Date(),
+  adult = false,
+): Promise<{ id: string; title: string; items: SearchResult[]; nextPage: number | null } | null> {
+  const row = animeRows(now).find((r) => r.id === rowId);
+  if (!row) return null;
+  const data = await gql<{ Page: { pageInfo: { hasNextPage: boolean }; media: any[] } }>(
+    `query ($page: Int) { Page(page: $page, perPage: 30) { pageInfo { hasNextPage } media(type: ANIME, ${adult ? '' : 'isAdult: false, '}${row.args}) { ${BROWSE_FIELDS} } } }`,
+    { page },
+  );
+  return {
+    id: row.id,
+    title: row.title,
+    items: (data.Page.media ?? []).filter((m) => m.coverImage?.large).map(toBrowseResult),
+    nextPage: data.Page.pageInfo?.hasNextPage ? page + 1 : null,
+  };
 }
 
 /** Trending anime with wide banner art for the Discover banner (AniList has no title logos). */

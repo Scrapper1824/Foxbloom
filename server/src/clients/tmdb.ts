@@ -194,6 +194,25 @@ export async function browseTmdb(type: 'movie' | 'show', adult = false): Promise
   );
 }
 
+/** One Discover row in full ("See all"): a TMDB page at a time. Null for a row that doesn't exist. */
+export async function browseTmdbRow(
+  type: 'movie' | 'show',
+  rowId: string,
+  page: number,
+  adult = false,
+): Promise<{ id: string; title: string; items: SearchResult[]; nextPage: number | null } | null> {
+  const row = (type === 'movie' ? MOVIE_ROWS : SHOW_ROWS).find(([id]) => id === rowId);
+  if (!row) return null;
+  const [id, title, path] = row;
+  const r = await tmdb<{ results: any[]; total_pages?: number }>(path, { include_adult: String(adult), page: String(page) });
+  const seen = new Set<number>();
+  // The same filters as the row (anime has its own tab; no poster makes a poor card).
+  const items = (r.results ?? []).filter((x) => x.poster_path && (adult || !x.adult) && !isAnimeTitle(x) && !seen.has(x.id) && seen.add(x.id)).map(type === 'movie' ? toMovie : toShow);
+  // TMDB serves at most 500 pages of any list.
+  const last = Math.min(500, r.total_pages ?? page);
+  return { id, title, items: type === 'show' ? await withEpisodeCounts(items) : items, nextPage: page < last ? page + 1 : null };
+}
+
 export async function getMovie(id: number) {
   const m = await tmdb<any>(`/movie/${id}`);
   return {

@@ -101,6 +101,43 @@ export function downloadedTitles(opts: { type?: MediaType; limit: number; adult?
   return rows.map(toTitle);
 }
 
+/** A repeatable random order: the same seed always shuffles the same way (so Home's refreshes don't reshuffle). */
+export function seededShuffle<T>(list: readonly T[], seed: number): T[] {
+  // mulberry32
+  let a = seed >>> 0;
+  const rand = () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const out = [...list];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+/** `limit` titles with something downloaded, picked at random from the whole library (by `seed`). */
+export function randomTitles(opts: { type: MediaType; limit: number; seed: number; adult?: boolean }): HomeTitle[] {
+  const ids = (
+    db.prepare(`SELECT m.id FROM media m WHERE ${HAS_FILES} AND m.type = ? ${opts.adult ? '' : 'AND m.adult = 0'} ORDER BY m.id`).all(opts.type) as { id: number }[]
+  ).map((r) => r.id);
+  const picked = seededShuffle(ids, opts.seed).slice(0, opts.limit);
+  if (!picked.length) return [];
+  const rows = db
+    .prepare(
+      `SELECT m.*, ${LAST_ADDED} AS last_added,
+         (SELECT COUNT(*) FROM episodes e WHERE e.media_id = m.id AND e.has_file = 1 AND e.season > 0) AS episode_files
+       FROM media m WHERE m.id IN (${picked.map(() => '?').join(',')})`,
+    )
+    .all(...picked) as unknown as (MediaRow & { last_added: string; episode_files: number })[];
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  return picked.flatMap((id) => (byId.has(id) ? [toTitle(byId.get(id)!)] : []));
+}
+
 const titleOf = (media: MediaRow): HomeTitle => toTitle(media);
 
 /**
@@ -206,7 +243,12 @@ export interface HomeData {
   libraries: Record<MediaType, PlayableTitle[]>;
 }
 
-export function homeFor(userId: number, adult = false): HomeData {
+/**
+ * With a `seed` (the website sends a new one each time Home is opened), the library rows are a random pick
+ * from the whole library and Recently added is shuffled, so Home looks different every visit; the same seed
+ * gives the same order, so the page's background refreshes don't reshuffle it. Without one, newest first.
+ */
+export function homeFor(userId: number, adult = false, seed?: number): HomeData {
   const cont = continueWatching(userId, 20, adult);
   const recent = downloadedTitles({ limit: 20, adult });
   // The banner: what you're in the middle of, then what's new, one per title, ones with a backdrop preferred.
@@ -227,6 +269,8 @@ export function homeFor(userId: number, adult = false): HomeData {
   // What you are watching stays first; among new titles, ones with a backdrop look best up front.
   const rank = (f: FeaturedItem) => (f.reason === 'new' ? 2 : 0) + (f.backdrop ? 0 : 1);
   featured.sort((a, b) => rank(a) - rank(b));
+  const library = (type: MediaType) =>
+    seed === undefined ? downloadedTitles({ type, limit: 30, adult }) : randomTitles({ type, limit: 30, seed: (seed + { movie: 1, show: 2, anime: 3 }[type]) >>> 0, adult });
   // Every poster plays straight away (resume, next episode, or the first), like the banner.
   const playable = (list: HomeTitle[]): PlayableTitle[] =>
     list.map((t) => {
@@ -236,11 +280,11 @@ export function homeFor(userId: number, adult = false): HomeData {
   return {
     featured,
     continue: cont,
-    recent: playable(recent),
+    recent: playable(seed === undefined ? recent : seededShuffle(recent, seed)),
     libraries: {
-      movie: playable(downloadedTitles({ type: 'movie', limit: 30, adult })),
-      show: playable(downloadedTitles({ type: 'show', limit: 30, adult })),
-      anime: playable(downloadedTitles({ type: 'anime', limit: 30, adult })),
+      movie: playable(library('movie')),
+      show: playable(library('show')),
+      anime: playable(library('anime')),
     },
   };
 }

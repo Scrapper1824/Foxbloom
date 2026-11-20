@@ -23,6 +23,7 @@ const Watch = lazy(() => import('./pages/Watch'));
 const Party = lazy(() => import('./pages/Party'));
 // Loaded when first opened, so the first page shows sooner.
 const Detail = lazy(() => import('./pages/Detail'));
+const DiscoverRow = lazy(() => import('./pages/DiscoverRow'));
 const Queue = lazy(() => import('./pages/Queue'));
 const History = lazy(() => import('./pages/History'));
 const Watchlist = lazy(() => import('./pages/Watchlist'));
@@ -217,6 +218,7 @@ function Shell() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/discover" element={<Discover />} />
+          <Route path="/discover/:type/:row" element={<DiscoverRow />} />
           <Route path="/library" element={<Navigate to={lastLibraryPath()} replace />} />
           <Route path="/movies" element={<Library type="movie" />} />
           <Route path="/shows" element={<Library type="show" />} />

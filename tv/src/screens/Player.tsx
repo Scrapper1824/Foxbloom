@@ -2,10 +2,12 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { useNav, type Screen } from '../app';
 import { focusElement } from '../focus';
 import { markSignedOut } from '../profiles';
+import { androidBridge } from '../platform';
 import { keyFromEvent, type Key } from '../remote';
 import type { Session } from '../session';
 import type { PlayExtras, PlayInfo, PlayItem, Segment, Trickplay } from '../types';
 import { getPref, QUALITIES, setPref, type Quality } from '../prefs';
+import { androidPlayer } from '../player/android';
 import { avPlayer, hasAvPlay } from '../player/avplay';
 import { html5Player } from '../player/html5';
 import { cueAt, parseSrt, type Cue } from '../player/srt';
@@ -15,7 +17,10 @@ import { usePlayback, type Playback } from '../player/usePlayback';
 import { profilesScreen } from './Profiles';
 import { LoadError, useLoad } from './useLoad';
 
-const defaultPlayer = (): TvPlayer => (hasAvPlay() ? avPlayer() : html5Player());
+const defaultPlayer = (): TvPlayer => {
+  const bridge = androidBridge();
+  return bridge ? androidPlayer(bridge) : hasAvPlay() ? avPlayer() : html5Player();
+};
 
 export function playerScreen(session: Session, item: PlayItem, makePlayer: () => TvPlayer = defaultPlayer): Screen {
   return { name: 'player', render: () => <Player key={item.kind + item.id} session={session} item={item} makePlayer={makePlayer} /> };

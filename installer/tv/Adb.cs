@@ -100,6 +100,12 @@ public sealed class Adb
         try { runner.Run(new[] { "kill-server" }); } catch { }
     }
 
+    /** `adb mdns services`: the TVs advertising wireless debugging on this network. "" if adb can't say. Never throws. */
+    public string MdnsServices()
+    {
+        try { return runner.Run(new[] { "mdns", "services" }).Output ?? ""; } catch { return ""; }
+    }
+
     /** One-time pairing (Android 11+ "Wireless debugging"): `hostPort` and `code` are both shown on the TV. */
     public void Pair(string hostPort, string code)
     {

@@ -34,8 +34,10 @@ public sealed class Adb
     static readonly Regex InstallFailed = new Regex(@"Failure \[(?<code>[A-Za-z0-9_]+)(?::\s*(?<detail>[^\]]*))?\]");
     static readonly Regex InstallSuccess = new Regex(@"^\s*Success\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase);
 
-    readonly ISdbRunner runner;
-    public Adb(ISdbRunner runner) { this.runner = runner; }
+    readonly ISdbRunner runner, installRunner;
+    public Adb(ISdbRunner runner) : this(runner, runner) { }
+    /** `installRunner` runs only `adb install` (copying a few MB to a slow TV can take minutes); `runner` runs the rest. */
+    public Adb(ISdbRunner runner, ISdbRunner installRunner) { this.runner = runner; this.installRunner = installRunner; }
 
     /** The real thing: extracts the embedded adb.exe (and the DLLs it needs beside it) and runs it. */
     public static Adb Embedded()
@@ -53,7 +55,7 @@ public sealed class Adb
             }
         }
         string path = Extract(files, Path.Combine(Path.GetTempPath(), "foxbloom-tv-adb"));
-        return new Adb(new SdbProcessRunner(path, TimeSpan.FromSeconds(90)));
+        return new Adb(new SdbProcessRunner(path, TimeSpan.FromSeconds(90)), new SdbProcessRunner(path, TimeSpan.FromMinutes(5)));
     }
 
     /**
@@ -144,7 +146,7 @@ public sealed class Adb
     public void Install(string hostPort, string apkPath)
     {
         Check(hostPort);
-        var inst = runner.Run(new[] { "-s", hostPort, "install", "-r", apkPath });
+        var inst = installRunner.Run(new[] { "-s", hostPort, "install", "-r", apkPath });
         if (IsUnauthorized(inst.Output)) throw new TvInstallException(NotAllowed);
         var m = InstallFailed.Match(inst.Output);
         if (m.Success) throw new TvInstallException(InstallFailure(m.Groups["code"].Value, m.Groups["detail"].Value.Trim()));
@@ -156,7 +158,8 @@ public sealed class Adb
             throw new TvInstallException("Foxbloom is installed on the TV, but it didn't start on its own. Open it from the TV's Apps list. " + Tail(run.Output));
     }
 
-    const string NotAllowed = "The TV hasn't allowed this PC yet. Choose Allow (tick Always allow) on the TV, then try again.";
+    /** The message when the TV hasn't (yet) accepted this PC; the setup waits on its "Allow on the TV" page for it. */
+    public const string NotAllowed = "The TV hasn't allowed this PC yet. Choose Allow (tick Always allow) on the TV, then try again.";
 
     static string NoAnswer(string hostPort)
     {

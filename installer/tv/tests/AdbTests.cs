@@ -127,6 +127,20 @@ static partial class Tests
             Eq("-s " + Tv + " shell am start -n org.foxbloom.tv/.MainActivity", f.Calls[1], "launch");
         });
 
+        Test("only adb install goes through the install runner (it has the longer time limit)", delegate
+        {
+            var quick = HappyAdb();
+            var slow = HappyAdb();
+            var adb = new Adb(quick, slow);
+            adb.Connect(Tv);
+            adb.Install(Tv, @"C:\tmp\Foxbloom.apk");
+            Eq(1, slow.Calls.Count, "install runner calls");
+            Eq("-s " + Tv + @" install -r C:\tmp\Foxbloom.apk", slow.Calls[0], "install");
+            Eq(2, quick.Calls.Count, "other calls");
+            Eq("connect " + Tv, quick.Calls[0], "connect");
+            Eq("-s " + Tv + " shell am start -n org.foxbloom.tv/.MainActivity", quick.Calls[1], "launch");
+        });
+
         Test("install failures map to plain messages and the app isn't launched", delegate
         {
             var cases = new Dictionary<string, string>

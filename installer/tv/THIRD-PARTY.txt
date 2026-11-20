@@ -14,4 +14,18 @@ Samsung CA certificates (SamsungCA.* resources)
   shipped with Samsung's Certificate Extension for Tizen Studio. They are included so the app's signing
   certificate chain is complete; the installer checks each against a pinned thumbprint before using it.
 
+adb.exe, AdbWinApi.dll, AdbWinUsbApi.dll (Android Debug Bridge)
+  Copyright (c) 2006-2009, The Android Open Source Project
+  Part of Google's Android SDK Platform-Tools (version 37.0.3). Licensed under the Apache License, Version 2.0
+  (full text in LICENSES.txt): https://www.apache.org/licenses/LICENSE-2.0
+  Embedded unmodified and run only to pair with and connect to an Android TV / Google TV that has Wireless
+  debugging or Network debugging on, install the Foxbloom app on it and start it.
+  Source: https://android.googlesource.com/platform/packages/modules/adb (the NOTICE.txt shipped with
+  Platform-Tools lists the notices of everything it contains).
+
+Foxbloom.apk (the Foxbloom Android TV app)
+  Part of Foxbloom. It contains AndroidX WebKit and AndroidX Media3 (ExoPlayer), Copyright The Android Open Source
+  Project, licensed under the Apache License, Version 2.0 (full text in LICENSES.txt).
+  Source: https://github.com/androidx/media and https://android.googlesource.com/platform/frameworks/support
+
 Foxbloom itself is licensed as described in the LICENSE file in the repository root.

@@ -1,10 +1,11 @@
-// FoxbloomTVSetup.exe: finds a Samsung TV on the network and installs the Foxbloom TV app on it.
+// FoxbloomTVSetup.exe: finds Samsung TVs and Android TVs / Google TVs on the network and installs the Foxbloom TV app.
 //
 // Built by installer\tv\build.ps1 with the .NET Framework C# compiler (no NuGet).
-//   Task 11a (this file): find the TVs, show the list, walk through Developer Mode, reach "Ready to install".
-//   Task 11b: certificate (SamsungCert.cs) and signing (WgtSigner.cs) - called from InstallOn().
-//   Task 11c: sdb install (Sdb.cs) and the progress / done screens - InstallOn().
-// Command line: FoxbloomTVSetup.exe --tv <ip> skips the list (for development).
+//   Samsung: find (TvDiscovery.cs), Developer Mode help, certificate (SamsungCert.cs), signing (WgtSigner.cs),
+//            sdb install (Sdb.cs) - InstallOn().
+//   Android: find (AndroidDiscovery.cs: Wireless debugging over mDNS, Network debugging on port 5555), pairing,
+//            adb install of the embedded Foxbloom.apk (Adb.cs) - InstallOnAndroid().
+// Command line: FoxbloomTVSetup.exe --tv <ip> (or <ip>:<port> for an Android TV) skips the list (for development).
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -18,7 +19,7 @@ using System.Windows.Forms;
 
 [assembly: AssemblyTitle("Foxbloom TV Setup")]
 [assembly: AssemblyProduct("Foxbloom")]
-[assembly: AssemblyDescription("Installs the Foxbloom app on a Samsung TV")]
+[assembly: AssemblyDescription("Installs the Foxbloom app on a Samsung TV or an Android TV")]
 [assembly: AssemblyVersion("1.0.0.0")]
 [assembly: AssemblyFileVersion("1.0.0.0")]
 
@@ -233,15 +234,30 @@ class Activity : Control
     protected override void Dispose(bool disposing) { if (disposing) timer.Dispose(); base.Dispose(disposing); }
 }
 
-/** One TV in the list: name, model and whether Developer Mode is on. Click, or Enter / Space, picks it. */
+/**
+ * One TV in the list. Samsung: name, "Samsung TV", model and whether Developer Mode is on. Android: "Android TV", its
+ * address and which kind of debugging it was found by. Click, or Enter / Space, picks it.
+ */
 class TvRow : Control
 {
-    public readonly TvInfo Tv;
+    public readonly TvInfo Tv;               // a Samsung TV, or null
+    public readonly AndroidTarget Android;   // an Android TV, or null
+    readonly string title, detail, pill;
+    readonly bool pillOk;
     bool hover;
 
     public TvRow(TvInfo tv)
+        : this(DisplayName(tv), "Samsung TV  ·  " + (string.IsNullOrEmpty(tv.Model) ? "" : tv.Model + "  ·  ") + tv.Ip,
+               tv.DeveloperMode ? "Developer Mode on" : "Developer Mode off", tv.DeveloperMode)
+    { Tv = tv; }
+
+    public TvRow(AndroidTarget tv)
+        : this("Android TV", "Android TV  ·  " + tv.Ip, tv.Wireless ? "Wireless debugging on" : "Network debugging on", true)
+    { Android = tv; }
+
+    TvRow(string title, string detail, string pill, bool pillOk)
     {
-        Tv = tv;
+        this.title = title; this.detail = detail; this.pill = pill; this.pillOk = pillOk;
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.Selectable, true);
         TabStop = true;
         Cursor = Cursors.Hand;
@@ -281,12 +297,11 @@ class TvRow : Control
         float s = Width / 560f;
         int pad = (int)(16 * s);
         using (var f = Theme.Bold(11f))
-            TextRenderer.DrawText(g, DisplayName(Tv), f, new Rectangle(pad, (int)(8 * s), Width - 2 * pad - (int)(190 * s), (int)(26 * s)), Theme.Text, TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine);
+            TextRenderer.DrawText(g, title, f, new Rectangle(pad, (int)(8 * s), Width - 2 * pad - (int)(190 * s), (int)(26 * s)), Theme.Text, TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine);
         using (var f = Theme.Body(9f))
-            TextRenderer.DrawText(g, (string.IsNullOrEmpty(Tv.Model) ? "" : Tv.Model + "  ·  ") + Tv.Ip, f, new Rectangle(pad, (int)(34 * s), Width - 2 * pad - (int)(190 * s), (int)(22 * s)), Theme.Muted, TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine);
-        // Developer Mode pill on the right.
-        string pill = Tv.DeveloperMode ? "Developer Mode on" : "Developer Mode off";
-        Color c = Tv.DeveloperMode ? Theme.Ok : Theme.Muted;
+            TextRenderer.DrawText(g, detail, f, new Rectangle(pad, (int)(34 * s), Width - 2 * pad - (int)(190 * s), (int)(22 * s)), Theme.Muted, TextFormatFlags.EndEllipsis | TextFormatFlags.SingleLine);
+        // Developer Mode / debugging pill on the right.
+        Color c = pillOk ? Theme.Ok : Theme.Muted;
         using (var f = Theme.Body(9f))
         {
             var sz = TextRenderer.MeasureText(pill, f);
@@ -324,7 +339,7 @@ class TvSetupForm : Form
 
         var logo = new Logo { Location = new Point(P(28), P(24)), Size = new Size(P(44), P(44)) };
         Controls.Add(logo);
-        Controls.Add(Label("Foxbloom for Samsung TV", Theme.Bold(15f), Theme.Text, 84, 22, 500, 30));
+        Controls.Add(Label("Foxbloom for Samsung and Android TV", Theme.Bold(15f), Theme.Text, 84, 22, 430, 30));
         Controls.Add(Label("Put Foxbloom on your TV", Theme.Body(9.5f), Theme.Muted, 85, 50, 500, 20));
         var licences = new LinkLabel
         {
@@ -343,12 +358,19 @@ class TvSetupForm : Form
     }
 
     volatile Sdb activeSdb;   // the sdb in use by a running install, so closing the window can stop its server
+    volatile Adb activeAdb;   // the same for adb (a scan, an address lookup or an Android install)
 
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
         var sdb = activeSdb;
-        // Off the UI thread so closing the window never waits on sdb; the process stays alive until the thread ends.
-        if (sdb != null) { var t = new Thread(delegate () { sdb.Stop(); }); t.IsBackground = false; t.Start(); }
+        var adb = activeAdb;
+        // Off the UI thread so closing the window never waits on sdb / adb; the process stays alive until the thread ends.
+        if (sdb != null || adb != null)
+        {
+            var t = new Thread(delegate () { if (sdb != null) sdb.Stop(); if (adb != null) adb.Stop(); });
+            t.IsBackground = false;
+            t.Start();
+        }
         base.OnFormClosed(e);
     }
 
@@ -357,7 +379,7 @@ class TvSetupForm : Form
     protected override void OnShown(EventArgs e)
     {
         base.OnShown(e);
-        if (startIp != null) Contact(startIp, false); else StartScan();
+        if (startIp != null) Contact(startIp); else StartScan();
     }
 
     /** The third-party notices (THIRD-PARTY.txt) and licence texts (LICENSES.txt) embedded by build.ps1. */
@@ -400,7 +422,7 @@ class TvSetupForm : Form
 
     Label Label(string text, Font font, Color color, int x, int y, int w, int h)
     {
-        return new Label { Text = text, Font = font, ForeColor = color, BackColor = Color.Transparent, AutoSize = false, Location = new Point(P(x), P(y)), Size = new Size(P(w), P(h)), UseCompatibleTextRendering = false };
+        return new Label { Text = text, Font = font, ForeColor = color, BackColor = Color.Transparent, AutoSize = false, Location = new Point(P(x), P(y)), Size = new Size(P(w), P(h)), UseCompatibleTextRendering = false, UseMnemonic = false };
     }
 
     ThemedButton Button(string text, bool primary, int x, int y, int w, EventHandler click)
@@ -426,14 +448,29 @@ class TvSetupForm : Form
     {
         NewPage();
         int mine = scan;
-        Add(Label("Looking for Samsung TVs…", Theme.Bold(14f), Theme.Text, 28, 20, 580, 34));
+        Add(Label("Looking for TVs…", Theme.Bold(14f), Theme.Text, 28, 20, 580, 34));
         Add(Label("Make sure your TV is switched on and on the same network as this PC. This takes a few seconds.", Theme.Body(10f), Theme.Muted, 28, 60, 580, 48));
         Add(new Activity { Location = new Point(P(28), P(120)), Size = new Size(W, P(6)) });
         Task.Factory.StartNew(delegate ()
         {
-            List<TvInfo> tvs;
-            try { tvs = TvDiscovery.Find(TimeSpan.FromSeconds(9)); } catch (Exception) { tvs = new List<TvInfo>(); }
-            OnUi(delegate { if (mine == scan) ShowList(tvs); });
+            // Samsung and Android at the same time, each with the same time limit.
+            var samsung = Task.Factory.StartNew(delegate ()
+            {
+                try { return TvDiscovery.Find(TimeSpan.FromSeconds(9)); } catch (Exception) { return new List<TvInfo>(); }
+            });
+            List<AndroidTarget> androids;
+            Adb adb = null;
+            try
+            {
+                // Without the embedded adb (a -NoVendor build) only the port-5555 sweep runs.
+                try { if (AndroidPackaged()) { adb = Adb.Embedded(); activeAdb = adb; } } catch (TvInstallException) { }
+                androids = AndroidDiscovery.Find(adb, TimeSpan.FromSeconds(9));
+            }
+            catch (Exception) { androids = new List<AndroidTarget>(); }
+            finally { if (adb != null) adb.Stop(); activeAdb = null; }
+            var tvs = samsung.Result;
+            androids.RemoveAll(a => tvs.Any(t => t.Ip == a.Ip));
+            OnUi(delegate { if (mine == scan) ShowList(tvs, androids); });
         });
     }
 
@@ -445,28 +482,34 @@ class TvSetupForm : Form
 
     // ---- TV list / none found ----
 
-    void ShowList(List<TvInfo> tvs)
+    void ShowList(List<TvInfo> tvs, List<AndroidTarget> androids)
     {
         NewPage();
-        if (tvs.Count == 0)
+        AcceptButton = null;
+        int count = tvs.Count + androids.Count;
+        if (count == 0)
         {
             Add(Label("No TVs found", Theme.Bold(14f), Theme.Text, 28, 20, 580, 34));
-            Add(Label("Check that the TV is switched on (not just in standby) and on the same Wi-Fi or network as this PC.\n\nOr type the TV's address yourself. You can find it on the TV under Settings > General > Network > Network Status > IP Settings.", Theme.Body(10f), Theme.Muted, 28, 62, 580, 130));
-            Add(Button("Enter an address", true, 28, 210, 200, delegate { ShowAddress(null, ""); }));
-            Add(Button("Scan again", false, 240, 210, 160, delegate { StartScan(); }));
+            Add(Label("Check that the TV is switched on (not just in standby) and on the same Wi-Fi or network as this PC.\n\nOr type the TV's address yourself. On a Samsung TV you can find it under Settings > General > Network > Network Status > IP Settings.\n\nAndroid TV or Google TV? It only shows up once Wireless debugging (or, on older TVs, Network debugging) is on.", Theme.Body(10f), Theme.Muted, 28, 62, 580, 180));
+            Add(Button("Enter an address", true, 28, 256, 200, delegate { ShowAddress(null, ""); }));
+            Add(Button("Scan again", false, 240, 256, 160, delegate { StartScan(); }));
+            Add(Button("Android TV help", false, 412, 256, 172, delegate { ShowAndroidHelp(); }));
             return;
         }
-        Add(Label(tvs.Count == 1 ? "Found your TV" : "Found " + tvs.Count + " TVs", Theme.Bold(14f), Theme.Text, 28, 20, 580, 34));
+        Add(Label(count == 1 ? "Found your TV" : "Found " + count + " TVs", Theme.Bold(14f), Theme.Text, 28, 20, 580, 34));
         Add(Label("Pick the one to put Foxbloom on.", Theme.Body(10f), Theme.Muted, 28, 56, 580, 24));
         int y = 92;
-        foreach (var tv in tvs.Take(6))
+        var rows = tvs.Select(t => new TvRow(t)).Concat(androids.Select(a => new TvRow(a))).ToList();
+        foreach (var row in rows.Take(5))   // five fit above the buttons; any others: Enter an address
         {
-            var row = new TvRow(tv) { Location = new Point(P(28), P(y)), Size = new Size(W, P(64)) };
-            var picked = tv;
-            row.Click += delegate { Chosen(picked); };
+            row.Location = new Point(P(28), P(y));
+            row.Size = new Size(W, P(64));
+            var picked = row;
+            row.Click += delegate { if (picked.Tv != null) Chosen(picked.Tv); else ChosenAndroid(picked.Android); };
             Add(row);
             y += 72;
         }
+        foreach (var unused in rows.Skip(5)) unused.Dispose();
         y += 8;
         Add(Button("Enter an address", false, 28, y, 200, delegate { ShowAddress(null, ""); }));
         Add(Button("Scan again", false, 240, y, 160, delegate { StartScan(); }));
@@ -478,29 +521,58 @@ class TvSetupForm : Form
     {
         NewPage();
         Add(Label("Enter the TV's address", Theme.Bold(14f), Theme.Text, 28, 20, 580, 34));
-        Add(Label("On the TV: Settings > General > Network > Network Status > IP Settings. It looks like 192.168.1.50.", Theme.Body(10f), Theme.Muted, 28, 60, 580, 48));
+        Add(Label("Samsung TV: Settings > General > Network > Network Status > IP Settings. It looks like 192.168.1.50.\n\nAndroid TV: the IP address & Port under Developer options > Wireless debugging, like 192.168.1.50:37000. Or just the address, like 192.168.1.50.", Theme.Body(10f), Theme.Muted, 28, 60, 580, 92));
 
-        var box = new TextBox { Text = prefill, Font = Theme.Body(14f), BorderStyle = BorderStyle.FixedSingle, BackColor = Theme.Raised, ForeColor = Theme.Text, Location = new Point(P(28), P(118)), Size = new Size(P(260), P(34)), MaxLength = 45 };
+        var box = new TextBox { Text = prefill, Font = Theme.Body(14f), BorderStyle = BorderStyle.FixedSingle, BackColor = Theme.Raised, ForeColor = Theme.Text, Location = new Point(P(28), P(162)), Size = new Size(P(300), P(34)), MaxLength = 45 };
         Add(box);
-        var err = Label(error ?? "", Theme.Body(10f), Theme.Danger, 28, 164, 580, 48);
+        var err = Label(error ?? "", Theme.Body(10f), Theme.Danger, 28, 208, 580, 48);
         Add(err);
         EventHandler go = delegate
         {
-            var ip = box.Text.Trim();
-            System.Net.IPAddress parsed;
-            if (!System.Net.IPAddress.TryParse(ip, out parsed)) { err.Text = "That doesn't look like an address. It should be four numbers separated by dots, like 192.168.1.50."; return; }
-            Contact(ip, true);
+            string address = ParseAddress(box.Text);
+            if (address == null) { err.Text = "That doesn't look like an address. It should be four numbers separated by dots, like 192.168.1.50 (an Android TV's may end in a port, like 192.168.1.50:37000)."; return; }
+            Contact(address);
         };
-        var cont = Button("Continue", true, 28, 220, 160, go);
+        var cont = Button("Continue", true, 28, 264, 160, go);
         Add(cont);
-        Add(Button("Back", false, 200, 220, 120, delegate { StartScan(); }));
+        Add(Button("Back", false, 200, 264, 120, delegate { StartScan(); }));
         AcceptButton = cont;
         box.Focus();
     }
 
-    /** Asks the TV at `ip` who it is, then carries on like a TV picked from the list. */
-    void Contact(string ip, bool fromAddressPage)
+    /** "192.168.1.50" or "192.168.1.50:37000", tidied; null if it is neither. */
+    static string ParseAddress(string text)
     {
+        string t = (text ?? "").Trim();
+        int port = 0;
+        int colon = t.IndexOf(':');
+        if (colon >= 0)
+        {
+            if (!int.TryParse(t.Substring(colon + 1), System.Globalization.NumberStyles.None, null, out port) || port < 1 || port > 65535) return null;
+            t = t.Substring(0, colon);
+        }
+        System.Net.IPAddress parsed;
+        if (t.Split('.').Length != 4 || !System.Net.IPAddress.TryParse(t, out parsed) || parsed.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork) return null;
+        return parsed.ToString() + (port > 0 ? ":" + port : "");
+    }
+
+    /**
+     * `ip:port` is an Android TV. A plain `ip` is asked whether it is a Samsung TV, then whether it has Network
+     * debugging (port 5555) or Wireless debugging (mDNS); then it carries on like a TV picked from the list.
+     */
+    void Contact(string address)
+    {
+        string tidy = ParseAddress(address);
+        if (tidy == null) { ShowAddress("That doesn't look like an address: " + address, address); return; }
+        address = tidy;
+        int colon = address.IndexOf(':');
+        if (colon >= 0)
+        {
+            int port = int.Parse(address.Substring(colon + 1));
+            ChosenAndroid(new AndroidTarget { Ip = address.Substring(0, colon), ConnectPort = port, Wireless = port != AndroidDiscovery.ClassicPort });
+            return;
+        }
+        string ip = address;
         NewPage();
         int mine = scan;
         AcceptButton = null;
@@ -508,14 +580,45 @@ class TvSetupForm : Form
         Add(new Activity { Location = new Point(P(28), P(70)), Size = new Size(W, P(6)) });
         Task.Factory.StartNew(delegate ()
         {
-            TvInfo tv = TvDiscovery.Describe(ip);
+            TvInfo tv = null;
+            AndroidTarget android = null;
+            try
+            {
+                tv = TvDiscovery.Describe(ip);
+                if (tv == null && TvDiscovery.ProbeOpen(new[] { ip }, AndroidDiscovery.ClassicPort, TimeSpan.FromSeconds(2)).Count > 0)
+                    android = new AndroidTarget { Ip = ip, ConnectPort = AndroidDiscovery.ClassicPort, Wireless = false };
+                if (tv == null && android == null) android = WirelessAt(ip);
+            }
+            catch (Exception) { }
             OnUi(delegate
             {
                 if (mine != scan) return;
-                if (tv == null) ShowAddress("No Samsung TV answered at " + ip + ". Check the address, and that the TV is switched on and on the same network as this PC.", ip);
-                else Chosen(tv);
+                if (tv != null) Chosen(tv);
+                else if (android != null) ChosenAndroid(android);
+                else ShowUnsupported(ip);
             });
         });
+    }
+
+    /** Asks adb's mDNS browser, for a few seconds, whether the TV at `ip` has Wireless debugging on. null if not (or no adb). */
+    AndroidTarget WirelessAt(string ip)
+    {
+        if (!AndroidPackaged()) return null;
+        Adb adb = null;
+        try
+        {
+            adb = Adb.Embedded();
+            activeAdb = adb;
+            var until = DateTime.UtcNow.AddSeconds(6);
+            while (true)
+            {
+                var t = AndroidDiscovery.ParseMdns(adb.MdnsServices()).FirstOrDefault(x => x.Ip == ip && x.Wireless);
+                if (t != null || DateTime.UtcNow > until) return t;
+                Thread.Sleep(1000);
+            }
+        }
+        catch (Exception) { return null; }
+        finally { if (adb != null) adb.Stop(); activeAdb = null; }
     }
 
     // ---- after a TV is chosen ----
@@ -660,5 +763,229 @@ class TvSetupForm : Form
         var another = Button("Install on another TV", false, 28, 200, 220, delegate { StartScan(); });
         Add(another);
         Add(Button("Close", true, 260, 200, 120, delegate { Close(); }));
+    }
+
+    // ==== Android TV / Google TV ====
+
+    const string NoAndroidBuild = "This build can't install on Android TVs. Download the latest FoxbloomTVSetup.exe from the Foxbloom releases page.";
+    static readonly System.Text.RegularExpressions.Regex HostPort = new System.Text.RegularExpressions.Regex(@"^(\d{1,3}\.){3}\d{1,3}:\d{1,5}$");
+
+    /** True when build.ps1 embedded adb (with its DLLs) and the APK; a -NoVendor build has neither. */
+    static bool AndroidPackaged()
+    {
+        var asm = Assembly.GetExecutingAssembly();
+        return Adb.ResourceNames.Concat(new[] { "Foxbloom.apk" }).All(n => asm.GetManifestResourceInfo(n) != null);
+    }
+
+    /** Wireless debugging: pair (or connect, if paired before). Network debugging (port 5555): straight to the install. */
+    void ChosenAndroid(AndroidTarget tv)
+    {
+        if (tv.Wireless) ShowPair(tv, null);
+        else InstallOnAndroid(tv, null, null);
+    }
+
+    void ShowAndroidHelp()
+    {
+        NewPage();
+        AcceptButton = null;
+        Add(Label("Set up your Android TV", Theme.Bold(14f), Theme.Text, 28, 16, 580, 32));
+        Add(Label("Foxbloom isn't in the Play Store, so the TV has to let this PC install it. Once, on the TV:", Theme.Body(10f), Theme.Muted, 28, 50, 580, 24));
+        Add(Label("1.  Turn on Developer options: open Settings > System > About, select Build and press OK on it 7 times, until the TV says you're a developer.\n\n2.  Go back to Settings > System > Developer options and turn on Wireless debugging.\n\n3.  Choose Wireless debugging > Pair device with pairing code, and leave that screen open: it shows the code and address the setup asks for.", Theme.Body(10.5f), Theme.Text, 28, 84, 580, 196));
+        Add(Label("Older TVs (Android 10 and earlier) have no Wireless debugging: in Developer options, turn on Network debugging (sometimes called ADB debugging) instead. The TV then asks you to allow this PC.\n\nOn some TVs, About is under Settings > Device Preferences.", Theme.Body(10f), Theme.Muted, 28, 286, 580, 100));
+        var again = Button("Scan again", true, 28, 400, 160, delegate { StartScan(); });
+        Add(again);
+        Add(Button("Enter an address", false, 200, 400, 190, delegate { ShowAddress(null, ""); }));
+        Add(Button("My TV has neither", false, 402, 400, 182, delegate { ShowUnsupported(null); }));
+        again.Focus();
+    }
+
+    /** No way in: shown for "My TV has neither", and when nothing answered at a typed address (`ip`). */
+    void ShowUnsupported(string ip)
+    {
+        NewPage();
+        AcceptButton = null;
+        Add(Label("Can't set up this TV", Theme.Bold(14f), Theme.Text, 28, 20, 580, 34));
+        string why = "This TV can't be set up from the PC: it has neither Wireless debugging nor Network debugging.";
+        if (ip != null)
+            why = "No TV answered at " + ip + ": not as a Samsung TV, and not as an Android TV with Wireless debugging or Network debugging on.\n\n" +
+                  "Check the address, and that the TV is switched on and on the same network as this PC. If it's an Android TV, switch one of them on first (Show me how).\n\n" +
+                  "If its Developer options have neither, this TV can't be set up from the PC.";
+        Add(Label(why, Theme.Body(10.5f), Theme.Muted, 28, 66, 580, 170));
+        var how = Button("Show me how", ip != null, 28, 250, 160, delegate { ShowAndroidHelp(); });
+        Add(how);
+        Add(Button("Enter an address", false, 200, 250, 190, delegate { ShowAddress(null, ip ?? ""); }));
+        Add(Button("Scan again", ip == null, 402, 250, 160, delegate { StartScan(); }));
+        how.Focus();
+    }
+
+    TextBox Box(string text, int x, int y, int w, int maxLength)
+    {
+        return new TextBox { Text = text, Font = Theme.Body(13f), BorderStyle = BorderStyle.FixedSingle, BackColor = Theme.Raised, ForeColor = Theme.Text, Location = new Point(P(x), P(y)), Size = new Size(P(w), P(32)), MaxLength = maxLength };
+    }
+
+    /** Wireless debugging: the pairing code and the two addresses the TV shows (prefilled from what the scan saw). */
+    void ShowPair(AndroidTarget tv, string error)
+    {
+        NewPage();
+        Add(Label("Pair this PC with the TV", Theme.Bold(14f), Theme.Text, 28, 16, 580, 32));
+        Add(Label("On the TV: Settings > System > Developer options > Wireless debugging > Pair device with pairing code. Type the code and the address it shows.", Theme.Body(10f), Theme.Muted, 28, 50, 580, 44));
+
+        Add(Label("Pairing code", Theme.Body(10f), Theme.Text, 28, 102, 180, 22));
+        var code = Box("", 28, 126, 160, 10);
+        Add(code);
+        Add(Label("Pairing address (on the pairing screen)", Theme.Body(10f), Theme.Text, 220, 102, 364, 22));
+        var pairAt = Box(tv.Ip + ":" + (tv.PairPort > 0 ? tv.PairPort.ToString() : ""), 220, 126, 260, 21);
+        Add(pairAt);
+        Add(Label("Connection address (Wireless debugging screen, under IP address & Port)", Theme.Body(10f), Theme.Text, 28, 172, 556, 22));
+        var connectAt = Box(tv.Ip + ":" + (tv.ConnectPort > 0 ? tv.ConnectPort.ToString() : ""), 28, 196, 260, 21);
+        Add(connectAt);
+        Add(Label("Paired this PC with the TV before and it's still listed under Paired devices? Leave the code empty.", Theme.Body(9.5f), Theme.Muted, 28, 238, 556, 40));
+
+        var err = Label(error ?? "", Theme.Body(10f), Theme.Danger, 28, 282, 580, 66);
+        Add(err);
+        EventHandler go = delegate
+        {
+            string c = code.Text.Trim().Replace(" ", "");
+            string p = pairAt.Text.Trim(), a = connectAt.Text.Trim();
+            if (!HostPort.IsMatch(a)) { err.Text = "Type the connection address with its port, as the TV's Wireless debugging screen shows it, like 192.168.1.50:37000."; return; }
+            if (c.Length > 0 && !System.Text.RegularExpressions.Regex.IsMatch(c, @"^\d+$")) { err.Text = "The pairing code should be just the numbers shown on the TV."; return; }
+            if (c.Length > 0 && !HostPort.IsMatch(p)) { err.Text = "Type the pairing address with its port, as the pairing screen shows it, like 192.168.1.50:41234."; return; }
+            int colon = a.IndexOf(':');
+            int pp, cp = int.Parse(a.Substring(colon + 1));
+            var updated = new AndroidTarget
+            {
+                Ip = a.Substring(0, colon), ConnectPort = cp, Wireless = true,
+                PairPort = HostPort.IsMatch(p) && int.TryParse(p.Substring(p.IndexOf(':') + 1), out pp) ? pp : tv.PairPort,
+            };
+            InstallOnAndroid(updated, c.Length > 0 ? p : null, c.Length > 0 ? c : null);
+        };
+        var install = Button(error == null ? "Pair and install" : "Try again", true, 28, 360, 180, go);
+        Add(install);
+        Add(Button("Show me how", false, 220, 360, 160, delegate { ShowAndroidHelp(); }));
+        Add(Button("Back", false, 392, 360, 120, delegate { StartScan(); }));
+        AcceptButton = install;
+        if (tv.ConnectPort > 0) code.Focus(); else connectAt.Focus();
+    }
+
+    /**
+     * Pair (Wireless debugging, when a code was typed), connect, read the TV's name, install the embedded APK with
+     * `install -r` (an update keeps the app's sign-in) and start it. Network debugging: while the TV hasn't allowed
+     * this PC, the page turns into "Allow on the TV" and waits for it. adb's server is always stopped at the end.
+     */
+    void InstallOnAndroid(AndroidTarget tv, string pairAt, string code)
+    {
+        string connectAt = tv.Ip + ":" + (tv.ConnectPort > 0 ? tv.ConnectPort : AndroidDiscovery.ClassicPort);
+        NewPage();
+        int mine = scan;
+        AcceptButton = null;
+        var title = Label("Installing on your Android TV…", Theme.Bold(14f), Theme.Text, 28, 20, 580, 34);
+        Add(title);
+        var status = Label("Connecting to the TV…", Theme.Body(10.5f), Theme.Muted, 28, 66, 580, 110);
+        Add(status);
+        Add(new Activity { Location = new Point(P(28), P(190)), Size = new Size(W, P(6)) });
+        Action<string, string> say = delegate (string heading, string text)
+        {
+            OnUi(delegate { if (mine == scan) { if (heading != null) title.Text = heading; status.Text = text; } });
+        };
+
+        Task.Factory.StartNew(delegate ()
+        {
+            string failure = null, apk = null;
+            AndroidTvInfo info = null;
+            Adb adb = null;
+            try
+            {
+                if (!AndroidPackaged()) throw new TvInstallException(NoAndroidBuild);
+                adb = Adb.Embedded();
+                activeAdb = adb;
+                if (code != null) { say(null, "Pairing with the TV…"); adb.Pair(pairAt, code); }
+                try { adb.Connect(connectAt); }
+                catch (TvInstallException e)
+                {
+                    // Network debugging: the TV is asking; DescribeOnceAllowed waits for the answer.
+                    if (e.Message != Adb.NotAllowed) throw;
+                    if (tv.Wireless) throw new TvInstallException(NotPaired);
+                }
+                info = DescribeOnceAllowed(adb, connectAt, tv.Wireless, say);
+                say("Installing on " + info.Name + "…", "Copying Foxbloom to the TV and installing it. This can take a few minutes. Don't switch the TV off.");
+                apk = WriteApk();
+                adb.Install(connectAt, apk);
+            }
+            catch (TvInstallException e) { failure = e.Message; }
+            catch (Exception e) { failure = "Something unexpected went wrong: " + e.Message; }
+            finally
+            {
+                if (adb != null) adb.Stop();
+                activeAdb = null;
+                if (apk != null) try { System.IO.File.Delete(apk); } catch { }
+            }
+            string name = info != null ? info.Name : "your Android TV";
+            OnUi(delegate { if (mine == scan) { if (failure == null) ShowAndroidDone(tv, name); else ShowAndroidFailed(tv, name, failure); } });
+        });
+    }
+
+    const string NotPaired = "This PC isn't paired with the TV. On the TV, open Wireless debugging > Pair device with pairing code, and type the code and pairing address it shows.";
+
+    /** Network debugging: until the person chooses Allow on the TV (up to two minutes), shows "Allow on the TV" and asks again. */
+    static AndroidTvInfo DescribeOnceAllowed(Adb adb, string connectAt, bool wireless, Action<string, string> say)
+    {
+        var until = DateTime.UtcNow.AddMinutes(2);
+        bool asked = false;
+        while (true)
+        {
+            try { return adb.Describe(connectAt); }
+            catch (TvInstallException e)
+            {
+                if (e.Message != Adb.NotAllowed) throw;
+                if (wireless) throw new TvInstallException(NotPaired);
+                if (DateTime.UtcNow > until) throw;
+                if (!asked)
+                {
+                    say("Allow on the TV", "Choose Allow on the TV.\n\nThe TV is asking whether to allow debugging from this PC. Tick Always allow from this computer, then choose Allow. This page carries on by itself.");
+                    asked = true;
+                }
+                Thread.Sleep(2000);
+            }
+        }
+    }
+
+    /** Copies the embedded APK to a temp file for `adb install` (the caller deletes it). */
+    static string WriteApk()
+    {
+        using (var s = Assembly.GetExecutingAssembly().GetManifestResourceStream("Foxbloom.apk"))
+        {
+            if (s == null) throw new TvInstallException(NoAndroidBuild);
+            string dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "foxbloom-tv-adb");
+            System.IO.Directory.CreateDirectory(dir);
+            string path = System.IO.Path.Combine(dir, "Foxbloom-" + Guid.NewGuid().ToString("N").Substring(0, 8) + ".apk");
+            using (var f = System.IO.File.Create(path)) s.CopyTo(f);
+            return path;
+        }
+    }
+
+    void ShowAndroidFailed(AndroidTarget tv, string name, string message)
+    {
+        NewPage();
+        AcceptButton = null;
+        Add(Label("Couldn't install on " + name, Theme.Bold(14f), Theme.Text, 28, 20, 580, 34));
+        Add(Label(message, Theme.Body(10.5f), Theme.Danger, 28, 66, 580, 170));
+        Add(Label("There's a troubleshooting guide at github.com/Scrapper1824/Foxbloom (tv/README.md).", Theme.Body(9.5f), Theme.Muted, 28, 244, 580, 44));
+        var again = Button("Try again", true, 28, 300, 160, delegate { ChosenAndroid(tv); });
+        Add(again);
+        Add(Button("Choose another TV", false, 200, 300, 200, delegate { StartScan(); }));
+        again.Focus();
+    }
+
+    void ShowAndroidDone(AndroidTarget tv, string name)
+    {
+        NewPage();
+        AcceptButton = null;
+        Add(Label("Done — Foxbloom is on your TV", Theme.Bold(14f), Theme.Ok, 28, 20, 580, 34));
+        string off = tv.Wireless
+            ? "You can turn Wireless debugging off again; you'll pair once more for the next update."
+            : "You can turn Network debugging off again; turn it back on for the next update.";
+        Add(Label("Foxbloom is installed on " + name + " and should open now. Next time, find it in the TV's Apps list.\n\nOpen it, enter your Foxbloom address, and sign in with the code it shows.\n\n" + off, Theme.Body(10.5f), Theme.Muted, 28, 66, 580, 150));
+        Add(Button("Install on another TV", false, 28, 230, 220, delegate { StartScan(); }));
+        Add(Button("Close", true, 260, 230, 120, delegate { Close(); }));
     }
 }

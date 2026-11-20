@@ -59,7 +59,10 @@ public static class AndroidDiscovery
         var started = DateTime.UtcNow;
         var mdns = new List<AndroidTarget>();
         var open = new List<string>();
-        try { mdns = ParseMdns(adb.MdnsServices()); } catch (Exception) { }
+        // The first call also starts adb's server, whose mDNS browser has usually seen nothing yet; ask again after
+        // the sweep and keep both answers (the later one wins for a TV in both).
+        string early = "";
+        try { early = adb.MdnsServices(); } catch (Exception) { }
         try
         {
             var left = timeout - (DateTime.UtcNow - started);
@@ -70,6 +73,9 @@ public static class AndroidDiscovery
             }
         }
         catch (Exception) { }
+        string late = "";
+        try { late = adb.MdnsServices(); } catch (Exception) { }
+        mdns = ParseMdns(early + "\n" + late);
         return Merge(mdns, open);
     }
 }

@@ -1,14 +1,16 @@
 # Builds installer\dist\FoxbloomTVSetup.exe with the C# compiler that ships with Windows (.NET Framework 4).
 #   powershell -ExecutionPolicy Bypass -File installer\tv\build.ps1            (release build)
-#   powershell -ExecutionPolicy Bypass -File installer\tv\build.ps1 -NoVendor  (development: without sdb.exe and Samsung's CA certificates)
+#   powershell -ExecutionPolicy Bypass -File installer\tv\build.ps1 -NoVendor  (development: without sdb.exe, Samsung's CA certificates, adb and the APK)
 #
 # Embedded as resources:
 #   Foxbloom.wgt   the UNSIGNED app: tv\dist + config.xml + icon.png, zipped (the installer signs it per TV)
 #   sdb.exe        Samsung's Smart Development Bridge          } from installer\tv\vendor\ (not in git; see the README there)
 #   SamsungCA.*    Samsung's two public CA certificates        }
+#   adb.exe, AdbWinApi.dll, AdbWinUsbApi.dll   Google's Android Debug Bridge (platform-tools) }
+#   Foxbloom.apk   the signed Android TV app, from installer\tv\build\ (made by npm run android:apk)
 #   THIRD-PARTY.txt + LICENSES.txt   the notices and licence texts the installer's "Licences" link shows
-# Without -NoVendor, missing vendor files, or ones that don't match installer\tv\vendor.sha256, stop the build. With it,
-# the exe builds but says "this build can't install".
+# Without -NoVendor, missing vendor files, ones that don't match installer\tv\vendor.sha256, or a missing APK stop the
+# build. With it, the exe builds but says "this build can't install" (on Android: "This build can't install on Android TVs").
 param([switch]$NoVendor)
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -24,8 +26,12 @@ $vendor = Join-Path $here 'vendor'
 $vendorFiles = @(
   @{ File = 'sdb.exe'; Resource = 'sdb.exe'; From = "Samsung's Tizen SDK tools (Tizen Studio > tools\sdb.exe, or the Tizen Studio command-line tools download)" },
   @{ File = 'vd_tizen_dev_author_ca.cer'; Resource = 'SamsungCA.vd_tizen_dev_author_ca.cer'; From = "Samsung's Certificate Extension for Tizen Studio (its ca folder)" },
-  @{ File = 'vd_tizen_dev_public2.crt'; Resource = 'SamsungCA.vd_tizen_dev_public2.crt'; From = "Samsung's Certificate Extension for Tizen Studio (its ca folder)" }
+  @{ File = 'vd_tizen_dev_public2.crt'; Resource = 'SamsungCA.vd_tizen_dev_public2.crt'; From = "Samsung's Certificate Extension for Tizen Studio (its ca folder)" },
+  @{ File = 'adb.exe'; Resource = 'adb.exe'; From = "Google's Android SDK Platform-Tools 37.0.3 (%LOCALAPPDATA%\Android\Sdk\platform-tools)" },
+  @{ File = 'AdbWinApi.dll'; Resource = 'AdbWinApi.dll'; From = "Google's Android SDK Platform-Tools 37.0.3 (%LOCALAPPDATA%\Android\Sdk\platform-tools)" },
+  @{ File = 'AdbWinUsbApi.dll'; Resource = 'AdbWinUsbApi.dll'; From = "Google's Android SDK Platform-Tools 37.0.3 (%LOCALAPPDATA%\Android\Sdk\platform-tools)" }
 )
+$apk = Join-Path $here 'build\Foxbloom.apk'
 $resources = @(
   "/resource:$(Join-Path $here 'THIRD-PARTY.txt'),THIRD-PARTY.txt",
   "/resource:$(Join-Path $here 'LICENSES.txt'),LICENSES.txt"
@@ -39,6 +45,8 @@ if (-not $NoVendor) {
   }
   Test-VendorHashes -Dir $vendor -Files @($vendorFiles | ForEach-Object { $_.File }) -HashFile (Join-Path $here 'vendor.sha256')
   foreach ($v in $vendorFiles) { $resources += "/resource:$(Join-Path $vendor $v.File),$($v.Resource)" }
+  if (-not (Test-Path $apk)) { throw "Cannot build FoxbloomTVSetup.exe: installer\tv\build\Foxbloom.apk is missing. Build the Android app first: npm run android:apk" }
+  $resources += "/resource:$apk,Foxbloom.apk"
 }
 
 # --- the unsigned app package -------------------------------------------------------------------------------------
@@ -102,7 +110,7 @@ try {
   $dist = Join-Path $installer 'dist'
   New-Item -ItemType Directory -Force $dist | Out-Null
   $exe = Join-Path $dist 'FoxbloomTVSetup.exe'
-  $sources = @('TvDiscovery.cs', 'SamsungCert.cs', 'WgtSigner.cs', 'Sdb.cs', 'FoxbloomTvSetup.cs') | ForEach-Object { Join-Path $here $_ }
+  $sources = @('TvDiscovery.cs', 'SamsungCert.cs', 'WgtSigner.cs', 'Sdb.cs', 'Adb.cs', 'AndroidDiscovery.cs', 'FoxbloomTvSetup.cs') | ForEach-Object { Join-Path $here $_ }
   & $csc /nologo /target:winexe /optimize+ "/out:$exe" "/win32icon:$ico" "/win32manifest:$(Join-Path $here 'app.manifest')" `
     /reference:System.dll /reference:System.Core.dll /reference:System.Drawing.dll /reference:System.Windows.Forms.dll /reference:System.Web.Extensions.dll /reference:System.Security.dll /reference:System.Xml.dll /reference:System.IO.Compression.dll @resources @sources
   if ($LASTEXITCODE -ne 0) { throw "csc failed ($LASTEXITCODE)" }

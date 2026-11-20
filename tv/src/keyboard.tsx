@@ -1,4 +1,5 @@
 import { useState } from 'preact/hooks';
+import { androidBridge } from './platform';
 
 const ROWS = ['1234567890', 'qwertyuiop', 'asdfghjkl', 'zxcvbnm.-_'];
 const EXTRA = [':', '/', '@'];
@@ -46,7 +47,8 @@ export function Keyboard({ onType, onBackspace, onDone, doneLabel }: { onType: (
 
 /**
  * A text field the on-screen keyboard types into. The remote moves the ring onto it and OK makes it the active one;
- * a real keyboard can still type straight into the input.
+ * a real keyboard can still type straight into the input. In the Android TV app the input never brings up the system
+ * keyboard (it would cover the on-screen one and take the D-pad).
  */
 export function Field({ label, value, onValue, active, onActivate, secret, placeholder }: { label: string; value: string; onValue: (v: string) => void; active: boolean; onActivate: () => void; secret?: boolean; placeholder?: string }) {
   return (
@@ -60,6 +62,7 @@ export function Field({ label, value, onValue, active, onActivate, secret, place
           tabIndex={-1}
           autocomplete="off"
           autocapitalize="off"
+          inputMode={androidBridge() ? 'none' : undefined}
           onFocus={onActivate}
           onInput={(e) => onValue((e.target as HTMLInputElement).value)}
         />

@@ -42,8 +42,11 @@ class MainActivity : Activity() {
             settings.mediaPlaybackRequiresUserGesture = false
             // The page is https (appassets) but Foxbloom servers on the home network are plain http.
             settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-            // The page is laid out for 1920x1080: scale it so 1920 CSS px is exactly the screen width (720p, 1080p, 4K).
-            setInitialScale(resources.displayMetrics.widthPixels * 100 / PAGE_WIDTH)
+            // The page is laid out for 1920x1080 (its viewport tag says width=1920): honour that layout width. The page
+            // then sets its own zoom so those 1920 CSS px are exactly the screen width at 720p, 1080p and 4K
+            // (fitAndroidViewport in tv/src/platform.ts; a whole-percent setInitialScale left a strip at 720p).
+            settings.useWideViewPort = true
+            settings.loadWithOverviewMode = true
             isVerticalScrollBarEnabled = false
             isHorizontalScrollBarEnabled = false
             // Transparent so a video surface underneath can show through.
@@ -111,7 +114,6 @@ class MainActivity : Activity() {
     }
 
     companion object {
-        const val PAGE_WIDTH = 1920
         const val START_URL = "https://" + WebViewAssetLoader.DEFAULT_DOMAIN + "/assets/web/index.html"
 
         /**

@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api, timeAgo, type MediaType, type StatsReport } from '../api';
 import { LineChart, Legend, OTHER, SERIES, StackedBars, type StackSegment } from '../components/charts';
 import Spinner from '../components/Spinner';
+import StorageBars from '../components/StorageBars';
 
 const RANGES = [
   { days: 7, label: '7 days' },
@@ -142,6 +143,8 @@ export default function Stats() {
               </strong>
             </div>
           </div>
+
+          <StorageBars />
 
           <section className="stats-card">
             <h2>Data used per day</h2>

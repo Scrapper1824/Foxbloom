@@ -1001,12 +1001,11 @@ a.hero-round:hover { text-decoration: none; }
 .sidebar-who span { font-size: 12px; color: var(--faint); }
 .update-pill { border-radius: 14px; }
 
-/* Bottom of the sidebar: (update pill) → storage bars → account. Everything above is pushed up. */
-.sidebar-bottom { margin-top: auto; }
+/* Bottom of the sidebar: (update pill) → account. Everything above is pushed up. */
 .update-pill { margin-top: auto; }
-.update-pill + .sidebar-bottom { margin-top: 0; }
-.sidebar-bottom + .sidebar-user { margin-top: 0; }
-.sidebar-storage { display: flex; flex-direction: column; gap: 14px; padding: 4px 8px 14px; }
+.update-pill + .sidebar-user { margin-top: 0; }
+/* Storage card on the Statistics page: one bar per library drive. */
+.storage-drives { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px 28px; margin-top: 6px; }
 .storage-drive { display: flex; flex-direction: column; gap: 6px; }
 .storage-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-size: 12px; }
 .storage-name { font-weight: 700; color: var(--text); }
@@ -1021,7 +1020,6 @@ a.hero-round:hover { text-decoration: none; }
 .storage-legend .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
 .storage-legend .dot.media { background: var(--accent); }
 .storage-legend .dot.other { background: rgba(255, 255, 255, 0.4); }
-@media (max-width: 760px) { .sidebar-bottom { display: none; } }
 
 /* Surfaces: translucent glass over the glow instead of grey boxes. */
 .panel { background: rgba(255, 255, 255, 0.035); border: 1px solid var(--line); border-radius: 18px; padding: 20px 22px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }

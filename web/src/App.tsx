@@ -13,7 +13,6 @@ import { useAuth, useIsAdmin } from './components/AuthGate';
 import UpdateDialog, { useUpdateInfo } from './components/UpdateDialog';
 import Icon, { type IconName } from './components/Icon';
 import Logo from './components/Logo';
-import StorageBars from './components/StorageBars';
 import NotificationBell from './components/NotificationBell';
 import InvitePopup from './components/InvitePopup';
 import { useNotifications } from './notifications';
@@ -194,9 +193,6 @@ function Shell() {
             </span>
           </button>
         )}
-        <div className="sidebar-bottom">
-          {isAdmin && <StorageBars />}
-        </div>
         <div className="sidebar-user">
           <Avatar username={auth.data?.user?.username} avatar={auth.data?.user?.avatar} />
           <span className="sidebar-who" title="Signed in">

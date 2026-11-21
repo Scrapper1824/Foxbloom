@@ -27,7 +27,7 @@ export interface PlayTarget {
 }
 export interface HomeFeatured extends HomeTitle {
   play: PlayTarget;
-  reason: 'continue' | 'upnext' | 'new';
+  reason: 'continue' | 'upnext' | 'new' | 'pick';
 }
 export interface PlayableTitle extends HomeTitle {
   play: PlayTarget | null;

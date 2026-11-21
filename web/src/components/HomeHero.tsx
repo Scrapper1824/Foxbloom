@@ -99,7 +99,7 @@ export default function HomeHero({ items, loading }: { items: HomeFeatured[]; lo
       {!item.backdrop && item.poster && <img key={`poster-${index}`} className="hero-poster" src={item.poster} alt="" />}
 
       <div className="hero-content" key={index}>
-        <div className="home-hero-kicker">{item.reason === 'continue' ? 'Continue watching' : item.reason === 'upnext' ? 'Up next' : 'New in your library'}</div>
+        <div className="home-hero-kicker">{item.reason === 'continue' ? 'Continue watching' : item.reason === 'upnext' ? 'Up next' : item.reason === 'pick' ? 'From your library' : 'New in your library'}</div>
         <h2 className="hero-title">{item.title}</h2>
         <div className="hero-rule" />
         <div className="hero-meta">

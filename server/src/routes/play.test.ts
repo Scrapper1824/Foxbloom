@@ -340,6 +340,36 @@ describe('the Home page in random order', () => {
     expect(a.libraries.movie[0].play).toMatchObject({ kind: 'movie' });
   });
 
+  it('mixes the banner: a little of what you’re watching, what’s new, and picks from the whole library', async () => {
+    const { viewer } = await users();
+    addMovies(40);
+    // Eight older films half watched: Continue watching alone could fill the banner.
+    const uid = (db.prepare("SELECT id FROM users WHERE username = 'viewer'").get() as { id: number }).id;
+    for (let i = 1; i <= 8; i++) {
+      const m = db.prepare('SELECT id FROM media WHERE title = ?').get(`Movie ${i}`) as { id: number };
+      db.prepare('INSERT INTO watch_progress (user_id, media_id, episode_id, position, duration, watched, updated_at) VALUES (?, ?, 0, 600, 6000, 0, ?)').run(uid, m.id, `2026-02-${String(i).padStart(2, '0')}T00:00:00.000Z`);
+    }
+    const get = async (seed?: number) => (await call(viewer, 'GET', seed === undefined ? '/api/home' : `/api/home?seed=${seed}`)).json();
+    const a = await get(7);
+    const reasons = a.featured.map((f: { reason: string }) => f.reason);
+    expect(a.featured).toHaveLength(6);
+    expect(new Set(titles(a.featured)).size).toBe(6);
+    expect(reasons.filter((r: string) => r === 'continue')).toHaveLength(2);
+    expect(reasons.filter((r: string) => r === 'new')).toHaveLength(2);
+    expect(reasons.filter((r: string) => r === 'pick')).toHaveLength(2);
+    // What you're watching stays up front; picks are neither in progress nor among the newest.
+    expect(reasons.slice(0, 2)).toEqual(['continue', 'continue']);
+    const picks = a.featured.filter((f: { reason: string }) => f.reason === 'pick').map((f: { title: string }) => f.title);
+    for (const t of picks) expect([...newest(40, 2), 'Movie 1', 'Movie 2', 'Movie 3', 'Movie 4', 'Movie 5', 'Movie 6', 'Movie 7', 'Movie 8']).not.toContain(t);
+    // Each visit (new seed) can pick differently; the same seed keeps them across refreshes.
+    expect(titles((await get(7)).featured)).toEqual(titles(a.featured));
+    const others = new Set<string>();
+    for (let s = 1; s <= 5; s++) for (const f of (await get(100 + s)).featured) if (f.reason === 'pick') others.add(f.title);
+    expect(others.size).toBeGreaterThan(2);
+    // Without a seed (the TV app) the banner still mixes in picks.
+    expect((await get()).featured.some((f: { reason: string }) => f.reason === 'pick')).toBe(true);
+  });
+
   it('ignores a seed that is not a whole number', async () => {
     const { viewer } = await users();
     addMovies(3);

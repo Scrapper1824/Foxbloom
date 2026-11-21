@@ -48,8 +48,8 @@ export interface PlayableTitle extends HomeTitle {
 
 export interface FeaturedItem extends HomeTitle {
   play: PlayTarget;
-  /** Why it is in the banner: partway through, the next episode of something you watch, or newly downloaded. */
-  reason: 'continue' | 'upnext' | 'new';
+  /** Why it is in the banner: partway through, the next episode of something you watch, newly downloaded, or a pick from the library. */
+  reason: 'continue' | 'upnext' | 'new' | 'pick';
 }
 
 interface ProgressRow {
@@ -120,10 +120,12 @@ export function seededShuffle<T>(list: readonly T[], seed: number): T[] {
   return out;
 }
 
-/** `limit` titles with something downloaded, picked at random from the whole library (by `seed`). */
-export function randomTitles(opts: { type: MediaType; limit: number; seed: number; adult?: boolean }): HomeTitle[] {
+/** `limit` titles with something downloaded, picked at random from the whole library (by `seed`), of one type or all. */
+export function randomTitles(opts: { type?: MediaType; limit: number; seed: number; adult?: boolean }): HomeTitle[] {
   const ids = (
-    db.prepare(`SELECT m.id FROM media m WHERE ${HAS_FILES} AND m.type = ? ${opts.adult ? '' : 'AND m.adult = 0'} ORDER BY m.id`).all(opts.type) as { id: number }[]
+    db
+      .prepare(`SELECT m.id FROM media m WHERE ${HAS_FILES} ${opts.type ? 'AND m.type = ?' : ''} ${opts.adult ? '' : 'AND m.adult = 0'} ORDER BY m.id`)
+      .all(...(opts.type ? [opts.type] : [])) as { id: number }[]
   ).map((r) => r.id);
   const picked = seededShuffle(ids, opts.seed).slice(0, opts.limit);
   if (!picked.length) return [];
@@ -236,6 +238,11 @@ export function playTarget(userId: number, media: MediaRow): PlayTarget | null {
   return at(eps[i + 1] ?? eps[0]);
 }
 
+/** The banner on Home: how many titles, and how many of them may come from Continue watching and from what's new. */
+const BANNER_SIZE = 6;
+const BANNER_WATCHING = 2;
+const BANNER_NEW = 2;
+
 export interface HomeData {
   featured: FeaturedItem[];
   continue: ContinueItem[];
@@ -251,23 +258,38 @@ export interface HomeData {
 export function homeFor(userId: number, adult = false, seed?: number): HomeData {
   const cont = continueWatching(userId, 20, adult);
   const recent = downloadedTitles({ limit: 20, adult });
-  // The banner: what you're in the middle of, then what's new, one per title, ones with a backdrop preferred.
+  // The banner, one entry per title: a little of what you're in the middle of, a little of what's new, and picks from
+  // the whole library, so it isn't just Continue watching again. The picks change each visit (the seed; without
+  // one, each day), and the same seed keeps them across the page's background refreshes.
   const featured: FeaturedItem[] = [];
   const used = new Set<number>();
-  const candidates = [...cont.map((c) => c.mediaId), ...recent.map((r) => r.mediaId)];
-  for (const id of candidates) {
-    if (featured.length >= 6 || used.has(id)) continue;
+  const add = (id: number, reason: FeaturedItem['reason'], title?: HomeTitle) => {
+    if (featured.length >= BANNER_SIZE || used.has(id)) return;
     used.add(id);
     const media = getMedia(id);
-    if (!media) continue;
+    if (!media) return;
     const play = playTarget(userId, media);
-    if (!play) continue;
-    const t = recent.find((r) => r.mediaId === id) ?? toTitle(media);
-    const c = cont.find((x) => x.mediaId === id);
-    featured.push({ ...t, play, reason: c ? (c.upNext ? 'upnext' : 'continue') : 'new' });
-  }
-  // What you are watching stays first; among new titles, ones with a backdrop look best up front.
-  const rank = (f: FeaturedItem) => (f.reason === 'new' ? 2 : 0) + (f.backdrop ? 0 : 1);
+    if (!play) return;
+    featured.push({ ...(title ?? toTitle(media)), play, reason });
+  };
+  const watching = (c: ContinueItem): FeaturedItem['reason'] => (c.upNext ? 'upnext' : 'continue');
+  const take = (list: (() => void)[], n: number) => {
+    const start = featured.length;
+    for (const f of list) if (featured.length - start < n) f();
+  };
+  const contAdds = cont.map((c) => () => add(c.mediaId, watching(c)));
+  const newAdds = recent.map((r) => () => add(r.mediaId, 'new', r));
+  const picked = randomTitles({ limit: 60, seed: (seed ?? Math.floor(Date.now() / 86_400_000)) ^ 0x5eed, adult });
+  // Picks with wide art make the best banner.
+  const pickAdds = [...picked.filter((p) => p.backdrop), ...picked.filter((p) => !p.backdrop)].map((p) => () => add(p.mediaId, 'pick', p));
+  take(contAdds, BANNER_WATCHING);
+  take(newAdds, BANNER_NEW);
+  take(pickAdds, BANNER_SIZE);
+  // A small library: fill what's left with more of what you're watching, then what's new.
+  take(contAdds, BANNER_SIZE);
+  take(newAdds, BANNER_SIZE);
+  // What you are watching stays first; after that, ones with a backdrop look best up front.
+  const rank = (f: FeaturedItem) => (f.reason === 'continue' || f.reason === 'upnext' ? 0 : 2) + (f.backdrop ? 0 : 1);
   featured.sort((a, b) => rank(a) - rank(b));
   const library = (type: MediaType) =>
     seed === undefined ? downloadedTitles({ type, limit: 30, adult }) : randomTitles({ type, limit: 30, seed: (seed + { movie: 1, show: 2, anime: 3 }[type]) >>> 0, adult });

@@ -28,7 +28,7 @@ export interface PlayTarget {
 }
 export interface HomeFeatured extends HomeTitle {
   play: PlayTarget;
-  reason: 'continue' | 'upnext' | 'new';
+  reason: 'continue' | 'upnext' | 'new' | 'pick';
 }
 /** A poster on Home: what clicking it plays (null if nothing can be played). */
 export interface PlayableTitle extends HomeTitle {

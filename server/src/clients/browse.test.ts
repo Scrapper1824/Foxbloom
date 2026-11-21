@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initDb } from '../db.js';
 import { saveSettings } from '../settings.js';
 import { animeSeasonOf, browseAnime, browseAnimeRow, browseExtra } from './anilist.js';
-import { browseTmdb, browseTmdbRow } from './tmdb.js';
+import { browseTmdb, browseTmdbRow, theaterRegion } from './tmdb.js';
 
 describe('browseTmdb', () => {
   const calls: string[] = [];
@@ -65,7 +65,7 @@ describe('a Discover row in full (See all)', () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it('lists only films released in theaters in the last six weeks under In theaters now', async () => {
+  it('lists only films in this country’s cinemas, opened in the last six weeks, under In theaters now', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-11-20T12:00:00Z'));
     try {
@@ -75,8 +75,11 @@ describe('a Discover row in full (See all)', () => {
     }
     const q = asked[0].searchParams;
     expect(asked[0].pathname).toBe('/3/discover/movie');
-    expect(q.get('primary_release_date.gte')).toBe('2026-10-09');
-    expect(q.get('primary_release_date.lte')).toBe('2026-11-20');
+    // The country's own theatrical dates (TMDB applies release_date and the release type to the region).
+    expect(q.get('region')).toBe('US');
+    expect(q.get('release_date.gte')).toBe('2026-10-09');
+    expect(q.get('release_date.lte')).toBe('2026-11-20');
+    expect(q.get('primary_release_date.gte')).toBeNull();
     expect(q.get('with_release_type')).toBe('2|3');
     expect(q.get('sort_by')).toBe('popularity.desc');
     expect(q.get('page')).toBe('2');
@@ -257,5 +260,14 @@ describe('keeping anime out of Movies', () => {
     // Search keeps them but flags them, so the page can hide them and point to the Anime tab.
     expect((await searchMovies('x')).filter((m) => m.isAnime).map((m) => m.title)).toEqual(['Demon Slayer: Infinity Castle']);
     vi.unstubAllGlobals();
+  });
+});
+
+describe('theaterRegion', () => {
+  it('takes the country from the server’s locale, and falls back to US', () => {
+    expect(theaterRegion('en-US')).toBe('US');
+    expect(theaterRegion('en-GB')).toBe('GB');
+    expect(theaterRegion('fr')).toBe('FR');
+    expect(theaterRegion('not a locale!')).toBe('US');
   });
 });

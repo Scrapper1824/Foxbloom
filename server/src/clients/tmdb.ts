@@ -161,14 +161,26 @@ type TmdbRow = [string, string, string, (() => Record<string, string>)?];
 const THEATER_RUN_DAYS = 42;
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
+/** The country whose cinemas count: the server's own (from its locale, e.g. en-US gives US); US when it can't tell. */
+export function theaterRegion(locale = Intl.DateTimeFormat().resolvedOptions().locale): string {
+  try {
+    const region = new Intl.Locale(locale).maximize().region;
+    return region && /^[A-Z]{2}$/.test(region) ? region : 'US';
+  } catch {
+    return 'US';
+  }
+}
+
 /**
- * In theaters now: TMDB's own now_playing list spans every country's release dates, so its later pages are full of
- * films long out of cinemas. Instead: theatrical releases (limited or wide) that opened in the last six weeks.
+ * In theaters now: films whose theatrical release (limited or wide) in this country was in the last six weeks.
+ * With a region, TMDB matches release_date and the release type against that country's own dates, so a film
+ * already streaming here, or only showing in cinemas abroad, isn't listed. (TMDB's now_playing without a region
+ * mixes every country's dates, and its later pages are full of films long out of cinemas.)
  */
 function inTheatersQuery(): Record<string, string> {
   const today = new Date();
   const from = new Date(today.getTime() - THEATER_RUN_DAYS * 24 * 60 * 60 * 1000);
-  return { 'primary_release_date.gte': isoDay(from), 'primary_release_date.lte': isoDay(today), with_release_type: '2|3', sort_by: 'popularity.desc' };
+  return { region: theaterRegion(), 'release_date.gte': isoDay(from), 'release_date.lte': isoDay(today), with_release_type: '2|3', sort_by: 'popularity.desc' };
 }
 
 const MOVIE_ROWS: TmdbRow[] = [

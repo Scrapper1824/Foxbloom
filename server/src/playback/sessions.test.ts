@@ -36,8 +36,8 @@ const probe: MediaProbe = {
   fonts: [],
 };
 const decision: Decision = { mode: 'transcode', reason: '', audio: 0, burnSubtitle: null, height: null, videoBitrate: 8e6 };
-/** Waits for something that happens in the background (folder removal). */
-async function eventually(check: () => boolean, ms = 4000) {
+/** Waits for something that happens in the background (folder removal). Generous: a busy machine is slow, not wrong. */
+async function eventually(check: () => boolean, ms = 15_000) {
   const end = Date.now() + ms;
   while (!check() && Date.now() < end) await new Promise((r) => setTimeout(r, 50));
   return check();
@@ -230,7 +230,8 @@ describe('streaming sessions', { timeout: 20_000 }, () => {
   it('stops running far ahead, then ends idle streams and deletes their files', async () => {
     const s = session(1);
     await waitForSegment(s, 0);
-    await new Promise((r) => setTimeout(r, 900)); // the stand-in runs ahead
+    // The stand-in runs ahead: wait until it has written all 360 pieces, far past the 300 s (75-piece) limit.
+    expect(await eventually(() => fs.existsSync(path.join(s.dir, 'seg359.ts')))).toBe(true);
     sweep();
     expect(s.proc).toBeNull();
     sweep(Date.now() + 61_000);

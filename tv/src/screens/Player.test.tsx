@@ -1,11 +1,10 @@
 import { act } from 'preact/test-utils';
 import { render } from 'preact';
 import { useEffect } from 'preact/hooks';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App, useNav } from '../app';
 import { saveState, type Profile } from '../profiles';
 import { setPref } from '../prefs';
-import { settle } from '../testing';
 import { Session } from '../session';
 import type { FetchFn } from '../connection';
 import type { TvPlayer } from '../player/types';
@@ -89,6 +88,26 @@ class FakePlayer implements TvPlayer {
   close() { this.closed++; this.playing = false; }
 }
 
+// The player's timing (seek settling, jump checks, held keys, "just moved the bar") runs on timers and Date.now(), so the
+// clock is faked: a busy machine can't fire a timer early or late relative to what a test checks between them.
+const FAKED = ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] as const;
+
+/** Lets `ms` of player time pass, firing its timers in order, inside act. */
+const wait = (ms: number) =>
+  act(async () => {
+    await vi.advanceTimersByTimeAsync(ms);
+  });
+
+/** Lets pending requests and re-renders finish without moving the clock (0 ms timers still fire). */
+async function settle(): Promise<void> {
+  for (let i = 0; i < 4; i++) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+      await new Promise((r) => setImmediate(r));
+    });
+  }
+}
+
 function press(keyCode: number) {
   act(() => {
     document.body.dispatchEvent(Object.assign(new Event('keydown', { cancelable: true, bubbles: true }), { keyCode }));
@@ -98,6 +117,7 @@ function press(keyCode: number) {
 describe('Player', () => {
   let host: HTMLElement;
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: [...FAKED] });
     localStorage.clear();
     host = document.createElement('div');
     document.body.appendChild(host);
@@ -107,6 +127,7 @@ describe('Player', () => {
       render(null, host);
     });
     host.remove();
+    vi.useRealTimers();
   });
 
   /** A screen that opens the player straight away, so Back has somewhere to go. */
@@ -129,7 +150,6 @@ describe('Player', () => {
   };
   const starts = (calls: Call[]) => calls.filter((c) => c.path === '/api/play/movie/5/start');
 
-  const wait = (ms: number) => act(() => new Promise<void>((r) => setTimeout(r, ms)));
   const clockText = () => host.querySelector('.player-clock')!.textContent;
 
   it('Right on the bar jumps 10 s once you stop pressing, and stays there', async () => {
@@ -388,9 +408,7 @@ describe('Player', () => {
     const p = new FakePlayer();
     await mount(f.fetchFn, p);
     p.t = 120;
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 300)); // a tick of the player's clock
-    });
+    await wait(300); // a tick of the player's clock
     p.t = 0;
     await act(async () => p.fail());
     await settle();

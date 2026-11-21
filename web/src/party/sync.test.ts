@@ -19,8 +19,11 @@ describe('Clock', () => {
   it('now() applies the offset', () => {
     const c = new Clock();
     c.sample(0, 10_000, 0);
+    const before = Date.now();
     const n = c.now();
-    expect(Math.abs(n - (Date.now() + 10_000))).toBeLessThan(50);
+    const after = Date.now();
+    expect(n).toBeGreaterThanOrEqual(before + 10_000);
+    expect(n).toBeLessThanOrEqual(after + 10_000);
   });
 });
 

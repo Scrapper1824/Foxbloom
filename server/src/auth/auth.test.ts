@@ -5,7 +5,7 @@ import type { FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildApp } from '../app.js';
 import { initDb } from '../db.js';
-import { hashPassword, verifyPassword } from './password.js';
+import { hashPassword, setHashCostForTests, verifyPassword } from './password.js';
 import { resetRateLimits } from './rateLimit.js';
 import { prepareSetupCode } from './routes.js';
 import { base32Encode, codeAt, currentCounter, verifyCode } from './totp.js';
@@ -221,10 +221,15 @@ describe('two-factor', () => {
 
 describe('primitives', () => {
   it('hashes and verifies passwords', async () => {
-    const h = await hashPassword(PASSWORD);
-    expect(h).toMatch(/^scrypt\$32768\$8\$1\$/);
-    expect(await verifyPassword(PASSWORD, h)).toBe(true);
-    expect(await verifyPassword('nope nope nope', h)).toBe(false);
+    const testCost = setHashCostForTests(undefined); // the real cost: everything else runs at the cheaper test one (vitest.setup.ts)
+    try {
+      const h = await hashPassword(PASSWORD);
+      expect(h).toMatch(/^scrypt\$32768\$8\$1\$/);
+      expect(await verifyPassword(PASSWORD, h)).toBe(true);
+      expect(await verifyPassword('nope nope nope', h)).toBe(false);
+    } finally {
+      setHashCostForTests(testCost);
+    }
   });
 
   it('matches the RFC 6238 test vector', () => {

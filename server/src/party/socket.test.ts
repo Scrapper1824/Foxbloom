@@ -59,10 +59,13 @@ async function users() {
     headers: CSRF,
     payload: { code: prepareSetupCode(dataDir), username: 'boss', password: PASSWORD },
   });
+  expect(setup.statusCode, setup.body).toBe(200);
   const boss = cookieFrom(setup);
   const add = async (username: string, allowAdult: boolean) => {
     const r = await call(boss, 'POST', '/api/users', { username, password: `${PASSWORD} x`, role: 'user', allowAdult });
+    expect(r.statusCode, r.body).toBe(200);
     const login = await call(undefined, 'POST', '/api/auth/login', { username, password: `${PASSWORD} x` });
+    expect(login.statusCode, login.body).toBe(200);
     return { cookie: cookieFrom(login), id: (r.json() as { id: number }).id };
   };
   return { alice: await add('alice', true), bob: await add('bob', true), kid: await add('kid', false) };
@@ -97,6 +100,8 @@ async function guestOf(hostCookie: string, partyId: string): Promise<string> {
 }
 
 type Msg = { t: string; [k: string]: any };
+/** Under the 20 s test timeout (vitest.config.ts), so a message that never comes fails with what did come. */
+const MESSAGE_WAIT_MS = 15_000;
 
 /** A socket that records what it receives, with a way to wait for the next matching message. */
 class Client {
@@ -114,8 +119,11 @@ class Client {
   send(m: unknown) {
     this.ws.send(typeof m === 'string' ? m : JSON.stringify(m));
   }
-  /** The next not-yet-consumed message matching `pred` (earlier non-matching ones are skipped). */
-  async next(pred: (m: Msg) => boolean = () => true, ms = 2000): Promise<Msg> {
+  /**
+   * The next not-yet-consumed message matching `pred` (earlier non-matching ones are skipped). Waits for it as long as a
+   * test may run: how fast it comes isn't what's checked, and a short limit fails on a busy machine.
+   */
+  async next(pred: (m: Msg) => boolean = () => true, ms = MESSAGE_WAIT_MS): Promise<Msg> {
     const deadline = Date.now() + ms;
     for (;;) {
       while (this.seen < this.msgs.length) {
@@ -266,19 +274,23 @@ describe('party socket: sync', () => {
     a.send({ t: 'rtt', ms: 80 });
     b.send({ t: 'rtt', ms: 240 });
     await b.sync();
+    // The server schedules at = (when it handled play) + lead, and handled it between sending and the answer, so
+    // these bound the lead exactly however long the round trip takes.
     const t0 = Date.now();
     a.send({ t: 'play' });
     const s = (await a.next((m) => isState(m) && m.state.playing)).state;
-    expect(s.at - t0).toBeGreaterThanOrEqual(115);
-    expect(s.at - t0).toBeLessThanOrEqual(120 + 100);
+    const t0end = Date.now();
+    expect(s.at - t0).toBeGreaterThanOrEqual(120);
+    expect(s.at - t0end).toBeLessThanOrEqual(120);
     a.send({ t: 'pause' });
     b.send({ t: 'rtt', ms: 5000 });
     await b.sync();
     const t1 = Date.now();
     a.send({ t: 'play' });
     const s2 = (await a.next((m) => isState(m) && m.state.playing && m.state.version > s.version)).state;
-    expect(s2.at - t1).toBeLessThanOrEqual(MAX_LEAD_MS + 100);
-    expect(s2.at - t1).toBeGreaterThanOrEqual(MAX_LEAD_MS - 5);
+    const t1end = Date.now();
+    expect(s2.at - t1).toBeGreaterThanOrEqual(MAX_LEAD_MS);
+    expect(s2.at - t1end).toBeLessThanOrEqual(MAX_LEAD_MS);
   });
 
   it('reconnect gets current state first', async () => {
@@ -434,9 +446,12 @@ describe('party socket: next episode', () => {
     await a.next((m) => isState(m) && m.title.id === show.eps[1]);
     a.send({ t: 'buffering', on: false });
     await a.next((m) => isState(m) && m.waitingFor.length === 1);
-    tickParties(Date.now() + SKIP_BUFFERING_MS - 1000);
+    // Counted from when the server moved on (not from now: getting here may take a while on a busy machine).
+    const since = getParty(party)!.members.get(`u:${bob.id}`)!.buffering!;
+    expect(since).toBeGreaterThan(0);
+    tickParties(since + SKIP_BUFFERING_MS);
     expect(getParty(party)!.state.playing).toBe(false);
-    tickParties(Date.now() + SKIP_BUFFERING_MS + 1000);
+    tickParties(since + SKIP_BUFFERING_MS + 1);
     const go = await a.next((m) => isState(m) && m.state.playing);
     expect(go.waitingFor).toEqual([]);
   });
@@ -589,7 +604,7 @@ describe('party socket: ending and leaving', () => {
   });
 });
 
-async function waitFor(cond: () => boolean, ms = 2000) {
+async function waitFor(cond: () => boolean, ms = MESSAGE_WAIT_MS) {
   const end = Date.now() + ms;
   while (!cond()) {
     if (Date.now() > end) throw new Error('timed out');

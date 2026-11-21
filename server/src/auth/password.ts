@@ -6,6 +6,19 @@ const R = 8;
 const P = 1;
 const KEYLEN = 64;
 const MAXMEM = 128 * N * R * 2;
+/** The N new hashes are made with. Only tests lower it (see setHashCostForTests). */
+let hashN = N;
+
+/**
+ * Tests only: hash new passwords with a cheaper N. Signing in hundreds of test accounts at the real cost keeps the CPU
+ * and libuv's thread pool busy enough that, on a loaded machine, tests run past their timeout. Hashes keep their N,
+ * so verifying works either way; `undefined` restores the real cost. Returns the N that was in use.
+ */
+export function setHashCostForTests(n: number | undefined): number {
+  const was = hashN;
+  hashN = n ?? N;
+  return was;
+}
 
 export const MIN_PASSWORD_LENGTH = 12;
 /**
@@ -26,8 +39,8 @@ function scrypt(password: string, salt: Buffer, n: number, r: number, p: number,
 /** "scrypt$N$r$p$salt$hash" (base64). Parameters are stored so they can be raised later. */
 export async function hashPassword(password: string): Promise<string> {
   const salt = crypto.randomBytes(16);
-  const key = await scrypt(password, salt, N, R, P, KEYLEN);
-  return ['scrypt', N, R, P, salt.toString('base64'), key.toString('base64')].join('$');
+  const key = await scrypt(password, salt, hashN, R, P, KEYLEN);
+  return ['scrypt', hashN, R, P, salt.toString('base64'), key.toString('base64')].join('$');
 }
 
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {

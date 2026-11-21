@@ -154,15 +154,32 @@ export interface BrowseRow {
   items: SearchResult[];
 }
 
-const MOVIE_ROWS: [string, string, string][] = [
+/** A Discover row: id, heading, the TMDB list it shows, and any extra query that list needs. */
+type TmdbRow = [string, string, string, (() => Record<string, string>)?];
+
+/** How long a film counts as "in theaters" after it opens (a typical cinema run). */
+const THEATER_RUN_DAYS = 42;
+const isoDay = (d: Date) => d.toISOString().slice(0, 10);
+
+/**
+ * In theaters now: TMDB's own now_playing list spans every country's release dates, so its later pages are full of
+ * films long out of cinemas. Instead: theatrical releases (limited or wide) that opened in the last six weeks.
+ */
+function inTheatersQuery(): Record<string, string> {
+  const today = new Date();
+  const from = new Date(today.getTime() - THEATER_RUN_DAYS * 24 * 60 * 60 * 1000);
+  return { 'primary_release_date.gte': isoDay(from), 'primary_release_date.lte': isoDay(today), with_release_type: '2|3', sort_by: 'popularity.desc' };
+}
+
+const MOVIE_ROWS: TmdbRow[] = [
   ['trending', 'Trending this week', '/trending/movie/week'],
-  ['now-playing', 'In theaters now', '/movie/now_playing'],
+  ['now-playing', 'In theaters now', '/discover/movie', inTheatersQuery],
   ['popular', 'Popular', '/movie/popular'],
   ['upcoming', 'Coming soon', '/movie/upcoming'],
   ['top-rated', 'Top rated', '/movie/top_rated'],
 ];
 
-const SHOW_ROWS: [string, string, string][] = [
+const SHOW_ROWS: TmdbRow[] = [
   ['trending', 'Trending this week', '/trending/tv/week'],
   ['airing-today', 'Airing today', '/tv/airing_today'],
   ['on-the-air', 'On the air this week', '/tv/on_the_air'],
@@ -177,11 +194,11 @@ export async function browseTmdb(type: 'movie' | 'show', adult = false): Promise
   const rows = type === 'movie' ? MOVIE_ROWS : SHOW_ROWS;
   const map = type === 'movie' ? toMovie : toShow;
   return Promise.all(
-    rows.map(async ([id, title, path]) => {
+    rows.map(async ([id, title, path, query]) => {
       // Anime is dropped (it has its own tab), so take two pages to still fill the row.
       const pages = ['1', '2'];
       const results = (
-        await Promise.all(pages.map((page) => tmdb<{ results: any[] }>(path, { include_adult: String(adult), page })))
+        await Promise.all(pages.map((page) => tmdb<{ results: any[] }>(path, { ...query?.(), include_adult: String(adult), page })))
       ).flatMap((r) => r.results);
       const seen = new Set<number>();
       const items = results
@@ -203,8 +220,8 @@ export async function browseTmdbRow(
 ): Promise<{ id: string; title: string; items: SearchResult[]; nextPage: number | null } | null> {
   const row = (type === 'movie' ? MOVIE_ROWS : SHOW_ROWS).find(([id]) => id === rowId);
   if (!row) return null;
-  const [id, title, path] = row;
-  const r = await tmdb<{ results: any[]; total_pages?: number }>(path, { include_adult: String(adult), page: String(page) });
+  const [id, title, path, query] = row;
+  const r = await tmdb<{ results: any[]; total_pages?: number }>(path, { ...query?.(), include_adult: String(adult), page: String(page) });
   const seen = new Set<number>();
   // The same filters as the row (anime has its own tab; no poster makes a poor card).
   const items = (r.results ?? []).filter((x) => x.poster_path && (adult || !x.adult) && !isAnimeTitle(x) && !seen.has(x.id) && seen.add(x.id)).map(type === 'movie' ? toMovie : toShow);
@@ -432,7 +449,6 @@ export interface TmdbFilter {
   status: 'released' | 'airing' | 'ended' | 'finished' | 'upcoming' | null;
 }
 
-const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
 /** The TMDB discover parameters for a filter (exported for tests). */
 export function tmdbFilterParams(type: 'movie' | 'show', f: TmdbFilter, page: number, now = new Date(), adult = false): Record<string, string> {

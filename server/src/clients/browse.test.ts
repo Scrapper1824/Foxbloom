@@ -27,7 +27,7 @@ describe('browseTmdb', () => {
   it('builds the movie rows from trending / now playing / popular / upcoming / top rated', async () => {
     const rows = await browseTmdb('movie');
     expect(rows.map((r) => r.title)).toEqual(['Trending this week', 'In theaters now', 'Popular', 'Coming soon', 'Top rated']);
-    expect([...new Set(calls)]).toEqual(['/3/trending/movie/week', '/3/movie/now_playing', '/3/movie/popular', '/3/movie/upcoming', '/3/movie/top_rated']);
+    expect([...new Set(calls)]).toEqual(['/3/trending/movie/week', '/3/discover/movie', '/3/movie/popular', '/3/movie/upcoming', '/3/movie/top_rated']);
     expect(rows[0].items).toEqual([
       { type: 'movie', tmdbId: 1, title: 'Dune: Part Two', year: 2024, poster: 'https://image.tmdb.org/t/p/w342/p.jpg', overview: 'x' },
     ]);
@@ -65,9 +65,26 @@ describe('a Discover row in full (See all)', () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
+  it('lists only films released in theaters in the last six weeks under In theaters now', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-20T12:00:00Z'));
+    try {
+      await browseTmdbRow('movie', 'now-playing', 2);
+    } finally {
+      vi.useRealTimers();
+    }
+    const q = asked[0].searchParams;
+    expect(asked[0].pathname).toBe('/3/discover/movie');
+    expect(q.get('primary_release_date.gte')).toBe('2026-10-09');
+    expect(q.get('primary_release_date.lte')).toBe('2026-11-20');
+    expect(q.get('with_release_type')).toBe('2|3');
+    expect(q.get('sort_by')).toBe('popularity.desc');
+    expect(q.get('page')).toBe('2');
+  });
+
   it('pages through the row’s own TMDB list, with the row’s filters', async () => {
     const first = await browseTmdbRow('movie', 'now-playing', 1);
-    expect(asked[0].pathname).toBe('/3/movie/now_playing');
+    expect(asked[0].pathname).toBe('/3/discover/movie');
     expect(asked[0].searchParams.get('page')).toBe('1');
     expect(first).toMatchObject({ id: 'now-playing', title: 'In theaters now', nextPage: 2 });
     expect(first!.items.map((i) => i.title)).toEqual(['Film 1']);

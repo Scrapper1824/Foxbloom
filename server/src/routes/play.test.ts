@@ -331,9 +331,8 @@ describe('the Home page in random order', () => {
     expect(a.libraries.movie).toHaveLength(30);
     expect(new Set(titles(a.libraries.movie)).size).toBe(30);
     expect(titles(a.libraries.movie)).not.toEqual(newest(40, 30));
-    // Recently added keeps its 20 newest titles, shuffled.
-    expect(new Set(titles(a.recent))).toEqual(new Set(newest(40, 20)));
-    expect(titles(a.recent)).not.toEqual(newest(40, 20));
+    // Recently added is never shuffled: newest first, whatever the seed.
+    expect(titles(a.recent)).toEqual(newest(40, 20));
     // The page's background refresh (same seed) keeps the order; the next visit (new seed) changes it.
     expect(titles((await get(1)).libraries.movie)).toEqual(titles(a.libraries.movie));
     expect(titles((await get(2)).libraries.movie)).not.toEqual(titles(a.libraries.movie));

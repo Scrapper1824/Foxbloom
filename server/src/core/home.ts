@@ -245,8 +245,8 @@ export interface HomeData {
 
 /**
  * With a `seed` (the website sends a new one each time Home is opened), the library rows are a random pick
- * from the whole library and Recently added is shuffled, so Home looks different every visit; the same seed
- * gives the same order, so the page's background refreshes don't reshuffle it. Without one, newest first.
+ * from the whole library, so Home looks different every visit; the same seed gives the same order, so the
+ * page's background refreshes don't reshuffle it. Without one, newest first. Recently added is always newest first.
  */
 export function homeFor(userId: number, adult = false, seed?: number): HomeData {
   const cont = continueWatching(userId, 20, adult);
@@ -280,7 +280,7 @@ export function homeFor(userId: number, adult = false, seed?: number): HomeData 
   return {
     featured,
     continue: cont,
-    recent: playable(seed === undefined ? recent : seededShuffle(recent, seed)),
+    recent: playable(recent),
     libraries: {
       movie: playable(library('movie')),
       show: playable(library('show')),

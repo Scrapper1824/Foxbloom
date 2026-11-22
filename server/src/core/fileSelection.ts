@@ -184,9 +184,10 @@ export function planRenames(
 const markPrepared = (id: number) => db.prepare('UPDATE downloads SET files_selected = 1, updated_at = ? WHERE id = ?').run(now(), id);
 
 /**
- * Once qBittorrent knows a torrent's files: switches off the unwanted ones of a bundle and gives the
- * rest their clean names. Returns true when finished (or not needed), false when qBittorrent doesn't
- * have the file list yet (magnet metadata still loading).
+ * Once qBittorrent knows a torrent's files: switches off the unwanted ones of a bundle. Returns true when finished
+ * (or not needed), false when qBittorrent doesn't have the file list yet (magnet metadata still loading).
+ * Clean names come later, once the download is done (renameFinished): renaming files while qBittorrent is still
+ * writing them left torrents showing 100% while their files were still filling.
  */
 export async function prepareFiles(dlId: number): Promise<boolean> {
   const dl = db.prepare('SELECT * FROM downloads WHERE id = ?').get(dlId) as DownloadRow | undefined;
@@ -229,31 +230,43 @@ export async function prepareFiles(dlId: number): Promise<boolean> {
     }
   }
 
+  const skippedNames = files.filter((f) => skip.has(f.index)).map((f) => f.name);
+  db.prepare('UPDATE downloads SET skipped_files = ? WHERE id = ?').run(skippedNames.length ? JSON.stringify(skippedNames) : null, dl.id);
+  markPrepared(dl.id);
+  return true;
+}
+
+/**
+ * A finished download: has qBittorrent move its files to their clean names in the media's folder
+ * (`Season 01/Show - S01E05 - Title.mkv`). Records what was renamed (`renamed`, read by the import), so it
+ * runs once. A rename qBittorrent refuses isn't fatal: the import moves that file itself.
+ */
+export async function renameFinished(dlId: number): Promise<void> {
+  const dl = db.prepare('SELECT * FROM downloads WHERE id = ?').get(dlId) as DownloadRow | undefined;
+  if (!dl || dl.renamed !== null || !dl.qbit_hash) return;
+  const m = getMedia(dl.media_id);
+  const record = (targets: Record<string, number[]>, skipped: string[] | null) =>
+    db.prepare('UPDATE downloads SET renamed = ?, skipped_files = COALESCE(?, skipped_files) WHERE id = ?').run(JSON.stringify(targets), skipped ? JSON.stringify(skipped) : null, dl.id);
+  if (!m) return void record({}, null);
+  const files = await torrentFiles(dl.qbit_hash);
+  const skippedNames = new Set(JSON.parse(dl.skipped_files ?? '[]') as string[]);
+  const skip = new Set(files.filter((f) => skippedNames.has(f.name) || f.priority === 0).map((f) => f.index));
   const { renames, targets } = planRenames(m, dl, files, skip);
   const newName = new Map<string, string>();
   let failed = 0;
   for (const r of renames) {
     try {
-      await renameFile(hash, r.from, r.to);
+      await renameFile(dl.qbit_hash, r.from, r.to);
       newName.set(r.from, r.to);
     } catch (err) {
-      // Not fatal: the import moves anything qBittorrent couldn't rename.
       failed++;
       delete targets[r.to];
       console.warn(`[files] rename "${r.from}" failed: ${(err as Error).message}`);
     }
   }
-  const skippedNames = files.filter((f) => skip.has(f.index)).map((f) => newName.get(f.name) ?? f.name);
-  db.prepare('UPDATE downloads SET skipped_files = ?, renamed = ? WHERE id = ?').run(
-    skippedNames.length ? JSON.stringify(skippedNames) : null,
-    JSON.stringify(targets),
-    dl.id,
-  );
-  markPrepared(dl.id);
-  const clean = Object.keys(targets).length;
-  if (clean) logHistory(m.id, 'grabbed', `qBittorrent is saving ${clean} file(s) under clean names in ${path.join(m.root_folder, m.folder_name)}`);
-  if (failed) logHistory(m.id, 'grabbed', `qBittorrent couldn't rename ${failed} file(s); they'll be renamed after the download`);
-  return true;
+  const skipped = files.filter((f) => skip.has(f.index)).map((f) => newName.get(f.name) ?? f.name);
+  record(targets, skipped.length ? skipped : null);
+  if (failed) logHistory(m.id, 'grabbed', `qBittorrent couldn't rename ${failed} file(s) of "${dl.release_title}"; the import moves them instead`);
 }
 
 /** Right after a grab: keep trying for a few minutes until qBittorrent knows the file list. */

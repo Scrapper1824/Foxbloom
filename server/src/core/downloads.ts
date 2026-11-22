@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { deleteTorrent, listTorrents, torrentFiles, torrentStatus } from '../clients/qbittorrent.js';
 import { db, logHistory, now, type DownloadRow } from '../db.js';
-import { prepareFiles } from './fileSelection.js';
+import { prepareFiles, renameFinished } from './fileSelection.js';
 import { importDownload } from './importer.js';
 import { queueMediaWork } from '../playback/jobs.js';
 
@@ -61,9 +61,18 @@ export async function pollDownloads(): Promise<void> {
       logHistory(dl.media_id, 'failed', `"${dl.release_title}" errored in qBittorrent (${t.state})`);
       continue;
     }
-    // Renaming a finished torrent's files happens in the background in qBittorrent: give it a poll to finish.
     if (status === 'downloading' || justPrepared) {
       setState(dl.id, { state: 'downloading', qbit_hash: t.hash, progress: t.progress, content_path: contentPath });
+      continue;
+    }
+    // Done: now give its files their clean names (never while qBittorrent is still writing them). qBittorrent moves
+    // them in the background, so the removal and import wait for the next check.
+    if (dl.renamed === null) {
+      setState(dl.id, { qbit_hash: t.hash, progress: 1, content_path: contentPath });
+      await renameFinished(dl.id).catch((err) => {
+        console.warn(`[files] renaming "${dl.release_title}" failed: ${(err as Error).message}`);
+        db.prepare("UPDATE downloads SET renamed = '{}' WHERE id = ?").run(dl.id);
+      });
       continue;
     }
 

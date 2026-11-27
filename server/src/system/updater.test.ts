@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { initDb } from '../db.js';
-import { beginInstall, checkForUpdate, compareVersions, parseVersion, REPO, resetUpdater, updateInfo, useUpdaterDeps, type Runner } from './updater.js';
+import { beginInstall, checkForUpdate, compareVersions, parseVersion, REPO, resetUpdater, supervised, updateInfo, useUpdaterDeps, type Runner } from './updater.js';
 
 let root: string;
 let calls: { file: string; args: string[]; input?: string }[];
@@ -68,6 +68,14 @@ const ranBefore = (a: string, b: string) => calls.findIndex((c) => key(c.file, c
 const settle = async () => {
   for (let i = 0; i < 100 && !['failed', 'restarting', 'done', 'idle'].includes(updateInfo().job.state); i++) await new Promise((r) => setTimeout(r, 10));
 };
+
+describe('restarting', () => {
+  it('leaves the restart to the tray or the systemd service when one runs Foxbloom', () => {
+    expect(supervised({ MEDIARR_TRAY: '1' })).toBe(true);
+    expect(supervised({ MEDIARR_SERVICE: 'systemd' })).toBe(true);
+    expect(supervised({})).toBe(false);
+  });
+});
 
 describe('versions', () => {
   it('compares release versions properly', () => {

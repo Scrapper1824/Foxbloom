@@ -249,9 +249,14 @@ async function installUpdate(target: string): Promise<void> {
   }
 }
 
-/** Ends this process; the tray (or a small helper) starts the updated Foxbloom. */
+/** True when a supervisor (the Windows tray, or the Linux systemd service) starts Foxbloom again after it exits. */
+export function supervised(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.MEDIARR_TRAY === '1' || env.MEDIARR_SERVICE === 'systemd';
+}
+
+/** Ends this process; the tray, systemd (or a small helper) starts the updated Foxbloom. */
 export function restartProcess() {
-  if (process.env.MEDIARR_TRAY === '1') process.exit(RESTART_EXIT_CODE);
+  if (supervised()) process.exit(RESTART_EXIT_CODE);
   // Started by hand: a detached helper waits for this process to let go of the port, then starts the new one.
   const server = path.join(ROOT, 'server', 'dist', 'index.js');
   const helper = `setTimeout(()=>{require('child_process').spawn(process.execPath,[${JSON.stringify(server)}],{detached:true,stdio:'ignore',windowsHide:true,cwd:${JSON.stringify(ROOT)}}).unref()},2500)`;

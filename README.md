@@ -27,6 +27,16 @@ Download **[FoxbloomSetup.exe](https://github.com/Scrapper1824/Foxbloom/releases
 
 Windows may warn that the app is from an unknown publisher (it isn't code-signed): click **More info → Run anyway**. If something goes wrong, the full log is in `%TEMP%\FoxbloomSetup.log`.
 
+### Ubuntu Server (Linux)
+
+One command installs Foxbloom as a system service (it starts on boot and updates from inside the app):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Scrapper1824/Foxbloom/main/installer/linux/install.sh | sudo bash
+```
+
+See **[docs/linux.md](docs/linux.md)** for media-folder permissions, logs, updates and uninstalling.
+
 ### By hand
 
 Needs **Node.js 22.13+** and **Git**, plus **FFmpeg** for watching.

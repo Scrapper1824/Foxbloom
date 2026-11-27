@@ -29,7 +29,7 @@ export default function NotificationBell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, unread]);
 
-  // Drawn over the page, above the button (it sits at the bottom of the sidebar).
+  // Drawn over the page: above the button at the bottom of the sidebar, below it in the top bar.
   useLayoutEffect(() => {
     if (!open) return setPlace(null);
     const position = () => {
@@ -37,7 +37,7 @@ export default function NotificationBell() {
       if (!r) return;
       const width = Math.min(320, window.innerWidth - 16);
       const left = Math.min(Math.max(8, r.left), window.innerWidth - width - 8);
-      setPlace({ bottom: window.innerHeight - r.top + 8, left, width });
+      setPlace(r.top < window.innerHeight / 2 ? { top: r.bottom + 8, left, width } : { bottom: window.innerHeight - r.top + 8, left, width });
     };
     position();
     window.addEventListener('resize', position);

@@ -16,6 +16,7 @@ import Logo from './components/Logo';
 import NotificationBell from './components/NotificationBell';
 import InvitePopup from './components/InvitePopup';
 import { useNotifications } from './notifications';
+import { useNavLayout } from './navLayout';
 
 // The player (hls.js + subtitle renderer) only loads when something is played.
 const Watch = lazy(() => import('./pages/Watch'));
@@ -132,10 +133,20 @@ function Shell() {
     };
   }, [menuOpen]);
   const unreadInvites = useNotifications().data?.unread ?? 0;
+  // Wide screens: the menu is a bar across the top (default) or a rail of icons (Settings → My account).
+  const layout = useNavLayout();
+  // The top bar turns solid once the page scrolls under it.
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const on = () => setScrolled(window.scrollY > 8);
+    on();
+    window.addEventListener('scroll', on, { passive: true });
+    return () => window.removeEventListener('scroll', on);
+  }, []);
   const badges = activeCount + pendingRequests + unreadInvites;
 
   return (
-    <div className="shell">
+    <div className={`shell nav-${layout}${scrolled ? ' scrolled' : ''}`}>
       <aside className={`sidebar${menuOpen ? ' menu-open' : ''}`}>
         <div className="brand">
           <Link to="/" className="brand-home" aria-label="Foxbloom home" onClick={() => setMenuOpen(false)}>
@@ -159,7 +170,7 @@ function Shell() {
         <div className="sidebar-menu" id="main-menu">
         <nav>
           {NAV.map((group, gi) => (
-            <div key={gi} className="nav-group">
+            <div key={gi} className={`nav-group${group.heading ? ' nav-manage' : ' nav-main'}`}>
               {group.heading && <div className="nav-heading">{group.heading}</div>}
               {group.items.filter((n) => (n.to !== '/requests' || showRequests) && (n.to !== '/stats' || isAdmin)).map((n) => {
                 const account = n.to === '/settings' && !isAdmin;
@@ -171,6 +182,7 @@ function Shell() {
                     to={library ? lastLibraryPath() : n.to}
                     end={n.to === '/'}
                     className={({ isActive }) => `nav-link${isActive || inLibrary ? ' active' : ''}`}
+                    title={account ? 'Account' : n.label}
                   >
                     <span className="nav-icon">
                       <Icon name={account ? 'account' : n.icon} />

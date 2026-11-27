@@ -1,3 +1,4 @@
+import AppearancePanel from '../components/AppearancePanel';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -59,6 +60,7 @@ export default function SettingsPage() {
           <h1>Account</h1>
         </header>
         <ProfilePicturePanel />
+        <AppearancePanel />
         <WatchlistLinksPanel />
         <SecurityPanel />
       </div>
@@ -78,7 +80,7 @@ const SECTIONS: { id: SectionId; label: string; icon: IconName; blurb: string }[
   { id: 'watchlists', label: 'Watchlists', icon: 'watchlist', blurb: 'Simkl and AniList lists.' },
   { id: 'users', label: 'Users', icon: 'account', blurb: 'Who can sign in, and what they can do.' },
   { id: 'system', label: 'System', icon: 'settings', blurb: 'How Foxbloom runs on this PC.' },
-  { id: 'account', label: 'My account', icon: 'account', blurb: 'Your picture, password, two-factor sign-in and sessions.' },
+  { id: 'account', label: 'My account', icon: 'account', blurb: 'Your picture, the menu layout, password, two-factor sign-in and sessions.' },
 ];
 
 /** Sections whose fields are part of the settings form (they get the Save bar). */
@@ -491,6 +493,7 @@ function AdminSettings() {
         {section === 'account' && (
           <>
             <ProfilePicturePanel />
+            <AppearancePanel />
             <SecurityPanel />
           </>
         )}

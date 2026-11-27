@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Foxbloom: "Ambient". A deep blue-black room lit by the artwork you're looking at.
+   Foxbloom: "Cinema". A dark room lit by the artwork you're looking at.
    Bricolage Grotesque for titles, Instrument Sans for everything else, one rose pink for actions.
    ========================================================================== */
 @property --ambient {
@@ -9,9 +9,9 @@
 }
 
 :root {
-  --bg: #0e1016;
-  --bg-rgb: 14 16 22;
-  --bg-2: #12151c;
+  --bg: #07080b;
+  --bg-rgb: 7 8 11;
+  --bg-2: #0c0d11;
   --panel: rgba(255, 255, 255, 0.035);
   --panel-solid: #161a22;
   --panel-2: rgba(255, 255, 255, 0.06);
@@ -1597,3 +1597,128 @@ a.home-card-title:hover { text-decoration: underline; text-underline-offset: 3px
 .profile-picture-row { align-items: center; gap: 20px; }
 .profile-picture-row .stack { flex: 1; min-width: 0; }
 .user-name-line { display: flex; align-items: center; gap: 8px; }
+
+/* ==========================================================================
+   Cinema: the art leads. Near-black room, tall banners, white Play, posters that light up.
+   The menu is a bar across the top (default) or a rail of icons (Settings → My account → Appearance).
+   ========================================================================== */
+body::before { opacity: 0.45; }
+
+/* Banners */
+.home .featured-banner.home-banner { height: clamp(560px, 86vh, 1100px); }
+.featured-banner .hero-content { padding-bottom: clamp(96px, 15vh, 160px); }
+.hero-title { font-size: clamp(40px, 5.4vw, 80px); letter-spacing: -0.045em; line-height: 0.98; max-width: 14ch; }
+.hero-overview { font-size: 16px; max-width: 56ch; color: rgba(255, 255, 255, 0.78); }
+.home-hero-kicker { color: rgba(255, 255, 255, 0.72); text-transform: uppercase; letter-spacing: 0.14em; font-size: 12px; font-weight: 700; }
+/* Play is white, like a cinema screen; pink stays for progress, active items and badges. */
+.hero-play { height: 52px; padding: 0 30px; border-radius: 10px; font-size: 17px; background: #fff; color: #0a0a0d; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45); }
+.hero-play:hover { background: #e6e6eb; color: #0a0a0d; }
+.hero-actions .hero-round { width: 52px; height: 52px; border-radius: 10px; }
+/* The first row tucks up into the bottom of the banner. */
+.featured-banner + .home-rail, .featured-banner + section, .featured-banner + div { position: relative; z-index: 2; margin-top: -56px; }
+
+/* Rows and posters */
+.home-rail-head h2 { font-family: var(--sans); font-size: 19px; font-weight: 650; letter-spacing: -0.01em; }
+.home-scroller { --col: clamp(140px, 12.5vw, 220px); }
+.home-scroller.wide { --col: clamp(260px, 24vw, 400px); }
+.grid { grid-template-columns: repeat(auto-fill, minmax(clamp(140px, 12.5vw, 220px), 1fr)); }
+.home-poster, .home-thumb, .card > .poster { border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5); }
+.home-poster-link:hover .home-poster, .home-poster-link:focus-visible .home-poster, .discover-art:hover .home-poster,
+.home-poster-card .home-poster-link:hover .home-poster, .home-thumb-link:hover .home-thumb, .home-thumb-link:focus-visible .home-thumb,
+.link-card:hover > .poster, .link-card:focus-visible > .poster {
+  transform: scale(1.05); box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85), 0 18px 40px rgba(0, 0, 0, 0.7);
+}
+.home-poster-link:focus-visible .home-poster, .home-thumb-link:focus-visible .home-thumb, .link-card:focus-visible > .poster { outline: none; }
+.discover-art:hover .discover-add { transform: translate(4px, 4px); }
+@media (prefers-reduced-motion: reduce) {
+  .home-poster-link:hover .home-poster, .discover-art:hover .home-poster, .home-thumb-link:hover .home-thumb, .link-card:hover > .poster { transform: none; }
+}
+@media (max-width: 760px) {
+  .home-scroller { --col: 118px; }
+  .home-scroller.wide { --col: 78vw; }
+  .featured-banner .hero-content { padding-bottom: 70px; }
+  .featured-banner + .home-rail, .featured-banner + section, .featured-banner + div { margin-top: -30px; }
+}
+
+/* ---- Top bar (wide screens, the default) ---- */
+@media (min-width: 761px) {
+  .nav-top { --bar-h: 68px; flex-direction: column; }
+  .nav-top .sidebar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 30; width: auto; height: var(--bar-h);
+    flex-direction: row; align-items: center; gap: 28px; padding: 0 clamp(32px, 3.4vw, 72px);
+    background: linear-gradient(180deg, rgb(var(--bg-rgb) / 0.88), rgb(var(--bg-rgb) / 0)); border: none;
+    backdrop-filter: none; -webkit-backdrop-filter: none; transition: background 0.25s;
+  }
+  .nav-top.scrolled .sidebar {
+    background: rgb(var(--bg-rgb) / 0.86); box-shadow: 0 1px 0 var(--line);
+    backdrop-filter: blur(18px) saturate(1.3); -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  }
+  .nav-top .brand { padding: 0; font-size: 20px; }
+  .nav-top .sidebar nav { flex: 1; flex-direction: row; align-items: center; gap: 0; min-width: 0; }
+  .nav-top .nav-group { display: flex; align-items: center; gap: 2px; }
+  .nav-top .nav-group + .nav-group { margin: 0 0 0 auto; }
+  .nav-top .nav-heading { display: none; }
+  .nav-top .nav-main .nav-icon { display: none; }
+  /* Manage pages are icons (their names are tooltips and still read by screen readers). */
+  .nav-top .nav-manage .nav-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .nav-top .nav-link { padding: 8px 12px; font-size: 15px; color: rgba(255, 255, 255, 0.72); background: none; }
+  .nav-top .nav-link:hover { color: #fff; background: none; }
+  .nav-top .nav-link.active { color: #fff; font-weight: 700; background: none; }
+  .nav-top .nav-link.active::before { left: 12px; right: 12px; top: auto; bottom: 1px; width: auto; height: 2px; border-radius: 2px; }
+  .nav-top .nav-manage .nav-link { padding: 8px 9px; }
+  .nav-top .nav-manage .nav-link.active::before { left: 9px; right: 9px; }
+  .nav-top .nav-manage .nav-badge { position: absolute; top: 1px; right: 0; margin: 0; min-width: 16px; padding: 0 4px; font-size: 10px; line-height: 16px; }
+  .nav-top .update-pill { margin: 0; padding: 6px 12px; flex: none; }
+  .nav-top .update-pill small { display: none; }
+  .nav-top .sidebar-user { margin: 0; padding: 0 0 0 6px; border: none; flex: none; }
+  .nav-top .sidebar-who { display: none; }
+  .nav-top .avatar { width: 32px; height: 32px; font-size: 14px; }
+  /* Pages start under the bar; banners and title pages run up behind it. */
+  .nav-top .page { padding-top: calc(var(--bar-h) + 26px); }
+  .nav-top .page:has(> .featured-banner) { padding-top: var(--page-y, 28px); }
+  .nav-top .page.title-page { padding-top: 0; }
+  .nav-top .hero-top { top: calc(var(--bar-h) + 14px); }
+  .nav-top .settings-nav { top: calc(var(--bar-h) + 18px); }
+  .nav-top .title-hero { padding-top: calc(var(--bar-h) + clamp(60px, 12vh, 150px)); }
+}
+/* Narrower screens: the bar keeps every link by tightening up and dropping the word "Foxbloom". */
+@media (min-width: 761px) and (max-width: 1100px) {
+  .nav-top .sidebar { gap: 14px; }
+  .nav-top .brand-word { display: none; }
+  .nav-top .nav-link { padding: 8px 9px; font-size: 14px; }
+}
+
+/* ---- Side rail (wide screens) ---- */
+@media (min-width: 761px) {
+  .nav-rail { --rail-w: 76px; }
+  .nav-rail .sidebar {
+    position: fixed; left: 0; top: 0; bottom: 0; z-index: 30; width: var(--rail-w); height: 100vh; padding: 20px 10px 16px;
+    align-items: center; border-right: none;
+    background: linear-gradient(90deg, rgb(var(--bg-rgb) / 0.94), rgb(var(--bg-rgb) / 0.6));
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  }
+  .nav-rail .brand { padding: 0 0 26px; justify-content: center; }
+  .nav-rail .brand-word, .nav-rail .nav-heading, .nav-rail .sidebar-who, .nav-rail .update-pill span { display: none; }
+  .nav-rail .sidebar nav { align-items: center; width: 100%; }
+  .nav-rail .nav-group { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 100%; }
+  .nav-rail .nav-group + .nav-group { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .nav-rail .nav-link { justify-content: center; width: 48px; height: 44px; padding: 0; border-radius: 12px; }
+  .nav-rail .nav-link.active::before { left: -10px; top: 12px; bottom: 12px; }
+  .nav-rail .nav-badge { position: absolute; top: 3px; right: 2px; margin: 0; min-width: 16px; padding: 0 4px; font-size: 10px; line-height: 16px; }
+  /* The name shows as a tooltip beside the icon. */
+  .nav-rail .nav-label {
+    position: absolute; left: calc(100% + 14px); top: 50%; transform: translateY(-50%); z-index: 40; pointer-events: none;
+    padding: 5px 10px; border-radius: 8px; white-space: nowrap; font-size: 13px; font-weight: 600; color: var(--text);
+    background: var(--raised); border: 1px solid var(--line-strong); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    opacity: 0; transition: opacity 0.12s;
+  }
+  .nav-rail .nav-link:hover .nav-label, .nav-rail .nav-link:focus-visible .nav-label { opacity: 1; }
+  .nav-rail .update-pill { justify-content: center; padding: 10px; margin: auto 0 10px; width: 44px; }
+  .nav-rail .sidebar-user { flex-direction: column; gap: 8px; padding: 12px 0 0; border-top: 1px solid var(--line); }
+  .nav-rail .content { margin-left: var(--rail-w); }
+  /* Banners and title pages run under the rail to the window's edge. */
+  .nav-rail .featured-banner { margin-left: calc(var(--page-x, 32px) * -1 - var(--rail-w)); }
+  .nav-rail .featured-banner .hero-content { padding-left: calc(var(--page-x, 32px) + var(--rail-w)); }
+  .nav-rail .featured-banner .hero-top { left: calc(var(--page-x, 32px) + var(--rail-w)); }
+  .nav-rail .title-hero { margin-left: calc(var(--page-x, 32px) * -1 - var(--rail-w)); padding-left: calc(var(--page-x, 32px) + var(--rail-w)); }
+}

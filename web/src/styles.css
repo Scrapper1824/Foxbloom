@@ -1502,6 +1502,7 @@ a.home-card-title:hover { text-decoration: underline; text-underline-offset: 3px
 }
 
 .bell { position: relative; }
+.bell svg { display: block; }
 .bell-badge {
   position: absolute; top: -2px; right: -3px; min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 999px;
   background: var(--accent); color: var(--accent-ink); font-size: 10px; font-weight: 800; line-height: 16px; text-align: center;
@@ -1672,6 +1673,10 @@ body::before { opacity: 0.45; }
   .nav-top .update-pill small { display: none; }
   .nav-top .sidebar-user { margin: 0; padding: 0 0 0 6px; border: none; flex: none; }
   .nav-top .sidebar-who { display: none; }
+  /* Bell and sign out: the same grey line icons as the Manage links. */
+  .nav-top .sidebar-user .icon-btn { width: 34px; height: 34px; color: rgba(255, 255, 255, 0.72); }
+  .nav-top .sidebar-user .icon-btn svg { width: 20px; height: 20px; }
+  .nav-top .sidebar-user .icon-btn:hover:not(:disabled) { color: #fff; background: rgba(255, 255, 255, 0.08); }
   .nav-top .avatar { width: 32px; height: 32px; font-size: 14px; }
   /* Pages start under the bar; banners and title pages run up behind it. */
   .nav-top .page { padding-top: calc(var(--bar-h) + 26px); }

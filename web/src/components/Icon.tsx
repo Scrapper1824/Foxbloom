@@ -27,6 +27,7 @@ const PATHS = {
   /** The bare "i" (for buttons that are already round). */
   infoMark: 'M12 11v7M12 6.5v.5',
   inbox: 'M3.5 13.5 6 5.5h12l2.5 8V19a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1zM3.5 13.5h5l1 2.5h5l1-2.5h5',
+  bell: 'M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0',
   folder: 'M3.5 6.5a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z',
 } as const;
 

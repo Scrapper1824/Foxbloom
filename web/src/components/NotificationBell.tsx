@@ -1,3 +1,4 @@
+import Icon from './Icon';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
@@ -5,7 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
 import { inviteTitle, useNotifications } from '../notifications';
 
-/** 🔔 with an unread badge; the menu lists invites with Join (while the party is live) or Ended. */
+/** A bell (line icon, like the rest of the menu) with an unread badge; the menu lists invites with Join (while the party is live) or Ended. */
 export default function NotificationBell() {
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -77,7 +78,7 @@ export default function NotificationBell() {
         title="Notifications"
         onClick={() => setOpen((o) => !o)}
       >
-        <span aria-hidden>🔔</span>
+        <Icon name="bell" size={18} />
         {unread > 0 && <span className="bell-badge">{unread > 9 ? '9+' : unread}</span>}
       </button>
       {open &&

@@ -77,6 +77,8 @@ export interface DownloadRow {
   renamed: string | null;
   /** JSON: paths (relative to save_path) of the files qBittorrent downloaded, saved when it finished. */
   torrent_files: string | null;
+  /** When the download last got further (null until Foxbloom first sees it): one that stops for too long is replaced. */
+  progress_at: string | null;
   state: DownloadState;
   progress: number;
   error: string | null;
@@ -174,6 +176,15 @@ CREATE TABLE IF NOT EXISTS downloads (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS release_blocklist (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  media_id INTEGER NOT NULL REFERENCES media(id) ON DELETE CASCADE,
+  info_hash TEXT,
+  title TEXT NOT NULL,
+  reason TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_blocklist_media ON release_blocklist(media_id);
 CREATE TABLE IF NOT EXISTS history (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   media_id INTEGER,
@@ -377,6 +388,7 @@ function migrate() {
     db.exec('ALTER TABLE downloads ADD COLUMN renamed TEXT');
     db.exec('ALTER TABLE downloads ADD COLUMN torrent_files TEXT');
   }
+  if (!dlCols.includes('progress_at')) db.exec('ALTER TABLE downloads ADD COLUMN progress_at TEXT');
   // Accounts created before roles existed were the owner's: they become admins.
   const userCols = (db.prepare('PRAGMA table_info(users)').all() as { name: string }[]).map((c) => c.name);
   if (!userCols.includes('role')) db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'");

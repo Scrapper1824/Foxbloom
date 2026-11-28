@@ -13,6 +13,9 @@ export interface QbitTorrent {
   size: number;
   dlspeed: number;
   eta: number;
+  /** Seeds connected right now, and seeds in the whole swarm as the trackers report it. */
+  num_seeds?: number;
+  num_complete?: number;
 }
 
 interface Conn {

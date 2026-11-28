@@ -114,7 +114,10 @@ describe('scoring', () => {
     expect(scoreRelease(rel('[SubsPlease] Dandadan - 04 (1080p)'), anime('sub')).rejections).toContain('Wrong episode');
     expect(scoreRelease(rel('[SubsPlease] Dandadan - 03 (1080p)', { seeders: 0 }), anime('sub')).rejections[0]).toMatch(/seeders/);
     expect(scoreRelease(rel('[SubsPlease] Dandadan - 03 (1080p)', { size: 10 * 1024 ** 3 }), anime('sub')).rejections[0]).toMatch(/Too big/);
-    expect(scoreRelease(rel('[SubsPlease] Dandadan - 03 (2160p)'), anime('sub')).rejections).toContain('4K not allowed');
+    // 4K while it's turned off isn't rejected: it's a last resort (ranked after everything else).
+    const uhd = scoreRelease(rel('[SubsPlease] Dandadan - 03 (2160p)'), anime('sub'));
+    expect(uhd.rejections).toEqual([]);
+    expect(uhd.lastResort).toBe(true);
   });
 
   it('prefers the configured resolution for movies and rejects TV releases', () => {
@@ -153,5 +156,52 @@ describe('reasonKey', async () => {
     expect(reasonKey('Wrong season (S4)')).toBe('Wrong season');
     expect(reasonKey('Title mismatch ("Other Show")')).toBe('Title mismatch');
     expect(reasonKey('Not dubbed')).toBe('Not dubbed');
+  });
+});
+
+describe('picking a release that will actually download', () => {
+  const show = (over: Partial<ScoreContext> = {}): ScoreContext => ({
+    type: 'show',
+    titles: ['The Lord of the Rings: The Rings of Power'],
+    year: 2022,
+    animeAudio: null,
+    scope: { kind: 'episode', season: 1, episode: 1 },
+    settings: { ...DEFAULT_SETTINGS, preferredResolution: '1080p', allow4k: true },
+    seasonEpisodeCounts: { 1: 8, 2: 8 },
+    ...over,
+  });
+  const T = 'The.Lord.of.the.Rings.The.Rings.of.Power.S01E01';
+
+  it('never puts a nearly dead release above a well-seeded one, whatever else it has', () => {
+    const ranked = rankReleases(
+      [rel(`${T}.A.Shadow.of.the.Past.1080p.AMZN.WEB-DL.DDP5.1.H.264-NTb`, { seeders: 2 }), rel(`${T}.720p.WEBRip.x264-GRP`, { seeders: 60 })],
+      show(),
+    );
+    expect(ranked[0].title).toContain('720p');
+  });
+
+  it('prefers the chosen resolution, then 720p, then higher, then lower (all well seeded)', () => {
+    const titles = ['480p', '2160p', '720p', '1080p'].map((r) => `${T}.${r}.WEB-DL.x264-GRP`);
+    const order = (pref: ScoreContext['settings']['preferredResolution']) =>
+      rankReleases(titles.map((t) => rel(t, { seeders: 50 })), show({ settings: { ...DEFAULT_SETTINGS, preferredResolution: pref, allow4k: true } })).map((r) => r.parsed.resolution);
+    expect(order('1080p')).toEqual(['1080p', '720p', '2160p', '480p']);
+    expect(order('720p')).toEqual(['720p', '1080p', '2160p', '480p']);
+    expect(order('2160p')).toEqual(['2160p', '1080p', '720p', '480p']);
+    expect(order('480p')).toEqual(['480p', '720p', '1080p', '2160p']);
+  });
+
+  it('with 4K turned off, only takes 4K when nothing else healthy is found', () => {
+    const off = show({ settings: { ...DEFAULT_SETTINGS, preferredResolution: '1080p', allow4k: false } });
+    const uhd = rel(`${T}.2160p.WEB-DL.x265-GRP`, { seeders: 300 });
+    expect(rankReleases([uhd, rel(`${T}.480p.WEB.x264-GRP`, { seeders: 20 })], off)[0].parsed.resolution).toBe('480p');
+    expect(rankReleases([uhd, rel(`${T}.1080p.WEB-DL.x264-GRP`, { seeders: 2 })], off)[0].parsed.resolution).toBe('2160p');
+    expect(rankReleases([uhd], off)[0].rejections).toEqual([]);
+  });
+
+  it('rejects a release that failed before', () => {
+    const r = scoreRelease(rel(`${T}.1080p.WEB-DL.x264-GRP`, { infoHash: 'ABC123' }), show({ blocked: { hashes: new Set(['abc123']), titles: new Set() } }));
+    expect(r.rejections).toContain('Failed before (stopped downloading)');
+    const byTitle = scoreRelease(rel(`${T}.1080p.WEB-DL.x264-GRP`), show({ blocked: { hashes: new Set(), titles: new Set([`${T}.1080p.WEB-DL.x264-GRP`.toLowerCase()]) } }));
+    expect(byTitle.rejections).toContain('Failed before (stopped downloading)');
   });
 });

@@ -355,7 +355,7 @@ function AdminSettings() {
                 </div>
                 <label className="check">
                   <input type="checkbox" checked={form.allow4k} onChange={(e) => setForm({ ...form, allow4k: e.target.checked })} />
-                  <span>Allow 4K releases</span>
+                  <span>Allow 4K releases (when off, 4K is only used if nothing else is found)</span>
                 </label>
                 <Field label="Default anime audio" hint="Pre-selected when requesting anime; can be changed per title.">
                   <div className="segmented">

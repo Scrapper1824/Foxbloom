@@ -6,6 +6,49 @@ import { importDownload } from './importer.js';
 import { queueMediaWork } from '../playback/jobs.js';
 
 const LOST_AFTER_MS = 10 * 60_000;
+/** A download that gets no further for this long is dropped, its release blocked, and another one searched for. */
+export const DEAD_AFTER_MS = 2 * 3600_000;
+/** qBittorrent states where a download should be moving. Paused, queued and checking ones are left alone. */
+const ACTIVE_DL_STATES = new Set(['downloading', 'forcedDL', 'stalledDL', 'metaDL', 'forcedMetaDL']);
+
+/** Never grab this release for this title again (it was grabbed once and stopped downloading). */
+export function blockRelease(mediaId: number, infoHash: string | null, title: string, reason: string) {
+  db.prepare('INSERT INTO release_blocklist (media_id, info_hash, title, reason, created_at) VALUES (?, ?, ?, ?, ?)').run(
+    mediaId,
+    infoHash ? infoHash.toLowerCase() : null,
+    title,
+    reason,
+    now(),
+  );
+}
+
+/** The blocked releases of a title, as the scoring wants them. */
+export function blockedReleases(mediaId: number): { hashes: Set<string>; titles: Set<string> } {
+  const rows = db.prepare('SELECT info_hash, title FROM release_blocklist WHERE media_id = ?').all(mediaId) as { info_hash: string | null; title: string }[];
+  return { hashes: new Set(rows.flatMap((r) => (r.info_hash ? [r.info_hash] : []))), titles: new Set(rows.map((r) => r.title.trim().toLowerCase())) };
+}
+
+/**
+ * Drops a download that stopped getting anywhere (no seeders left, fake seeders, metadata that never arrives):
+ * removes it and its partial files from qBittorrent, blocks the release, and searches for another one.
+ */
+async function giveUp(dl: DownloadRow, hash: string): Promise<void> {
+  try {
+    await deleteTorrent(hash, true);
+  } catch (err) {
+    console.warn(`[downloads] couldn't remove stalled "${dl.release_title}": ${(err as Error).message}`);
+    return; // try again on the next check
+  }
+  const hours = Math.round(DEAD_AFTER_MS / 3600_000);
+  blockRelease(dl.media_id, hash, dl.release_title, 'stopped downloading');
+  setState(dl.id, { state: 'failed', error: `Stopped downloading (no progress for ${hours} hours): removed, and Foxbloom is looking for another release` });
+  logHistory(dl.media_id, 'failed', `"${dl.release_title}" stopped downloading for ${hours} hours, so it was removed and won't be grabbed again. Looking for another release.`);
+  const episodeIds = JSON.parse(dl.episode_ids || '[]') as number[];
+  // Not awaited: a search can take a while, and the other downloads still need checking.
+  void import('./grabber.js')
+    .then(({ autoSearch }) => autoSearch(dl.media_id, { force: true, ...(episodeIds.length ? { episodeIds } : {}) }))
+    .catch((err) => console.warn(`[downloads] re-search after "${dl.release_title}" failed: ${(err as Error).message}`));
+}
 
 function setState(id: number, fields: Partial<DownloadRow>) {
   const keys = Object.keys(fields);
@@ -63,7 +106,13 @@ export async function pollDownloads(): Promise<void> {
     }
     // Renaming a finished torrent's files happens in the background in qBittorrent: give it a poll to finish.
     if (status === 'downloading' || justPrepared) {
-      setState(dl.id, { state: 'downloading', qbit_hash: t.hash, progress: t.progress, content_path: contentPath });
+      // Progress since the last check (or first sight of it) restarts the clock; a download stuck for too long is replaced.
+      const moved = t.progress > dl.progress + 1e-6 || dl.progress_at === null;
+      if (!moved && ACTIVE_DL_STATES.has(t.state) && t.progress < 1 && Date.now() - new Date(dl.progress_at!).getTime() > DEAD_AFTER_MS) {
+        await giveUp(dl, t.hash);
+        continue;
+      }
+      setState(dl.id, { state: 'downloading', qbit_hash: t.hash, progress: t.progress, content_path: contentPath, ...(moved ? { progress_at: now() } : {}) });
       continue;
     }
 

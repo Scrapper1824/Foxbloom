@@ -20,6 +20,8 @@ export interface ScoreContext {
   animeSeasons?: AnimeSeason[];
   /** Shows: episodes per season (season 0 excluded), to size and label multi-season bundles. */
   seasonEpisodeCounts?: Record<number, number>;
+  /** Releases that were grabbed before and stopped downloading (by info hash and lower-case title): never again. */
+  blocked?: { hashes: Set<string>; titles: Set<string> };
 }
 
 /** exact = just what was asked for; bundle = that plus other seasons (only grabbed after the user agrees). */
@@ -32,10 +34,29 @@ export interface ScoredRelease extends ProwlarrRelease {
   coverage: Coverage | null;
   /** Seasons a pack/bundle contains. */
   covers: number[];
+  /** 4K while 4K is turned off: only used when nothing else acceptable and well seeded was found. */
+  lastResort: boolean;
 }
 
 const LADDER = ['480p', '720p', '1080p', '2160p'];
 const GB = 1024 ** 3;
+/** Fewer seeders than this and a torrent often never finishes: such a release only wins when nothing healthier is found. */
+export const HEALTHY_SEEDERS = 5;
+
+/**
+ * The order resolutions are tried in: the preferred one, then lower ones down to 720p, then higher ones, then
+ * anything below 720p. Preferring 1080p: 1080p, 720p, 2160p, 480p.
+ */
+export function resolutionOrder(preferred: string): string[] {
+  const i = Math.max(0, LADDER.indexOf(preferred));
+  const floor = LADDER.indexOf('720p');
+  const lowerOk = LADDER.slice(Math.min(i, floor), i).reverse();
+  const higher = LADDER.slice(i + 1);
+  const lowest = LADDER.slice(0, Math.min(i, floor)).reverse();
+  return [LADDER[i], ...lowerOk, ...higher, ...lowest];
+}
+
+const isHealthy = (r: Pick<ProwlarrRelease, 'seeders'>) => (r.seeders ?? 0) >= HEALTHY_SEEDERS;
 
 interface ScopeResult {
   error: string | null;
@@ -157,8 +178,10 @@ export function scoreRelease(r: ProwlarrRelease, ctx: ScoreContext): ScoredRelea
   const notSeries = notSeriesRejection(r.title, p, ctx);
   if (notSeries) rejections.push(notSeries);
   if ((r.seeders ?? 0) < s.minSeeders) rejections.push(`Only ${r.seeders ?? 0} seeders`);
+  if (ctx.blocked && ((r.infoHash && ctx.blocked.hashes.has(r.infoHash.toLowerCase())) || ctx.blocked.titles.has(r.title.trim().toLowerCase()))) {
+    rejections.push('Failed before (stopped downloading)');
+  }
   if (p.isCam) rejections.push('CAM/TS quality');
-  if (p.resolution === '2160p' && !s.allow4k) rejections.push('4K not allowed');
 
   // Size limit scales with how many episodes the release holds (whole bundles included).
   const counts = seasonCounts(ctx);
@@ -174,8 +197,8 @@ export function scoreRelease(r: ProwlarrRelease, ctx: ScoreContext): ScoredRelea
 
   let score = 0;
   if (p.resolution) {
-    const dist = Math.abs(LADDER.indexOf(p.resolution) - LADDER.indexOf(s.preferredResolution));
-    score += 100 - dist * 30;
+    const rank = resolutionOrder(s.preferredResolution).indexOf(p.resolution);
+    score += 100 - Math.max(0, rank) * 25;
   } else score += 20;
   score += Math.min(40, Math.round(Math.log2((r.seeders ?? 0) + 1) * 4));
   if (p.source === 'bluray' || p.source === 'webdl') score += 15;
@@ -185,7 +208,7 @@ export function scoreRelease(r: ProwlarrRelease, ctx: ScoreContext): ScoredRelea
   if (ctx.type === 'anime' && ctx.animeAudio === 'dub') score += p.audio === 'dub' ? 15 : p.audio === 'dual' ? 10 : 0;
   if (ctx.type === 'anime' && ctx.animeAudio === 'sub') score += p.audio === 'sub' ? 15 : 5;
 
-  return { ...r, parsed: p, score, rejections, coverage: scope.coverage, covers: scope.covers };
+  return { ...r, parsed: p, score, rejections, coverage: scope.coverage, covers: scope.covers, lastResort: p.resolution === '2160p' && !s.allow4k };
 }
 
 export function rankReleases(releases: ProwlarrRelease[], ctx: ScoreContext): ScoredRelease[] {
@@ -197,9 +220,13 @@ export function rankReleases(releases: ProwlarrRelease[], ctx: ScoreContext): Sc
     seen.add(key);
     scored.push(scoreRelease(r, ctx));
   }
+  // Acceptable first; among those, well-seeded ones first (a dead torrent never finishes, however good it looks),
+  // and 4K, while it's turned off, only after everything else.
   return scored.sort(
     (a, b) =>
       Number(a.rejections.length > 0) - Number(b.rejections.length > 0) ||
+      Number(isHealthy(b)) - Number(isHealthy(a)) ||
+      Number(a.lastResort) - Number(b.lastResort) ||
       b.score - a.score ||
       (b.seeders ?? 0) - (a.seeders ?? 0),
   );

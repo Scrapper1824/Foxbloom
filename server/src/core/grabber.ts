@@ -20,6 +20,7 @@ import { chooseSeriesRoot, ensureRoom } from './rootFolders.js';
 import { isAired, mediaTitles, refreshMedia, seasonsFor } from './library.js';
 import { parseRelease } from './releaseParser.js';
 import { coverageLabel, rankReleases, type ScoredRelease, type SearchScope } from './scoring.js';
+import { blockedReleases } from './downloads.js';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -65,7 +66,13 @@ function broadQueriesFor(m: MediaRow): string[] {
   return [...titles, ...extra.map((w) => `${main} ${w}`), ...(alt ? [`${alt} ${extra[0]}`] : [])];
 }
 
-/** targeted = the season/episode asked for; broad = that plus show-wide queries that find bundles. */
+/** The title alone (and its main alternative): the widest search, sorted out by the scoring. */
+const plainTitles = (m: MediaRow) => [...new Set(mediaTitles(m).map(searchable))].slice(0, 2);
+
+/**
+ * targeted = the season/episode asked for; broad = that plus wider queries: show-wide ones that find bundles for a
+ * season, and the bare title for an episode or movie (releases named "1x01", "Show.E01", or a movie without its year).
+ */
 export type SearchMode = 'targeted' | 'broad';
 /** Per-run cache so the targeted and broad passes never repeat a Prowlarr query. */
 export type QueryCache = Map<string, ProwlarrRelease[]>;
@@ -82,7 +89,8 @@ export async function searchReleases(
     m = getMedia(m.id) ?? m;
   }
   const categories = categoriesFor(m);
-  const queries = [...queriesFor(m, scope), ...(mode === 'broad' && scope.kind === 'season' ? broadQueriesFor(m) : [])];
+  const wider = mode !== 'broad' ? [] : scope.kind === 'season' ? broadQueriesFor(m) : plainTitles(m);
+  const queries = [...queriesFor(m, scope), ...wider];
   const all: ProwlarrRelease[] = [];
   const errors: string[] = [];
   for (const q of new Set(queries)) {
@@ -103,6 +111,7 @@ export async function searchReleases(
     settings: getSettings(),
     animeSeasons: m.type === 'anime' ? seasonsFor(m) : undefined,
     seasonEpisodeCounts: m.type === 'show' ? episodeCounts(m.id) : undefined,
+    blocked: blockedReleases(m.id),
   });
 }
 
@@ -399,7 +408,11 @@ async function searchWanted(mediaId: number, opts: AutoSearchOptions, out: Outco
     if (!opts.force && (!m.monitored || !stale(m.last_search))) return 0;
     db.prepare('UPDATE media SET last_search = ? WHERE id = ?').run(now(), m.id);
     out.step('Searching for the movie…');
-    const best = out.seen(await searchReleases(m, { kind: 'movie' })).find(acceptable);
+    let best = out.seen(await searchReleases(m, { kind: 'movie' })).find(acceptable);
+    if (!best) {
+      out.step('Nothing usable yet. Searching wider…');
+      best = out.seen(await searchReleases(m, { kind: 'movie' }, 'broad')).find(acceptable);
+    }
     if (!best) {
       if (!opts.force) return 0;
       logHistory(m.id, 'search', `No acceptable release found for ${m.title}`);
@@ -490,9 +503,11 @@ async function searchWanted(mediaId: number, opts: AutoSearchOptions, out: Outco
     out.step(`Searching episode by episode: S${pad(e.season)}E${pad(e.episode)} (${searches} of ${toSearch})…`);
     try {
       out.season ??= e.season;
-      const best = out.seen(await searchReleases(m, { kind: 'episode', season: e.season, episode: e.episode }, 'targeted', cache)).find(
-        acceptable,
-      );
+      const scope: SearchScope = { kind: 'episode', season: e.season, episode: e.episode };
+      // The exact search first; if it finds nothing usable, the bare title (cached, so asked once per series).
+      const best =
+        out.seen(await searchReleases(m, scope, 'targeted', cache)).find(acceptable) ??
+        out.seen(await searchReleases(m, scope, 'broad', cache)).find(acceptable);
       if (!best) continue;
       const ids = episodesForRelease(m, best.title, all)
         .filter((x) => !x.has_file)

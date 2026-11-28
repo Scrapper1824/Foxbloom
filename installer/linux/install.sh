@@ -51,14 +51,15 @@ usage() {
 confirm() {
   [ "$YES" = 1 ] && return 0
   local answer=""
-  if [ -r /dev/tty ]; then
+  # /dev/tty exists even without a controlling terminal; only opening it tells.
+  if { : </dev/tty; } 2>/dev/null; then
     printf '%s [y/N] ' "$1" >/dev/tty
     read -r answer </dev/tty || true
   fi
   [[ "$answer" =~ ^[Yy] ]]
 }
 
-as_app() { runuser -u "$SERVICE_USER" -- env HOME="$DATA_DIR" npm_config_cache="$CACHE_DIR/npm" GIT_TERMINAL_PROMPT=0 "$@"; }
+as_app() { runuser -u "$SERVICE_USER" -- env HOME="$DATA_DIR" npm_config_cache="$CACHE_DIR/npm" npm_config_update_notifier=false GIT_TERMINAL_PROMPT=0 "$@"; }
 
 # "a.b.c" >= "x.y.z"
 version_ge() { [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n1)" = "$2" ]; }
@@ -241,6 +242,7 @@ Environment=HOME=$DATA_DIR
 Environment=MEDIARR_DATA=$DATA_DIR
 Environment=MEDIARR_SERVICE=systemd
 Environment=npm_config_cache=$CACHE_DIR/npm
+Environment=npm_config_update_notifier=false
 Environment=GIT_TERMINAL_PROMPT=0
 EnvironmentFile=-$ENV_FILE
 ExecStart=$node $APP_DIR/server/dist/index.js
@@ -339,6 +341,11 @@ EOF
 # ---------- Uninstall ----------
 
 do_uninstall() {
+  if [ ! -e "$UNIT_FILE" ] && [ ! -e "$APP_DIR" ] && { [ "$PURGE" = 0 ] || { [ ! -e "$DATA_DIR" ] && [ ! -e "$ENV_FILE" ] && ! id "$SERVICE_USER" >/dev/null 2>&1; }; }; then
+    say "Foxbloom isn't installed here, so there's nothing to remove."
+    if [ "$PURGE" = 0 ] && [ -d "$DATA_DIR" ]; then say "(Data from an earlier install is in $DATA_DIR; --purge deletes it.)"; fi
+    return
+  fi
   if [ "$PURGE" = 1 ]; then
     confirm "Delete Foxbloom AND its data in $DATA_DIR (users, library, settings, watch history)? This can't be undone." ||
       die "Nothing was removed. (Run with --yes to skip this question.)"

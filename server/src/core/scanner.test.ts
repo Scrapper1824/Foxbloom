@@ -157,6 +157,26 @@ describe('scanning the library folders', () => {
     await expect(addFolder('movie', path.join(tmp, 'Elsewhere'), '.', { tmdbId: 603 })).rejects.toThrow(/isn’t one of the library folders/);
   });
 
+  it('does not count a file that is still downloading as an episode you have', async () => {
+    const sev = path.join(tmp, 'Shows', 'Severance (2022)');
+    touch(path.join(sev, 'S01E01.mkv'));
+    await scanLibrary({ delayMs: 0 });
+    const show = db.prepare("SELECT id FROM media WHERE title = 'Severance'").get() as { id: number };
+    // qBittorrent is writing episode 2 straight into the library under its final name.
+    const rel = 'Severance (2022)/Season 01/Severance - S01E02 - Episode 2.mkv';
+    touch(path.join(tmp, 'Shows', rel));
+    db.prepare(`INSERT INTO downloads (media_id, release_title, save_path, renamed, state, created_at, updated_at) VALUES (?, 'x', ?, ?, 'downloading', datetime(), datetime())`).run(
+      show.id,
+      path.join(tmp, 'Shows'),
+      JSON.stringify({ [rel]: [] }),
+    );
+    expect(await linkFiles(getMedia(show.id)!)).toBe(0);
+    expect(getEpisodes(show.id).filter((e) => e.has_file).map((e) => e.episode)).toEqual([1]);
+    // Once it's imported (no longer downloading), the file counts.
+    db.prepare("UPDATE downloads SET state = 'imported'").run();
+    expect(await linkFiles(getMedia(show.id)!)).toBe(1);
+  });
+
   it('links a single-file title even without an episode number', async () => {
     const id = Number(
       db.prepare(`INSERT INTO media (type, anilist_id, title, year, root_folder, folder_name, added_at) VALUES ('anime', 1, 'Your Name', 2016, ?, 'Your Name', datetime())`)

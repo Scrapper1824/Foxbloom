@@ -11,6 +11,28 @@ export const DEAD_AFTER_MS = 2 * 3600_000;
 /** qBittorrent states where a download should be moving. Paused, queued and checking ones are left alone. */
 const ACTIVE_DL_STATES = new Set(['downloading', 'forcedDL', 'stalledDL', 'metaDL', 'forcedMetaDL']);
 
+/** Where a download's files go once qBittorrent has given them their clean names (absolute paths). */
+export function downloadTargets(dl: Pick<DownloadRow, 'save_path' | 'renamed'>): string[] {
+  let renamed: Record<string, unknown> = {};
+  try {
+    renamed = JSON.parse(dl.renamed ?? '{}') as Record<string, unknown>;
+  } catch {
+    /* nothing recorded */
+  }
+  return Object.keys(renamed).map((rel) => path.resolve(dl.save_path, rel));
+}
+
+/**
+ * Files of a title that qBittorrent is still writing (under their final names, in the library folder), lower-cased:
+ * the library scan must not count them as episodes you have.
+ */
+export function downloadingFiles(mediaId: number): Set<string> {
+  const rows = db
+    .prepare("SELECT save_path, renamed FROM downloads WHERE media_id = ? AND state IN ('queued','downloading','importing') AND renamed IS NOT NULL")
+    .all(mediaId) as Pick<DownloadRow, 'save_path' | 'renamed'>[];
+  return new Set(rows.flatMap((r) => downloadTargets(r).map((p) => p.toLowerCase())));
+}
+
 /** Never grab this release for this title again (it was grabbed once and stopped downloading). */
 export function blockRelease(mediaId: number, infoHash: string | null, title: string, reason: string) {
   db.prepare('INSERT INTO release_blocklist (media_id, info_hash, title, reason, created_at) VALUES (?, ?, ?, ?, ?)').run(
@@ -41,6 +63,18 @@ async function giveUp(dl: DownloadRow, hash: string): Promise<void> {
   }
   const hours = Math.round(DEAD_AFTER_MS / 3600_000);
   blockRelease(dl.media_id, hash, dl.release_title, 'stopped downloading');
+  // Its half-written files may have been counted as episodes you have (older versions did): forget them, so the
+  // search below looks for those episodes again.
+  const gone = new Set(downloadTargets(dl).map((p) => p.toLowerCase()));
+  if (gone.size) {
+    const files = db.prepare('SELECT id, file_path FROM episodes WHERE media_id = ? AND file_path IS NOT NULL').all(dl.media_id) as { id: number; file_path: string }[];
+    const clear = db.prepare('UPDATE episodes SET has_file = 0, file_path = NULL WHERE id = ?');
+    for (const e of files) if (gone.has(path.resolve(e.file_path).toLowerCase())) clear.run(e.id);
+    db.prepare('UPDATE media SET has_file = 0, file_path = NULL WHERE id = ? AND file_path IS NOT NULL AND LOWER(file_path) IN (' + [...gone].map(() => '?').join(',') + ')').run(
+      dl.media_id,
+      ...[...gone].map((p) => p.toLowerCase()),
+    );
+  }
   setState(dl.id, { state: 'failed', error: `Stopped downloading (no progress for ${hours} hours): removed, and Foxbloom is looking for another release` });
   logHistory(dl.media_id, 'failed', `"${dl.release_title}" stopped downloading for ${hours} hours, so it was removed and won't be grabbed again. Looking for another release.`);
   const episodeIds = JSON.parse(dl.episode_ids || '[]') as number[];

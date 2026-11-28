@@ -10,7 +10,7 @@ const EXPLAIN: Record<string, string> = {
   'Dub only': 'Dub only. Switch this show to Dub if that’s fine.',
   'Too big': 'Bigger than your size limit (Settings → Quality).',
   'Not enough seeders': 'Too few seeders (Settings → Quality → minimum seeders).',
-  '4K not allowed': '4K, which is turned off (Settings → Quality).',
+  'Failed before': 'Grabbed before and stopped downloading, so it’s skipped.',
   'Wrong season': 'A different season.',
   'Wrong episode': 'A different episode.',
   'Title mismatch': 'A different show or movie with a similar name.',

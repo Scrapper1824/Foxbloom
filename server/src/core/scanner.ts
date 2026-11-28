@@ -1,3 +1,4 @@
+import { downloadingFiles } from './downloads.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { searchAnime } from '../clients/anilist.js';
@@ -101,7 +102,11 @@ export async function linkFiles(m: MediaRow): Promise<number> {
   if (!dirs.length) return 0;
   const found: { full: string; size: number; dir: string }[] = [];
   for (const d of dirs) for (const f of await walk(d)) found.push({ ...f, dir: d });
-  const videos = found.filter((f) => VIDEO.test(f.full) && !isSample(f) && !isExtra(path.relative(f.dir, f.full)));
+  // Files qBittorrent is still writing into the library under their final names aren't episodes you have yet.
+  const downloading = downloadingFiles(m.id);
+  const videos = found.filter(
+    (f) => VIDEO.test(f.full) && !isSample(f) && !isExtra(path.relative(f.dir, f.full)) && !downloading.has(path.resolve(f.full).toLowerCase()),
+  );
   if (!videos.length) return 0;
 
   if (m.type === 'movie') {

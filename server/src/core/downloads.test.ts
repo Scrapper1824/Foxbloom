@@ -72,6 +72,23 @@ describe('downloads that stop downloading', () => {
     await vi.waitFor(() => expect(autoSearch).toHaveBeenCalledWith(mediaId, expect.objectContaining({ episodeIds: [11] })));
   });
 
+  it('forgets the half-downloaded file, so the episode is searched for again', async () => {
+    dbm.db.prepare('UPDATE downloads SET progress_at = ?, renamed = ? WHERE id = ?').run(
+      ago(DEAD_AFTER_MS + 60_000),
+      JSON.stringify({ 'The Rings of Power (2022)/Season 01/The Rings of Power - S01E01.mkv': [11] }),
+      dlId,
+    );
+    dbm.db
+      .prepare('INSERT INTO episodes (id, media_id, season, episode, has_file, file_path) VALUES (11, ?, 1, 1, 1, ?), (12, ?, 1, 2, 1, ?)')
+      .run(mediaId, 'D:/TV/The Rings of Power (2022)/Season 01/The Rings of Power - S01E01.mkv', mediaId, 'D:/TV/The Rings of Power (2022)/Season 01/The Rings of Power - S01E02.mkv');
+    await pollDownloads();
+    const eps = dbm.db.prepare('SELECT id, has_file FROM episodes ORDER BY id').all();
+    expect(eps).toEqual([
+      { id: 11, has_file: 0 },
+      { id: 12, has_file: 1 }, // a real file of another episode is left alone
+    ]);
+  });
+
   it('leaves alone a download you paused, or one waiting in qBittorrent’s queue', async () => {
     dbm.db.prepare('UPDATE downloads SET progress_at = ? WHERE id = ?').run(ago(DEAD_AFTER_MS + 60_000), dlId);
     for (const state of ['stoppedDL', 'pausedDL', 'queuedDL', 'checkingDL']) {

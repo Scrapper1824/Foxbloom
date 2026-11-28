@@ -34,7 +34,10 @@ export interface ScoredRelease extends ProwlarrRelease {
   coverage: Coverage | null;
   /** Seasons a pack/bundle contains. */
   covers: number[];
-  /** 4K while 4K is turned off: only used when nothing else acceptable and well seeded was found. */
+  /**
+   * Only used when nothing else acceptable and well seeded was found: 4K while 4K is turned off, or audio in another
+   * language with no English named (which may just be the original language of a foreign film).
+   */
   lastResort: boolean;
 }
 
@@ -182,6 +185,7 @@ export function scoreRelease(r: ProwlarrRelease, ctx: ScoreContext): ScoredRelea
     rejections.push('Failed before (stopped downloading)');
   }
   if (p.isCam) rejections.push('CAM/TS quality');
+  if (p.foreignAudio && p.foreignDub) rejections.push(`Foreign dub (${p.foreignAudio})`);
 
   // Size limit scales with how many episodes the release holds (whole bundles included).
   const counts = seasonCounts(ctx);
@@ -208,7 +212,7 @@ export function scoreRelease(r: ProwlarrRelease, ctx: ScoreContext): ScoredRelea
   if (ctx.type === 'anime' && ctx.animeAudio === 'dub') score += p.audio === 'dub' ? 15 : p.audio === 'dual' ? 10 : 0;
   if (ctx.type === 'anime' && ctx.animeAudio === 'sub') score += p.audio === 'sub' ? 15 : 5;
 
-  return { ...r, parsed: p, score, rejections, coverage: scope.coverage, covers: scope.covers, lastResort: p.resolution === '2160p' && !s.allow4k };
+  return { ...r, parsed: p, score, rejections, coverage: scope.coverage, covers: scope.covers, lastResort: (p.resolution === '2160p' && !s.allow4k) || !!p.foreignAudio };
 }
 
 export function rankReleases(releases: ProwlarrRelease[], ctx: ScoreContext): ScoredRelease[] {

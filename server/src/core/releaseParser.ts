@@ -24,6 +24,10 @@ export interface ParsedRelease {
   isBatch: boolean;
   audio: Audio;
   isCam: boolean;
+  /** Audio in another language with no English track named ("[Ukr Dub]", "iTALiAN", "Latino"), or null. */
+  foreignAudio: string | null;
+  /** That foreign audio is explicitly a dub/voice-over (not just the original language). */
+  foreignDub: boolean;
 }
 
 const VIDEO_EXT = /\.(mkv|mp4|avi|m4v|ts|wmv|webm|mov|torrent)$/i;
@@ -34,6 +38,37 @@ const YEAR = /\b(19\d{2}|20\d{2})\b/g;
 const DUAL = /\b(dual[\s._-]?audio|multi[\s._-]?audio|dual)\b/i;
 const DUB = /\b(dub|dubbed|eng(?:lish)?[\s._-]?dub(?:bed)?)\b/i;
 const CAM = /\b(cam|camrip|hdcam|ts|telesync|hdts|tc|telecine|hdtc|screener|scr)\b/i;
+
+// Language markers, looked for only after the title (so "French Kiss" or "The German" don't count).
+// A whole word (works for Cyrillic too, where \b doesn't).
+const word = (alts: string) => new RegExp(String.raw`(?<![\p{L}\p{N}])(?:${alts})(?![\p{L}\p{N}])`, 'iu');
+const FOREIGN: [string, RegExp][] = [
+  ['Ukrainian', word('ukr|ukrainian|укр')],
+  ['Russian', word('rus|russian|mvo|dvo|avo')],
+  ['Italian', word('ita|italian|italiano')],
+  ['French', word('french|truefrench|vff|vfq|vfi|vf2?')],
+  ['German', word('german|deutsch|ger')],
+  ['Spanish', word('spanish|espa[nñ]ol|castellano|latino|spa|esp')],
+  ['Portuguese', word('portuguese|dublado|pt[\s-]?br|por')],
+  ['Polish', word('polish|pldub|lektor|pl')],
+  ['Turkish', word('turkish|t[uü]rk[cç]e')],
+  ['Hindi', word('hindi|tamil|telugu|malayalam|kannada')],
+  ['Czech', word('czech|cz')],
+  ['Hungarian', word('hungarian|hun')],
+  ['Arabic', word('arabic')],
+];
+const ENGLISH = word('eng|english|en|multi|dual');
+const FOREIGN_DUB = word('dub|dubbed|dublado|mvo|dvo|avo|lektor|pldub|vff|vfq|vfi|truefrench|latino|castellano');
+const CYRILLIC = /[Ѐ-ӿ]/;
+
+function foreignLanguage(tail: string, raw: string): { foreignAudio: string | null; foreignDub: boolean } {
+  if (ENGLISH.test(tail)) return { foreignAudio: null, foreignDub: false };
+  const hit = FOREIGN.find(([, re]) => re.test(tail));
+  if (hit) return { foreignAudio: hit[0], foreignDub: FOREIGN_DUB.test(tail) };
+  // A release named in Cyrillic that never mentions English is a Russian/Ukrainian one.
+  if (CYRILLIC.test(raw)) return { foreignAudio: 'Russian/Ukrainian', foreignDub: FOREIGN_DUB.test(tail) };
+  return { foreignAudio: null, foreignDub: false };
+}
 
 function range(a: number, b: number): number[] {
   if (b < a || b - a > 2000) return [a];
@@ -217,6 +252,7 @@ export function parseRelease(raw: string): ParsedRelease {
     isBatch: isBatch || absoluteEpisodes.length > 1,
     audio,
     isCam,
+    ...foreignLanguage(spaced.slice(Math.max(0, cutAt)), raw),
   };
 }
 

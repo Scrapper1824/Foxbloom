@@ -7,6 +7,7 @@ import Modal from './Modal';
 /** Plain-language explanations (and what to do) for the usual rejection reasons. */
 const EXPLAIN: Record<string, string> = {
   'Not dubbed': 'Not dubbed. Switch this show to Sub, or wait for a dub.',
+  'Foreign dub': 'Dubbed into another language, with no English audio.',
   'Dub only': 'Dub only. Switch this show to Dub if that’s fine.',
   'Too big': 'Bigger than your size limit (Settings → Quality).',
   'Not enough seeders': 'Too few seeders (Settings → Quality → minimum seeders).',

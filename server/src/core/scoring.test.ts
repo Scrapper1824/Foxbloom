@@ -205,3 +205,43 @@ describe('picking a release that will actually download', () => {
     expect(byTitle.rejections).toContain('Failed before (stopped downloading)');
   });
 });
+
+describe('audio language', () => {
+  const movie: ScoreContext = {
+    type: 'movie',
+    titles: ['Godzilla Minus Zero'],
+    year: 2026,
+    animeAudio: null,
+    scope: { kind: 'movie' },
+    settings: DEFAULT_SETTINGS,
+  };
+
+  it('rejects a release dubbed into another language', () => {
+    const ukr = scoreRelease(rel('GODZILLA MINUS ZERO (2026) 1080p WEB-DL [Ukr Dub]'), movie);
+    expect(ukr.rejections).toContain('Foreign dub (Ukrainian)');
+    expect(scoreRelease(rel('Godzilla.Minus.Zero.2026.1080p.WEB-DL.Dublado.PT-BR'), movie).rejections).toContain('Foreign dub (Portuguese)');
+    expect(scoreRelease(rel('Godzilla Minus Zero 2026 1080p WEB-DL MVO'), movie).rejections).toContain('Foreign dub (Russian)');
+  });
+
+  it('keeps releases that also have English, and the original audio', () => {
+    expect(scoreRelease(rel('Godzilla Minus Zero (2026) 1080p WEB-DL [Ukr Dub + Eng]'), movie).rejections).toEqual([]);
+    expect(scoreRelease(rel('Godzilla.Minus.Zero.2026.MULTi.1080p.WEB-DL-GRP'), movie).rejections).toEqual([]);
+    const jp = scoreRelease(rel('Godzilla.Minus.Zero.2026.JAPANESE.1080p.WEB-DL.x264-GRP'), movie);
+    expect(jp.rejections).toEqual([]);
+    expect(jp.lastResort).toBe(false);
+  });
+
+  it('does not read a language in the title itself', () => {
+    const fk: ScoreContext = { ...movie, titles: ['French Kiss'], year: 1995 };
+    const r = scoreRelease(rel('French.Kiss.1995.1080p.BluRay.x264-GRP'), fk);
+    expect(r.rejections).toEqual([]);
+    expect(r.lastResort).toBe(false);
+  });
+
+  it('only takes another-language audio (no dub named) when nothing in English is found', () => {
+    const ita = rel('Godzilla.Minus.Zero.2026.iTALiAN.1080p.WEB-DL-GRP', { seeders: 400 });
+    expect(scoreRelease(ita, movie).rejections).toEqual([]);
+    expect(rankReleases([ita, rel('Godzilla.Minus.Zero.2026.720p.WEB-DL-GRP', { seeders: 20 })], movie)[0].title).toContain('720p');
+    expect(rankReleases([ita], movie)[0].title).toContain('iTALiAN');
+  });
+});
